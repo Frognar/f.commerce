@@ -2,7 +2,9 @@ using System.Security.Claims;
 using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
 using FCommerce.Authorization.Core;
+using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Host.Security;
@@ -47,15 +49,21 @@ public sealed class CurrentUser(IHttpContextAccessor accessor, IQueryHandler<Get
         };
 }
 
-/// <summary>The policy decision point for the current request.</summary>
-public sealed class AccessControl(CurrentUser user, IPlatformState platform, TimeProvider time)
+/// <summary>The policy decision point for the current request; the environment comes from the platform settings.</summary>
+public sealed class AccessControl(CurrentUser user, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings, TimeProvider time)
 {
-    public async Task<Decision> DecideAsync(AccessAction action, Resource resource, CancellationToken cancellationToken = default) =>
-        PlatformPolicies.Decide(new AccessRequest(
+    public async Task<Decision> DecideAsync(AccessAction action, Resource resource, CancellationToken cancellationToken = default)
+    {
+        var current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
+        return PlatformPolicies.Decide(new AccessRequest(
             await user.SubjectAsync(cancellationToken),
             action,
             resource,
-            new AccessEnvironment(time.GetUtcNow(), platform.CatalogVisibility, platform.Features.On)));
+            new AccessEnvironment(
+                time.GetUtcNow(),
+                Enum.Parse<CatalogVisibility>(current.CatalogVisibility),
+                [.. current.Features.Where(f => f.On).Select(f => FeatureId.Parse(f.Id)).SelectMany(r => r.Match(id => (FeatureId[])[id], _ => []))])));
+    }
 
     public async Task<bool> CanAsync(AccessAction action, Resource resource, CancellationToken cancellationToken = default) =>
         (await DecideAsync(action, resource, cancellationToken)).IsPermitted;

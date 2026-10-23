@@ -1,0 +1,118 @@
+@page "/admin/settings"
+@using System.Globalization
+@using FCommerce.Host.Media
+@using FCommerce.Media.Contracts
+@model FCommerce.Host.Pages.Admin.SettingsModel
+@{
+    ViewData["Title"] = T["PlatformSettings"];
+}
+<nav class="breadcrumb"><a asp-page="/Admin/Index">@T["BackOffice"]</a></nav>
+<h1>@T["PlatformSettings"]</h1>
+@if (Model.Saved is not null)
+{
+    <p class="notice" role="status">@Model.Saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+
+<form method="post" enctype="multipart/form-data" class="settings">
+    <input type="hidden" asp-for="Form.Version" />
+    <input type="hidden" asp-for="Form.LogoImageId" />
+
+    <section class="card">
+        <h2>@T["Storefront"]</h2>
+        <fieldset class="checks">
+            <legend>@T["CatalogVisibility"]</legend>
+            <label class="inline"><input type="radio" asp-for="Form.CatalogVisibility" value="Public" /> @T["CatalogVisibility.Public"]</label>
+            <label class="inline"><input type="radio" asp-for="Form.CatalogVisibility" value="SignedInOnly" /> @T["CatalogVisibility.SignedInOnly"]</label>
+        </fieldset>
+    </section>
+
+    <section class="card">
+        <h2>@T["Features"]</h2>
+        <p class="muted">@T["FeaturesLead"]</p>
+        <ul class="feature-list">
+            @foreach (var feature in Model.Current.Features)
+            {
+                <li>
+                    <label class="inline">
+                        <input type="checkbox" name="Form.EnabledFeatures" value="@feature.Id" checked="@Model.Form.EnabledFeatures.Contains(feature.Id)" />
+                        <strong>@T[$"Feature.{feature.Id}"]</strong>
+                        @if (feature.Enabled && !feature.On)
+                        {
+                            <span class="badge">@T["FeatureBlocked"]</span>
+                        }
+                    </label>
+                    <span class="muted">@T[$"FeatureHint.{feature.Id}"]
+                        @if (feature.Requires.Count > 0)
+                        {
+                            <text>@T["Requires"]: @string.Join(", ", feature.Requires.Select(r => T[$"Feature.{r}"].Value))</text>
+                        }
+                    </span>
+                </li>
+            }
+        </ul>
+    </section>
+
+    <section class="card">
+        <h2>@T["Branding"]</h2>
+        <div class="stack">
+            <label>@T["StoreName"] <input asp-for="Form.StoreName" required maxlength="100" /></label>
+            <label>@T["AccentColor"] <input asp-for="Form.AccentColor" type="color" /></label>
+            <label>@T["Logo"] <input asp-for="Logo" type="file" accept="image/png,image/jpeg,image/webp" /></label>
+            @if (Model.Form.LogoImageId is not null)
+            {
+                <div class="logo-preview">
+                    <img src="@MediaEndpoints.ImageUrl(Model.Form.LogoImageId, ImageVariantNames.Thumbnail)" alt="@T["Logo"]" />
+                    <label class="inline"><input asp-for="Form.RemoveLogo" /> @T["RemoveLogo"]</label>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>@T["Contact"]</h2>
+        <div class="stack">
+            <label>@T["SupportEmail"] <input asp-for="Form.SupportEmail" type="email" /></label>
+            <label>@T["SupportPhone"] <input asp-for="Form.SupportPhone" maxlength="40" /></label>
+            <label>@T["OperatorNotifications"] <input asp-for="Form.OperatorNotifications" type="email" /></label>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>@T["CommerceDefaults"]</h2>
+        <div class="stack">
+            <label>@T["DefaultPriceList"] <input asp-for="Form.DefaultPriceListCode" maxlength="64" /></label>
+            <p class="muted">@T["DefaultPriceListHint"]</p>
+            <label>@T["DefaultContactTemplate"]
+                <select asp-for="Form.DefaultContactTemplate">
+                    @foreach (var template in FCommerce.Authorization.Core.MembershipAttributes.Templates.Keys)
+                    {
+                        <option value="@template">@T[$"Template.{template}"]</option>
+                    }
+                </select>
+            </label>
+        </div>
+    </section>
+
+    <p><button class="button" type="submit">@T["Save"]</button></p>
+</form>
+
+@if (Model.History.Count > 0)
+{
+    <section class="card">
+        <h2>@T["ChangeHistory"]</h2>
+        <table class="data">
+            <thead><tr><th>@T["When"]</th><th>@T["Who"]</th><th>@T["WhatChanged"]</th></tr></thead>
+            <tbody>
+                @foreach (var change in Model.History)
+                {
+                    <tr>
+                        <td>@change.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</td>
+                        <td>@(change.ActorId is { } actor && Model.OperatorNames.TryGetValue(actor, out var name) ? name : "—")</td>
+                        <td>@(change.Changes.Count == 0 ? "—" : string.Join(", ", change.Changes.Select(Model.Describe)))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}

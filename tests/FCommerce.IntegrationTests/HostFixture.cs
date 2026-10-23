@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Text.RegularExpressions;
 using FCommerce.Application.Email;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
@@ -13,8 +14,11 @@ using Testcontainers.PostgreSql;
 namespace FCommerce.IntegrationTests;
 
 /// <summary>The real host against a throw-away PostgreSQL, with schema and migrations applied on startup.</summary>
-public sealed class HostFixture : IAsyncLifetime
+public partial class HostFixture : IAsyncLifetime
 {
+    public const string AdminPassword = "platform owner passphrase 1";
+    private readonly SemaphoreSlim adminGate = new(1, 1);
+    private bool adminActivated;
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
     private readonly string dataPath = Path.Combine(Path.GetTempPath(), $"fcommerce-tests-{Guid.NewGuid():N}");
     private WebApplicationFactory<Program>? factory;
@@ -43,7 +47,7 @@ public sealed class HostFixture : IAsyncLifetime
     public async ValueTask InitializeAsync()
     {
         await postgres.StartAsync();
-        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host => host
+        factory = new WebApplicationFactory<Program>().WithWebHostBuilder(host => Configure(host
             .UseEnvironment("Testing")
             .UseSetting("ConnectionStrings:Postgres", postgres.GetConnectionString())
             .UseSetting("Database:ApplyChangesOnStartup", "true")
@@ -56,9 +60,52 @@ public sealed class HostFixture : IAsyncLifetime
             {
                 services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events);
                 services.AddSingleton<IEmailSender>(Mail);
-            }));
+            })));
         _ = Factory.Server; // start now, so failures surface in the fixture
     }
+
+    /// <summary>Extra configuration of a derived (isolated) host.</summary>
+    protected virtual IWebHostBuilder Configure(IWebHostBuilder host) => host;
+
+    public Browser NewBrowser() => new(CreateClient());
+
+    /// <summary>Opens the invitation link from the latest invitation e-mail and chooses a password.</summary>
+    public async Task<(System.Net.HttpStatusCode Status, string? Location)> AcceptInvitationAsync(Browser browser, string email, string password)
+    {
+        var mail = await Mail.WaitForAsync(email, m => m.Text.Contains("/invitation?token=", StringComparison.Ordinal));
+        var link = new Uri(InvitationLink().Match(mail.Text).Value);
+        var (status, _, location) = await browser.SubmitAsync(link.PathAndQuery, new Dictionary<string, string> { ["Password"] = password, ["Confirmation"] = password });
+        return (status, location);
+    }
+
+    public static Task<(System.Net.HttpStatusCode Status, string Html, string? Location)> SignInAsync(Browser browser, string email, string password) =>
+        browser.SubmitAsync("/pl/sign-in", new Dictionary<string, string> { ["Email"] = email, ["Password"] = password });
+
+    /// <summary>A browser signed in as the bootstrap administrator (activated on first use).</summary>
+    public async Task<Browser> AdminAsync()
+    {
+        var browser = NewBrowser();
+        await adminGate.WaitAsync();
+        try
+        {
+            if (!adminActivated)
+            {
+                await AcceptInvitationAsync(browser, AdminEmail, AdminPassword);
+                adminActivated = true;
+                return browser;
+            }
+        }
+        finally
+        {
+            adminGate.Release();
+        }
+
+        await SignInAsync(browser, AdminEmail, AdminPassword);
+        return browser;
+    }
+
+    [GeneratedRegex(@"https?://\S+/invitation\?token=[A-Za-z0-9_%-]+")]
+    private static partial Regex InvitationLink();
 
     public sealed class Mailbox : IEmailSender
     {
@@ -106,6 +153,7 @@ public sealed class HostFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        GC.SuppressFinalize(this);
         if (factory is not null)
         {
             await factory.DisposeAsync();

@@ -6,6 +6,7 @@ using FCommerce.Host.Security;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Localization;
 
@@ -36,16 +37,21 @@ public sealed class IndexModel(
 
     public string? Saved { get; private set; }
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    /// <summary>Loads the session before any handler, so every request path (including an unknown handler) can render.</summary>
+    public override async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
     {
-        Session = (await user.SessionAsync(cancellationToken))!;
+        Session = (await user.SessionAsync(HttpContext.RequestAborted))!;
+        await next();
+    }
+
+    public void OnGet()
+    {
         Name = Session.Name;
         Culture = Session.Culture;
     }
 
     public async Task<IActionResult> OnPostProfileAsync(CancellationToken cancellationToken)
     {
-        Session = (await user.SessionAsync(cancellationToken))!;
         (await changeProfile.HandleAsync(new ChangeProfile(Session.UserId, Name, Culture), cancellationToken)).Switch(
             _ => Saved = texts["ProfileSaved"],
             error => ModelState.AddErrors(error, texts));
@@ -54,7 +60,6 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnPostPasswordAsync(CancellationToken cancellationToken)
     {
-        Session = (await user.SessionAsync(cancellationToken))!;
         (Name, Culture) = (Session.Name, Session.Culture);
         if (NewPassword != Confirmation)
         {

@@ -2,6 +2,9 @@ using FCommerce.Access;
 using FCommerce.Catalog;
 using FCommerce.Host.Security;
 using FCommerce.Notifications;
+using FCommerce.Settings;
+using FCommerce.SharedKernel.Features;
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using FCommerce.Host.Media;
 using FCommerce.Infrastructure.Search;
@@ -34,21 +37,25 @@ builder.Services.AddEmbeddedSearch(Path.Combine(builder.Environment.ContentRootP
 
 // Identity and access: cookie session, ABAC policies, platform switches.
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddSingleton<IPlatformState, ConfiguredPlatformState>();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AccessControl>();
+builder.Services.AddScoped<FeatureGateFilter>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
 builder.Services.AddAbacAuthorization();
 builder.Services.AddAuthenticationRateLimits(builder.Configuration.GetValue("Security:AuthenticationAttemptsPerMinute", 10));
 
-// Modules.
+// Modules. What this installation offers is set at deployment; the back-office switches within it.
+var availableFeatures = (builder.Configuration.GetSection("Features:Available").Get<string[]>()
+        ?? [.. Feature.All.Select(f => f.Id.Value)])
+    .Select(id => FeatureId.Parse(id).Match(f => f, e => throw new InvalidOperationException($"Features:Available: {e.Message}")))
+    .ToImmutableHashSet();
+builder.Services.AddSettingsModule(new SettingsOptions(availableFeatures));
 var localization = builder.Configuration.GetSection(LocalizationSettings.Section).Get<LocalizationSettings>() ?? new LocalizationSettings();
 builder.Services.AddAccessModule(builder.Configuration.GetSection("Access").Get<AccessOptions>() ?? new AccessOptions());
 builder.Services.AddNotificationsModule(new NotificationsOptions
 {
     PublicUrl = new Uri(builder.Configuration["Platform:PublicUrl"] ?? throw new InvalidOperationException("Platform:PublicUrl is not configured.")),
-    SellerName = builder.Configuration["Platform:SellerName"] ?? "f.commerce",
 });
 builder.Services.AddMediaModule();
 builder.Services.AddCatalogModule(options =>
@@ -92,6 +99,8 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AuthorizeFolder("/Account", Policies.OwnAccount);
         options.Conventions.AuthorizeFolder("/Admin", Policies.BackOffice);
         options.Conventions.AuthorizePage("/Admin/Operators", Policies.OperatorsManage);
+        options.Conventions.AuthorizePage("/Admin/Settings", Policies.SettingsManage);
+        options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.ServiceFilterAttribute(typeof(FeatureGateFilter)));
     })
     .AddViewLocalization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");

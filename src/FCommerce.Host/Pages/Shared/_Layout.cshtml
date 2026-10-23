@@ -3,6 +3,7 @@
 @inject IAntiforgery Antiforgery
 @inject SupportedCultures Cultures
 @inject FCommerce.Host.Security.CurrentUser CurrentUser
+@inject FCommerce.Application.Messaging.IQueryHandler<FCommerce.Settings.Contracts.GetPlatformSettings, FCommerce.Settings.Contracts.PlatformSettingsView> Settings
 @{
     var culture = CultureInfo.CurrentUICulture.Name;
     // Only culture-prefixed pages get alternates and a language switcher.
@@ -11,13 +12,15 @@
         : null;
     var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
     var session = await CurrentUser.SessionAsync();
+    var platform = await Settings.HandleAsync(new FCommerce.Settings.Contracts.GetPlatformSettings());
+    var branding = platform.Branding;
 }
 <!DOCTYPE html>
 <html lang="@culture">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>@ViewData["Title"] · f.commerce</title>
+    <title>@ViewData["Title"] · @branding.StoreName</title>
     @if (currentPage is not null)
     {
         foreach (var alternate in Cultures.All)
@@ -26,13 +29,21 @@
         }
     }
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    @* Branding: the accent is a validated #rrggbb value from the platform settings. *@
+    <style>:root { --color-accent: @branding.AccentColor; }</style>
     <script src="~/lib/htmx/htmx.min.js" asp-append-version="true" defer></script>
     <script src="~/js/gallery.js" asp-append-version="true" defer></script>
 </head>
 <body hx-headers='{"RequestVerificationToken": "@token"}'>
     <header class="site-header">
         <div class="container header-row">
-            <a class="brand" asp-page="/Index">f.commerce <span class="brand-tagline">@T["Tagline"]</span></a>
+            <a class="brand" asp-page="/Index">
+                @if (branding.LogoImageId is not null)
+                {
+                    <img class="brand-logo" src="@FCommerce.Host.Media.MediaEndpoints.ImageUrl(branding.LogoImageId, FCommerce.Media.Contracts.ImageVariantNames.Thumbnail)" alt="" />
+                }
+                @branding.StoreName <span class="brand-tagline">@T["Tagline"]</span>
+            </a>
             <nav class="main-nav">
                 <a asp-page="/Catalog/Index">@T["Catalog"]</a>
             </nav>
@@ -69,7 +80,17 @@
         @RenderBody()
     </main>
     <footer class="site-footer">
-        <div class="container">© @DateTime.UtcNow.Year f.commerce</div>
+        <div class="container footer-row">
+            <span>© @DateTime.UtcNow.Year @branding.StoreName</span>
+            @if (platform.Contact.SupportEmail is not null)
+            {
+                <a href="mailto:@platform.Contact.SupportEmail">@platform.Contact.SupportEmail</a>
+            }
+            @if (platform.Contact.SupportPhone is not null)
+            {
+                <span>@platform.Contact.SupportPhone</span>
+            }
+        </div>
     </footer>
 </body>
 </html>

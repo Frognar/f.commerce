@@ -13,7 +13,7 @@ internal sealed record ActionEmail(string Subject, string Greeting, string Body,
 /// Texts come from resources per language (EmailTexts.resx, EmailTexts.pl.resx …); an installation can later override
 /// them. Everything user-provided is HTML-encoded.
 /// </summary>
-internal sealed class EmailRenderer(NotificationsOptions options)
+internal static class EmailRenderer
 {
     private static readonly ResourceManager Texts = new("FCommerce.Notifications.Templates.EmailTexts", typeof(EmailRenderer).Assembly);
 
@@ -24,15 +24,15 @@ internal sealed class EmailRenderer(NotificationsOptions options)
         return string.Format(info, format, arguments);
     }
 
-    public EmailMessage Render(EmailAddress to, string toName, string culture, ActionEmail email)
+    public static EmailMessage Render(EmailAddress to, string toName, string culture, string storeName, ActionEmail email)
     {
-        var footer = Text("Footer", culture, options.SellerName);
+        var footer = Text("Footer", culture, storeName);
         var html = $"""
             <!DOCTYPE html>
             <html lang="{Encode(culture)}">
             <body style="margin:0;padding:24px;background:#f6f7f9;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;color:#1b1f24">
               <div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #dfe3e8;border-radius:10px;padding:32px">
-                <p style="font-weight:700;margin:0 0 24px">{Encode(options.SellerName)}</p>
+                <p style="font-weight:700;margin:0 0 24px">{Encode(storeName)}</p>
                 <p>{Encode(email.Greeting)}</p>
                 <p>{Encode(email.Body)}</p>
                 <p style="margin:28px 0">

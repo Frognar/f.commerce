@@ -8,6 +8,11 @@ public sealed class IndexModel(AccessControl access) : PageModel
 {
     public bool CanManageOperators { get; private set; }
 
-    public async Task OnGetAsync(CancellationToken cancellationToken) =>
+    public bool CanManageSettings { get; private set; }
+
+    public async Task OnGetAsync(CancellationToken cancellationToken)
+    {
         CanManageOperators = await access.CanAsync(AccessAction.Manage, new Resource.Operators(), cancellationToken);
+        CanManageSettings = await access.CanAsync(AccessAction.Manage, new Resource.PlatformSettings(), cancellationToken);
+    }
 }

@@ -1,6 +1,7 @@
 using FCommerce.Access.Contracts;
 using FCommerce.Application.Email;
-using FCommerce.Notifications.Templates;
+using FCommerce.Application.Messaging;
+using FCommerce.Settings.Contracts;
 
 namespace FCommerce.Notifications.Tests;
 
@@ -17,12 +18,19 @@ public sealed class EmailTests
         }
     }
 
-    private static readonly NotificationsOptions Options = new() { PublicUrl = new Uri("https://b2b.example.com"), SellerName = "Hurtownia <Śruba>" };
+    private static readonly NotificationsOptions Options = new() { PublicUrl = new Uri("https://b2b.example.com") };
+
+    /// <summary>Settings with a store name that needs HTML encoding.</summary>
+    private sealed class Settings : IQueryHandler<GetPlatformSettings, PlatformSettingsView>
+    {
+        public Task<PlatformSettingsView> HandleAsync(GetPlatformSettings query, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, null), null, "buyer"));
+    }
 
     private static async Task<EmailMessage> SendInvitationAsync(string culture, string name, string audience)
     {
         var recorder = new Recorder();
-        await new SendInvitation(recorder, new EmailRenderer(Options), Options).HandleAsync(
+        await new SendInvitation(recorder, Options, new Settings()).HandleAsync(
             new InvitationIssued(Guid.NewGuid(), "jan@firma.pl", name, culture, "tok+en/1", audience, "Firma S.A."),
             TestContext.Current.CancellationToken);
         return Assert.Single(recorder.Sent);
@@ -56,7 +64,7 @@ public sealed class EmailTests
     {
         var recorder = new Recorder();
 
-        await new SendPasswordReset(recorder, new EmailRenderer(Options), Options).HandleAsync(
+        await new SendPasswordReset(recorder, Options, new Settings()).HandleAsync(
             new PasswordResetRequested(Guid.NewGuid(), "jan@firma.pl", "Jan", "en", "abc"), TestContext.Current.CancellationToken);
 
         var email = Assert.Single(recorder.Sent);

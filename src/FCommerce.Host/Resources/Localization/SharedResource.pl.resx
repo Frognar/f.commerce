@@ -103,4 +103,59 @@
   <data name="Error.grant.last-operator-manager" xml:space="preserve"><value>Co najmniej jeden operator musi móc zarządzać operatorami.</value></data>
   <data name="Error.operator.not-found" xml:space="preserve"><value>Nie znaleziono operatora.</value></data>
   <data name="Error.account.disabled" xml:space="preserve"><value>Konto jest zablokowane.</value></data>
+  <data name="PlatformSettings" xml:space="preserve"><value>Ustawienia platformy</value></data>
+  <data name="PlatformSettingsLead" xml:space="preserve"><value>Widoczność katalogu, funkcje, branding i dane kontaktowe.</value></data>
+  <data name="Storefront" xml:space="preserve"><value>Sklep</value></data>
+  <data name="CatalogVisibility" xml:space="preserve"><value>Kto widzi katalog</value></data>
+  <data name="CatalogVisibility.Public" xml:space="preserve"><value>Wszyscy, także niezalogowani</value></data>
+  <data name="CatalogVisibility.SignedInOnly" xml:space="preserve"><value>Tylko zalogowani</value></data>
+  <data name="Features" xml:space="preserve"><value>Funkcje</value></data>
+  <data name="FeaturesLead" xml:space="preserve"><value>Funkcje dostępne w tej instalacji. Wyłączona funkcja znika z platformy dla wszystkich.</value></data>
+  <data name="FeatureBlocked" xml:space="preserve"><value>nieaktywna — wymaga innej funkcji</value></data>
+  <data name="Requires" xml:space="preserve"><value>Wymaga</value></data>
+  <data name="Branding" xml:space="preserve"><value>Wygląd</value></data>
+  <data name="StoreName" xml:space="preserve"><value>Nazwa sklepu</value></data>
+  <data name="AccentColor" xml:space="preserve"><value>Kolor wiodący</value></data>
+  <data name="Logo" xml:space="preserve"><value>Logo</value></data>
+  <data name="RemoveLogo" xml:space="preserve"><value>Usuń logo</value></data>
+  <data name="Contact" xml:space="preserve"><value>Kontakt</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>E-mail obsługi klienta</value></data>
+  <data name="SupportPhone" xml:space="preserve"><value>Telefon obsługi klienta</value></data>
+  <data name="OperatorNotifications" xml:space="preserve"><value>E-mail powiadomień dla operatorów</value></data>
+  <data name="CommerceDefaults" xml:space="preserve"><value>Ustawienia handlowe</value></data>
+  <data name="DefaultPriceList" xml:space="preserve"><value>Cennik domyślny (kod z ERP)</value></data>
+  <data name="DefaultPriceListHint" xml:space="preserve"><value>Ceny z tego cennika widzą niezalogowani i kontrahenci bez własnego cennika. Pusty — ceny ukryte do zalogowania.</value></data>
+  <data name="DefaultContactTemplate" xml:space="preserve"><value>Uprawnienia kontaktów z ERP</value></data>
+  <data name="Template.administrator" xml:space="preserve"><value>Administrator firmy</value></data>
+  <data name="Template.buyer" xml:space="preserve"><value>Kupujący</value></data>
+  <data name="Template.accounting" xml:space="preserve"><value>Księgowość</value></data>
+  <data name="ChangeHistory" xml:space="preserve"><value>Historia zmian</value></data>
+  <data name="When" xml:space="preserve"><value>Kiedy</value></data>
+  <data name="Who" xml:space="preserve"><value>Kto</value></data>
+  <data name="WhatChanged" xml:space="preserve"><value>Co zmieniono</value></data>
+  <data name="Change.FeatureOn" xml:space="preserve"><value>włączono: {0}</value></data>
+  <data name="Change.FeatureOff" xml:space="preserve"><value>wyłączono: {0}</value></data>
+  <data name="Change.catalogVisibility" xml:space="preserve"><value>widoczność katalogu</value></data>
+  <data name="Change.branding" xml:space="preserve"><value>wygląd</value></data>
+  <data name="Change.contact" xml:space="preserve"><value>kontakt</value></data>
+  <data name="Change.commerce" xml:space="preserve"><value>ustawienia handlowe</value></data>
+  <data name="Feature.customer-accounts" xml:space="preserve"><value>Konta klientów</value></data>
+  <data name="Feature.multi-customer-accounts" xml:space="preserve"><value>Jedno konto dla wielu firm</value></data>
+  <data name="Feature.customer-admin-invitations" xml:space="preserve"><value>Zapraszanie przez administratora firmy</value></data>
+  <data name="Feature.erp-contact-invitations" xml:space="preserve"><value>Zaproszenia dla kontaktów z ERP</value></data>
+  <data name="Feature.self-registration" xml:space="preserve"><value>Samodzielna rejestracja firm</value></data>
+  <data name="Feature.documents" xml:space="preserve"><value>Dokumenty (faktury, WZ)</value></data>
+  <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Klienci logują się do strefy klienta.</value></data>
+  <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>Użytkownik może działać w imieniu kilku firm.</value></data>
+  <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Administratorzy firm sami zapraszają współpracowników.</value></data>
+  <data name="FeatureHint.erp-contact-invitations" xml:space="preserve"><value>Osoby z dostępem w ERP dostają zaproszenie automatycznie.</value></data>
+  <data name="FeatureHint.self-registration" xml:space="preserve"><value>Firmy składają wniosek o konto, operator decyduje.</value></data>
+  <data name="FeatureHint.documents" xml:space="preserve"><value>Klienci widzą faktury i inne dokumenty z ERP.</value></data>
+  <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Ktoś zmienił ustawienia w międzyczasie. Odśwież stronę i spróbuj ponownie.</value></data>
+  <data name="Error.feature.missing-requirement" xml:space="preserve"><value>Włączona funkcja wymaga innej, wyłączonej funkcji.</value></data>
+  <data name="Error.feature.unavailable" xml:space="preserve"><value>Ta funkcja nie jest dostępna w tej instalacji.</value></data>
+  <data name="Error.color.invalid" xml:space="preserve"><value>Kolor musi mieć postać #rrggbb.</value></data>
+  <data name="Error.store-name.empty" xml:space="preserve"><value>Podaj nazwę sklepu.</value></data>
+  <data name="Error.image.too-large" xml:space="preserve"><value>Plik jest za duży.</value></data>
+  <data name="Error.image.unsupported-format" xml:space="preserve"><value>Obsługiwane formaty to JPEG, PNG i WebP.</value></data>
 </root>

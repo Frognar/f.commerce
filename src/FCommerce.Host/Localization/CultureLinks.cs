@@ -8,8 +8,9 @@ using Microsoft.AspNetCore.Razor.TagHelpers;
 namespace FCommerce.Host.Localization;
 
 /// <summary>
-/// Endpoint routing drops ambient route values (like {culture}) when a link targets a different page, so links
-/// would lose the culture. Every page link therefore gets the current culture unless one is given explicitly.
+/// Endpoint routing drops ambient route values (like {culture}) when a link targets a different page, so links and
+/// form actions would lose the culture (an empty action posts to the current page instead). Every page link and form
+/// therefore gets the current culture unless one is given explicitly.
 /// </summary>
 internal static class CultureLinks
 {
@@ -40,6 +41,21 @@ internal static class CultureLinks
     {
         values[CultureRouteConvention.RouteKey] = culture;
         return values;
+    }
+}
+
+/// <summary>Replaces the framework's form tag helper: forms targeting another page keep the culture (see <see cref="CultureLinks"/>).</summary>
+[HtmlTargetElement("form")]
+public sealed class CultureFormTagHelper(IHtmlGenerator generator) : FormTagHelper(generator)
+{
+    public override void Process(TagHelperContext context, TagHelperOutput output)
+    {
+        if (Page is not null)
+        {
+            RouteValues.TryAdd(CultureRouteConvention.RouteKey, CultureLinks.CurrentCulture);
+        }
+
+        base.Process(context, output);
     }
 }
 

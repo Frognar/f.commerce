@@ -6,6 +6,10 @@
 <h1>@T["BackOffice"]</h1>
 <p class="muted">@T["BackOfficeLead"]</p>
 <ul class="tiles">
+    @if (Model.CanManageSettings)
+    {
+        <li><a class="card tile" asp-page="/Admin/Settings"><strong>@T["PlatformSettings"]</strong><span class="muted">@T["PlatformSettingsLead"]</span></a></li>
+    }
     @if (Model.CanManageOperators)
     {
         <li><a class="card tile" asp-page="/Admin/Operators"><strong>@T["Operators"]</strong><span class="muted">@T["OperatorsLead"]</span></a></li>

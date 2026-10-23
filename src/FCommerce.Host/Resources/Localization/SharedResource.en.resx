@@ -103,4 +103,59 @@
   <data name="Error.grant.last-operator-manager" xml:space="preserve"><value>At least one operator must be able to manage operators.</value></data>
   <data name="Error.operator.not-found" xml:space="preserve"><value>Operator not found.</value></data>
   <data name="Error.account.disabled" xml:space="preserve"><value>The account is disabled.</value></data>
+  <data name="PlatformSettings" xml:space="preserve"><value>Platform settings</value></data>
+  <data name="PlatformSettingsLead" xml:space="preserve"><value>Catalogue visibility, features, branding and contact details.</value></data>
+  <data name="Storefront" xml:space="preserve"><value>Storefront</value></data>
+  <data name="CatalogVisibility" xml:space="preserve"><value>Who sees the catalogue</value></data>
+  <data name="CatalogVisibility.Public" xml:space="preserve"><value>Everyone, including visitors</value></data>
+  <data name="CatalogVisibility.SignedInOnly" xml:space="preserve"><value>Signed-in users only</value></data>
+  <data name="Features" xml:space="preserve"><value>Features</value></data>
+  <data name="FeaturesLead" xml:space="preserve"><value>Features available in this installation. A switched-off feature disappears for everyone.</value></data>
+  <data name="FeatureBlocked" xml:space="preserve"><value>inactive — requires another feature</value></data>
+  <data name="Requires" xml:space="preserve"><value>Requires</value></data>
+  <data name="Branding" xml:space="preserve"><value>Branding</value></data>
+  <data name="StoreName" xml:space="preserve"><value>Store name</value></data>
+  <data name="AccentColor" xml:space="preserve"><value>Accent colour</value></data>
+  <data name="Logo" xml:space="preserve"><value>Logo</value></data>
+  <data name="RemoveLogo" xml:space="preserve"><value>Remove logo</value></data>
+  <data name="Contact" xml:space="preserve"><value>Contact</value></data>
+  <data name="SupportEmail" xml:space="preserve"><value>Customer service e-mail</value></data>
+  <data name="SupportPhone" xml:space="preserve"><value>Customer service phone</value></data>
+  <data name="OperatorNotifications" xml:space="preserve"><value>Notification e-mail for operators</value></data>
+  <data name="CommerceDefaults" xml:space="preserve"><value>Commerce defaults</value></data>
+  <data name="DefaultPriceList" xml:space="preserve"><value>Default price list (ERP code)</value></data>
+  <data name="DefaultPriceListHint" xml:space="preserve"><value>Visitors and customers without their own price list see these prices. Empty — prices hidden until sign-in.</value></data>
+  <data name="DefaultContactTemplate" xml:space="preserve"><value>Rights of ERP contacts</value></data>
+  <data name="Template.administrator" xml:space="preserve"><value>Company administrator</value></data>
+  <data name="Template.buyer" xml:space="preserve"><value>Buyer</value></data>
+  <data name="Template.accounting" xml:space="preserve"><value>Accounting</value></data>
+  <data name="ChangeHistory" xml:space="preserve"><value>Change history</value></data>
+  <data name="When" xml:space="preserve"><value>When</value></data>
+  <data name="Who" xml:space="preserve"><value>Who</value></data>
+  <data name="WhatChanged" xml:space="preserve"><value>What changed</value></data>
+  <data name="Change.FeatureOn" xml:space="preserve"><value>switched on: {0}</value></data>
+  <data name="Change.FeatureOff" xml:space="preserve"><value>switched off: {0}</value></data>
+  <data name="Change.catalogVisibility" xml:space="preserve"><value>catalogue visibility</value></data>
+  <data name="Change.branding" xml:space="preserve"><value>branding</value></data>
+  <data name="Change.contact" xml:space="preserve"><value>contact</value></data>
+  <data name="Change.commerce" xml:space="preserve"><value>commerce defaults</value></data>
+  <data name="Feature.customer-accounts" xml:space="preserve"><value>Customer accounts</value></data>
+  <data name="Feature.multi-customer-accounts" xml:space="preserve"><value>One account for several companies</value></data>
+  <data name="Feature.customer-admin-invitations" xml:space="preserve"><value>Invitations by company administrators</value></data>
+  <data name="Feature.erp-contact-invitations" xml:space="preserve"><value>Invitations for ERP contacts</value></data>
+  <data name="Feature.self-registration" xml:space="preserve"><value>Company self-registration</value></data>
+  <data name="Feature.documents" xml:space="preserve"><value>Documents (invoices, delivery notes)</value></data>
+  <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Customers sign in to the customer area.</value></data>
+  <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>A user can act for several companies.</value></data>
+  <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Company administrators invite their colleagues.</value></data>
+  <data name="FeatureHint.erp-contact-invitations" xml:space="preserve"><value>People with access in the ERP are invited automatically.</value></data>
+  <data name="FeatureHint.self-registration" xml:space="preserve"><value>Companies apply for an account; an operator decides.</value></data>
+  <data name="FeatureHint.documents" xml:space="preserve"><value>Customers see invoices and other ERP documents.</value></data>
+  <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Someone changed the settings in the meantime. Reload the page and try again.</value></data>
+  <data name="Error.feature.missing-requirement" xml:space="preserve"><value>An enabled feature requires another feature that is off.</value></data>
+  <data name="Error.feature.unavailable" xml:space="preserve"><value>This feature is not available in this installation.</value></data>
+  <data name="Error.color.invalid" xml:space="preserve"><value>The colour must be in the form #rrggbb.</value></data>
+  <data name="Error.store-name.empty" xml:space="preserve"><value>Enter the store name.</value></data>
+  <data name="Error.image.too-large" xml:space="preserve"><value>The file is too large.</value></data>
+  <data name="Error.image.unsupported-format" xml:space="preserve"><value>Supported formats are JPEG, PNG and WebP.</value></data>
 </root>

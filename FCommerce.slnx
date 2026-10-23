@@ -42,6 +42,11 @@
   <Folder Name="/src/Modules/Notifications/">
     <Project Path="src/Modules/Notifications/FCommerce.Notifications/FCommerce.Notifications.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Settings/">
+    <Project Path="src/Modules/Settings/FCommerce.Settings.Contracts/FCommerce.Settings.Contracts.csproj" />
+    <Project Path="src/Modules/Settings/FCommerce.Settings.Domain/FCommerce.Settings.Domain.csproj" />
+    <Project Path="src/Modules/Settings/FCommerce.Settings/FCommerce.Settings.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FCommerce.Access.Tests/FCommerce.Access.Tests.csproj" />
     <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
@@ -53,6 +58,7 @@
     <Project Path="tests/FCommerce.Media.Tests/FCommerce.Media.Tests.csproj" />
     <Project Path="tests/FCommerce.Notifications.Tests/FCommerce.Notifications.Tests.csproj" />
     <Project Path="tests/FCommerce.Search.Core.Tests/FCommerce.Search.Core.Tests.csproj" />
+    <Project Path="tests/FCommerce.Settings.Tests/FCommerce.Settings.Tests.csproj" />
     <Project Path="tests/FCommerce.SharedKernel.Tests/FCommerce.SharedKernel.Tests.csproj" />
     <Project Path="tests/FCommerce.Testing/FCommerce.Testing.csproj" />
   </Folder>

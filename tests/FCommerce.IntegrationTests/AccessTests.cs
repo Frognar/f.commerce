@@ -5,48 +5,17 @@ namespace FCommerce.IntegrationTests;
 
 public sealed partial class AccessTests(HostFixture host)
 {
-    private const string AdminPassword = "platform owner passphrase 1";
-    private static readonly SemaphoreSlim AdminGate = new(1, 1);
-    private static bool adminActivated;
-
-    private Browser NewBrowser() => new(host.CreateClient());
+    private Browser NewBrowser() => host.NewBrowser();
 
     private static string UniqueEmail(string prefix) => $"{prefix}-{Guid.NewGuid():N}"[..20] + "@test.example.pl";
 
-    /// <summary>Opens the invitation link from the latest invitation e-mail and chooses a password.</summary>
-    private async Task<(HttpStatusCode Status, string? Location)> AcceptInvitationAsync(Browser browser, string email, string password)
-    {
-        var mail = await host.Mail.WaitForAsync(email, m => m.Text.Contains("/invitation?token=", StringComparison.Ordinal));
-        var link = new Uri(InvitationLink().Match(mail.Text).Value);
-        var (status, _, location) = await browser.SubmitAsync(link.PathAndQuery, new Dictionary<string, string> { ["Password"] = password, ["Confirmation"] = password });
-        return (status, location);
-    }
+    private Task<(HttpStatusCode Status, string? Location)> AcceptInvitationAsync(Browser browser, string email, string password) =>
+        host.AcceptInvitationAsync(browser, email, password);
 
     private static Task<(HttpStatusCode Status, string Html, string? Location)> SignInAsync(Browser browser, string email, string password) =>
-        browser.SubmitAsync("/pl/sign-in", new Dictionary<string, string> { ["Email"] = email, ["Password"] = password });
+        HostFixture.SignInAsync(browser, email, password);
 
-    /// <summary>The bootstrap administrator, activated once per test run.</summary>
-    private async Task<Browser> AdminAsync()
-    {
-        var browser = NewBrowser();
-        await AdminGate.WaitAsync(TestContext.Current.CancellationToken);
-        try
-        {
-            if (!adminActivated)
-            {
-                await AcceptInvitationAsync(browser, HostFixture.AdminEmail, AdminPassword);
-                adminActivated = true;
-                return browser;
-            }
-        }
-        finally
-        {
-            AdminGate.Release();
-        }
-
-        await SignInAsync(browser, HostFixture.AdminEmail, AdminPassword);
-        return browser;
-    }
+    private Task<Browser> AdminAsync() => host.AdminAsync();
 
     private static async Task<string> InviteOperatorAsync(Browser admin, string email, bool manageOperators = false)
     {
@@ -74,6 +43,52 @@ public sealed partial class AccessTests(HostFixture host)
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Contains("Panel sprzedawcy", html, StringComparison.Ordinal);
         Assert.Contains("href=\"/pl/admin/operators\"", html, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/pl")]
+    [InlineData("/pl/account")]
+    [InlineData("/en/admin/operators")]
+    public async Task Signing_out_with_the_header_form_ends_the_session_on_any_page(string page)
+    {
+        using var admin = await AdminAsync();
+        var html = (await admin.GetAsync(page)).Html;
+        var action = SignOutForm().Match(html).Groups["action"].Value;
+
+        var (status, _, location) = await admin.SubmitAsync(page, new Dictionary<string, string>(), action);
+
+        Assert.Equal($"/{page.Split('/')[1]}/sign-out", action);
+        Assert.Equal(HttpStatusCode.Redirect, status);
+        Assert.Equal($"/{page.Split('/')[1]}", location);
+        Assert.StartsWith($"/{page.Split('/')[1]}/sign-in", (await admin.GetAsync($"/{page.Split('/')[1]}/account")).Location, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("/pl")]
+    [InlineData("/pl/catalog")]
+    [InlineData("/pl/account")]
+    [InlineData("/pl/admin")]
+    [InlineData("/pl/admin/operators")]
+    [InlineData("/en/admin/settings")]
+    public async Task No_form_posts_to_an_empty_address(string page)
+    {
+        using var admin = await AdminAsync();
+
+        var (status, html, _) = await admin.GetAsync(page);
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.DoesNotContain("action=\"\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Posting_to_the_account_page_without_a_handler_still_renders()
+    {
+        using var admin = await AdminAsync();
+
+        var (status, html, _) = await admin.SubmitAsync("/pl/account", new Dictionary<string, string>());
+
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Contains(HostFixture.AdminEmail, html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -202,7 +217,7 @@ public sealed partial class AccessTests(HostFixture host)
         var email = UniqueEmail("once");
         await InviteOperatorAsync(admin, email);
         var mail = await host.Mail.WaitForAsync(email);
-        var link = new Uri(InvitationLink().Match(mail.Text).Value);
+        var link = new Uri(Regex.Match(mail.Text, @"https?://\S+/invitation\?token=[A-Za-z0-9_%-]+").Value);
         using var first = NewBrowser();
         using var second = NewBrowser();
 
@@ -212,8 +227,8 @@ public sealed partial class AccessTests(HostFixture host)
         Assert.Contains("Link jest nieprawidłowy lub wygasł.", again.Html, StringComparison.Ordinal);
     }
 
-    [GeneratedRegex(@"https?://\S+/invitation\?token=[A-Za-z0-9_%-]+")]
-    private static partial Regex InvitationLink();
+    [GeneratedRegex("<form method=\"post\" action=\"(?<action>[^\"]*)\">\\s*<button class=\"link\" type=\"submit\">")]
+    private static partial Regex SignOutForm();
 
     [GeneratedRegex(@"https?://\S+/reset-password\?token=[A-Za-z0-9_%-]+")]
     private static partial Regex ResetLink();

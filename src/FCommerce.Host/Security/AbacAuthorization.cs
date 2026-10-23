@@ -32,6 +32,7 @@ public static class Policies
     public const string OwnAccount = "account.own";
     public const string BackOffice = "back-office";
     public const string OperatorsManage = "operators.manage";
+    public const string SettingsManage = "settings.manage";
 
     public static IServiceCollection AddAbacAuthorization(this IServiceCollection services) =>
         services
@@ -41,5 +42,6 @@ public static class Policies
             .AddPolicy(OwnAccount, p => p.AddRequirements(new AbacRequirement(AccessAction.Manage, new Resource.OwnAccount())))
             .AddPolicy(BackOffice, p => p.AddRequirements(new AbacRequirement(AccessAction.Read, new Resource.Customers())))
             .AddPolicy(OperatorsManage, p => p.AddRequirements(new AbacRequirement(AccessAction.Manage, new Resource.Operators())))
+            .AddPolicy(SettingsManage, p => p.AddRequirements(new AbacRequirement(AccessAction.Manage, new Resource.PlatformSettings())))
             .Services;
 }
