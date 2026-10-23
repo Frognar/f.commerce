@@ -12,7 +12,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Documents\FCommerce.Documents.Contracts\FCommerce.Documents.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Media\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
+  </ItemGroup>
+
+  <!-- Liberation Sans (SIL OFL 1.1) for the demo PDFs, so they render the same on every system. -->
+  <ItemGroup>
+    <EmbeddedResource Include="Fonts\*.ttf" LogicalName="Fonts.%(Filename)%(Extension)" />
   </ItemGroup>
 
 </Project>

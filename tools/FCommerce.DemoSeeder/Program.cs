@@ -2,7 +2,9 @@ using FCommerce.SharedKernel.Imports;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FCommerce.Catalog.Contracts;
+using FCommerce.Customers.Contracts;
 using FCommerce.DemoSeeder;
+using FCommerce.Documents.Contracts;
 using FCommerce.Media.Contracts;
 
 // Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key>]
@@ -30,6 +32,38 @@ foreach (var product in DemoCatalog.Products)
 
 Console.WriteLine();
 await SendAsync("/integration/v1/catalog/products", new ImportProducts(products), products.Count);
+
+// Customers: contacts with portal access get invitations (Mailpit), so they choose their passwords there.
+await SendAsync("/integration/v1/customers", new ImportCustomers(DemoCustomers.All), DemoCustomers.All.Count);
+
+var documents = DemoDocuments.For(DemoCustomers.All, DemoCatalog.Products, DateOnly.FromDateTime(DateTime.Now));
+await SendAsync("/integration/v1/documents", new ImportDocuments([.. documents.Select(d => d.Data)]), documents.Count);
+Console.Write("uploading document files ");
+using (var fonts = DemoFonts.Load())
+{
+    foreach (var document in documents)
+    {
+        await PutFileAsync(document.Data.Id, DemoPdf.Render(document, fonts));
+        Console.Write('.');
+    }
+}
+
+Console.WriteLine();
+
+Console.WriteLine($"""
+
+    Demo data is in. E-mails (invitations, password resets) arrive in Mailpit: http://localhost:8025
+      Back-office:  {baseUrl}/pl/admin as the operator from Access:BootstrapAdminEmail (invited on the host's first start).
+                    Invite {DemoCustomers.Salesperson} in Operators with the "salesperson" rights to see only her customers.
+      Customers:    open the invitation e-mails to choose passwords, then sign in at {baseUrl}/pl/sign-in
+    """);
+foreach (var customer in DemoCustomers.All)
+{
+    var people = customer.Contacts?.Where(c => c.PortalAccess).Select(c => $"{c.Email} ({c.AttributeTemplate})").ToList() ?? [];
+    var note = customer.Blocked ? " [blocked in the ERP]" : string.Empty;
+    Console.WriteLine($"      {customer.Code} {customer.Name}{note}: {(people.Count == 0 ? "nobody on the platform yet" : string.Join(", ", people))}");
+}
+
 return 0;
 
 async Task<string> UploadAsync(byte[] image)
@@ -44,6 +78,18 @@ async Task<string> UploadAsync(byte[] image)
     }
 
     return (await response.Content.ReadFromJsonAsync<UploadedImage>())!.Id;
+}
+
+async Task PutFileAsync(string documentId, byte[] pdf)
+{
+    using var content = new ByteArrayContent(pdf);
+    content.Headers.ContentType = new MediaTypeHeaderValue("application/pdf");
+    using var response = await client.PutAsync($"/integration/v1/documents/{Uri.EscapeDataString(documentId)}/file", content);
+    if (!response.IsSuccessStatusCode)
+    {
+        Console.Error.WriteLine($"document file {documentId}: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+        Environment.Exit(1);
+    }
 }
 
 async Task SendAsync<T>(string path, T body, int count)

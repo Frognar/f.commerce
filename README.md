@@ -9,6 +9,13 @@ docker compose up -d
 dotnet run --project src/FCommerce.Host --launch-profile https
 ```
 
+Demo data (catalog, customers, documents) through the integration API; invitation e-mails arrive in Mailpit
+(http://localhost:8025):
+
+```bash
+dotnet run --project tools/FCommerce.DemoSeeder
+```
+
 ## Tests
 
 ```bash
