@@ -1,0 +1,23 @@
+P:System.DateTime.Now;Pure core: pass time in via DecisionContext
+P:System.DateTime.UtcNow;Pure core: pass time in via DecisionContext
+P:System.DateTime.Today;Pure core: pass time in via DecisionContext
+P:System.DateTimeOffset.Now;Pure core: pass time in via DecisionContext
+P:System.DateTimeOffset.UtcNow;Pure core: pass time in via DecisionContext
+P:System.TimeProvider.System;Pure core: pass time in via DecisionContext
+M:System.Guid.NewGuid;Pure core: identifiers are generated in the shell
+M:System.Guid.CreateVersion7;Pure core: identifiers are generated in the shell
+T:System.Random;Pure core: no randomness
+T:System.Environment;Pure core: no ambient state
+T:System.Console;Pure core: no IO
+N:System.IO;Pure core: no IO
+N:System.Net;Pure core: no IO
+N:System.Threading.Tasks;Pure core: no async/IO
+T:System.Threading.Thread;Pure core: no threads
+T:System.Exception;Pure core: return Result<T, Error> instead of throwing
+T:System.ArgumentException;Pure core: return Result<T, Error> instead of throwing
+T:System.ArgumentNullException;Pure core: rely on nullable reference types instead of guards
+T:System.ArgumentOutOfRangeException;Pure core: return Result<T, Error> instead of throwing
+T:System.InvalidOperationException;Pure core: return Result<T, Error> instead of throwing
+T:System.FormatException;Pure core: return Result<T, Error> instead of throwing
+T:System.NotSupportedException;Pure core: return Result<T, Error> instead of throwing
+T:System.NotImplementedException;Pure core: return Result<T, Error> instead of throwing

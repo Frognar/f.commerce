@@ -1,0 +1,25 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!--
+    Pure projects (SharedKernel and every *.Domain): the functional core.
+    BannedApiAnalyzers turns any use of clocks, randomness, IO or ambient state into a compile error.
+  -->
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'FCommerce.SharedKernel' Or $(MSBuildProjectName.EndsWith('.Domain'))">
+    <IsPureProject>true</IsPureProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPureProject)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/BannedSymbols.Pure.txt" Link="BannedSymbols.Pure.txt" />
+  </ItemGroup>
+</Project>

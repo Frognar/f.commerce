@@ -1,0 +1,52 @@
+@using System.Globalization
+@using Microsoft.AspNetCore.Antiforgery
+@inject IAntiforgery Antiforgery
+@inject SupportedCultures Cultures
+@{
+    var culture = CultureInfo.CurrentUICulture.Name;
+    // Only culture-prefixed pages get alternates and a language switcher.
+    var currentPage = ViewContext.RouteData.Values.ContainsKey(CultureRouteConvention.RouteKey)
+        ? ViewContext.RouteData.Values["page"]?.ToString()
+        : null;
+    var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+}
+<!DOCTYPE html>
+<html lang="@culture">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] · f.commerce</title>
+    @if (currentPage is not null)
+    {
+        foreach (var alternate in Cultures.All)
+        {
+            <link rel="alternate" hreflang="@alternate" href="@Url.Page(currentPage, new { culture = alternate.Value })" />
+        }
+    }
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+    <script src="~/lib/htmx/htmx.min.js" asp-append-version="true" defer></script>
+</head>
+<body hx-headers='{"RequestVerificationToken": "@token"}'>
+    <header class="site-header">
+        <div class="container header-row">
+            <a class="brand" asp-page="/Index">f.commerce <span class="brand-tagline">@T["Tagline"]</span></a>
+            @if (currentPage is not null)
+            {
+                <nav class="language-switcher" aria-label="@T["Language"]">
+                    @foreach (var option in Cultures.All)
+                    {
+                        <a asp-page="@currentPage" asp-route-culture="@option.Value"
+                           aria-current="@(option.Value == culture ? "true" : null)">@option.Value.ToUpperInvariant()</a>
+                    }
+                </nav>
+            }
+        </div>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer class="site-footer">
+        <div class="container">© @DateTime.UtcNow.Year f.commerce</div>
+    </footer>
+</body>
+</html>

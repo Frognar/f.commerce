@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    Marten's source generators (JasperFx packages) flow transitively into every project above the database
+    adapter and stamp a JasperFx attribute on its assembly. Only the adapter may know Marten, so strip them
+    elsewhere (enforced by FCommerce.ArchitectureTests).
+  -->
+  <Target Name="RemoveTransitiveJasperFxGenerators" BeforeTargets="CoreCompile" Condition="'$(MSBuildProjectName)' != 'FCommerce.Infrastructure.Postgres'">
+    <ItemGroup>
+      <Analyzer Remove="@(Analyzer)" Condition="$([System.String]::Copy('%(Analyzer.Filename)').StartsWith('JasperFx'))" />
+    </ItemGroup>
+  </Target>
+</Project>

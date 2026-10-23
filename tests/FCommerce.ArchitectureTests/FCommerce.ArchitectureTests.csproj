@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- References the host, which (transitively) references every module and building block. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\FCommerce.Host\FCommerce.Host.csproj" />
+  </ItemGroup>
+
+</Project>

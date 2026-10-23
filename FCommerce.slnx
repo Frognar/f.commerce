@@ -1,0 +1,31 @@
+<Solution>
+  <Folder Name="/solution-items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="build\BannedSymbols.Pure.txt" />
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Build.targets" />
+    <File Path="Directory.Packages.props" />
+    <File Path="docker-compose.yml" />
+    <File Path="dotnet-tools.json" />
+    <File Path="global.json" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/FCommerce.Host/FCommerce.Host.csproj" />
+  </Folder>
+  <Folder Name="/src/BuildingBlocks/">
+    <Project Path="src/BuildingBlocks/FCommerce.Application/FCommerce.Application.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.Infrastructure.Postgres/FCommerce.Infrastructure.Postgres.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.Infrastructure/FCommerce.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.SharedKernel/FCommerce.SharedKernel.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
+    <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
+    <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
+    <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />
+    <Project Path="tests/FCommerce.SharedKernel.Tests/FCommerce.SharedKernel.Tests.csproj" />
+    <Project Path="tests/FCommerce.Testing/FCommerce.Testing.csproj" />
+  </Folder>
+</Solution>

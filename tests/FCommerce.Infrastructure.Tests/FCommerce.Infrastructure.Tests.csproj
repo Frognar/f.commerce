@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BuildingBlocks\FCommerce.Infrastructure.Postgres\FCommerce.Infrastructure.Postgres.csproj" />
+    <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Testcontainers.PostgreSql" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
+  </ItemGroup>
+
+</Project>

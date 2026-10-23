@@ -1,0 +1,15 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = T["Tagline"];
+}
+<section class="hero">
+    <h1>@T["HomeTitle"]</h1>
+    <p class="lead">@T["HomeLead"]</p>
+</section>
+
+<section class="card">
+    <h2>@T["SystemStatus"]</h2>
+    <div id="status" aria-live="polite"></div>
+    <button class="button" hx-get="@Url.Page("/Index", "Status")" hx-target="#status">@T["StatusCheck"]</button>
+</section>

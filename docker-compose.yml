@@ -1,0 +1,27 @@
+# Local development dependencies. Start with: docker compose up -d
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: fcommerce
+      POSTGRES_USER: fcommerce
+      POSTGRES_PASSWORD: fcommerce
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fcommerce -d fcommerce"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches outgoing e-mail (order notifications) — UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  postgres-data:
