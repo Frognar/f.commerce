@@ -28,14 +28,14 @@ public sealed class ProductValidationTests
             Name = new Dictionary<string, string> { ["english"] = "x" },
             Unit = null,
             Gtin = "5901234123450",
-            ImageUrls = ["ftp://example.com/a.jpg", "https://ok.example.com/b.jpg"],
+            ImageIds = ["not-an-id", ImageA],
             Attributes = [new UnvalidatedAttribute("", null, null)],
         };
 
         var fields = Fields(Product.Validate(input));
 
         Assert.Equal(
-            ["sku", "version", "name.english", "unit", "gtin", "imageUrls[0]", "attributes[0].code"],
+            ["sku", "version", "name.english", "unit", "gtin", "imageIds[0]", "attributes[0].code"],
             fields);
     }
 
@@ -50,7 +50,7 @@ public sealed class ProductValidationTests
     [Fact]
     public void Blank_optional_fields_are_not_set()
     {
-        var product = Product.Validate(Input() with { CategoryCode = " ", Gtin = "", Description = null, ImageUrls = null, Attributes = null }).ShouldBeValid();
+        var product = Product.Validate(Input() with { CategoryCode = " ", Gtin = "", Description = null, ImageIds = null, Attributes = null }).ShouldBeValid();
 
         Assert.Null(product.Content.Category);
         Assert.Null(product.Content.Gtin);
@@ -61,9 +61,9 @@ public sealed class ProductValidationTests
     [Fact]
     public void Limits_the_number_of_images()
     {
-        var fields = Fields(Product.Validate(Input() with { ImageUrls = [.. Enumerable.Repeat("https://cdn.example.com/a.jpg", Product.MaxImages + 1)] }));
+        var fields = Fields(Product.Validate(Input() with { ImageIds = [.. Enumerable.Repeat(ImageA, Product.MaxImages + 1)] }));
 
-        Assert.Equal(["imageUrls"], fields);
+        Assert.Equal(["imageIds"], fields);
     }
 
     [Theory]

@@ -32,9 +32,6 @@ internal sealed class ProductRow
 
     public bool Active { get; set; }
 
-    /// <summary>Normalized text for search (<see cref="SearchText.Document"/>).</summary>
-    public required string SearchDocument { get; set; }
-
     public DateTimeOffset UpdatedAt { get; set; }
 
     public static ProductRow From(Product product, DateTimeOffset now)
@@ -47,7 +44,6 @@ internal sealed class ProductRow
             Unit = string.Empty,
             Images = string.Empty,
             Attributes = string.Empty,
-            SearchDocument = string.Empty,
         };
         row.Apply(product, now);
         return row;
@@ -64,7 +60,6 @@ internal sealed class ProductRow
         Images = Json.Write(product.Content.Images);
         Attributes = Json.Write(product.Content.Attributes);
         Active = product.Active;
-        SearchDocument = SearchText.Document(product);
         UpdatedAt = now;
     }
 
@@ -78,7 +73,7 @@ internal sealed class ProductRow
                 CategoryCode is null ? null : Persisted.Rehydrate<Domain.CategoryCode, string>(CategoryCode),
                 Persisted.Rehydrate<UnitCode, string>(Unit),
                 Gtin is null ? null : Persisted.Rehydrate<Domain.Gtin, string>(Gtin),
-                Json.Read<EquatableArray<ImageUrl>>(Images),
+                Json.Read<EquatableArray<ImageId>>(Images),
                 Json.Read<EquatableArray<ProductAttribute>>(Attributes)),
             Active);
 }

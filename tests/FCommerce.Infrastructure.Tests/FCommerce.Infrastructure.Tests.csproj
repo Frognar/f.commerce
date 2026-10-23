@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\BuildingBlocks\FCommerce.Infrastructure.Postgres\FCommerce.Infrastructure.Postgres.csproj" />
+    <ProjectReference Include="..\..\src\BuildingBlocks\FCommerce.Infrastructure.Search\FCommerce.Infrastructure.Search.csproj" />
     <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
   </ItemGroup>
 

@@ -153,13 +153,13 @@ internal static class DemoCatalog
         params (string Code, string NamePl, string NameEn, string ValuePl, string ValueEn)[] attributes) =>
         new(
             sku,
-            Version: 1,
+            Version: 2,
             new Dictionary<string, string> { ["pl"] = namePl, ["en"] = nameEn },
             new Dictionary<string, string> { ["pl"] = descriptionPl, ["en"] = descriptionEn },
             category,
             unit,
             Ean13(sku),
-            ImageUrls: [],
+            ImageIds: [],
             [.. attributes.Select(a => new AttributeData(
                 a.Code,
                 new Dictionary<string, string> { ["pl"] = a.NamePl, ["en"] = a.NameEn },

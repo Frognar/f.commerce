@@ -1,4 +1,7 @@
 using FCommerce.Catalog;
+using FCommerce.Host.Media;
+using FCommerce.Infrastructure.Search;
+using FCommerce.Media;
 using FCommerce.Host.Integration;
 using FCommerce.Host.Localization;
 using FCommerce.Infrastructure;
@@ -16,8 +19,20 @@ var applyDatabaseChanges = builder.Configuration.GetValue<bool>("Database:ApplyC
 builder.Services.AddFCommerceInfrastructure();
 builder.Services.AddPostgres(connectionString, applySchemaChanges: applyDatabaseChanges);
 
+builder.Services.AddFileSystemBlobStore(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Media:StoragePath"] ?? "data/media"));
+builder.Services.AddEmbeddedSearch(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Search:StoragePath"] ?? "data/search"));
+
 // Modules.
-builder.Services.AddCatalogModule();
+var localization = builder.Configuration.GetSection(LocalizationSettings.Section).Get<LocalizationSettings>() ?? new LocalizationSettings();
+builder.Services.AddMediaModule();
+builder.Services.AddCatalogModule(options =>
+{
+    options.DefaultCulture = localization.DefaultCulture;
+    foreach (var culture in localization.SupportedCultures)
+    {
+        options.Cultures.Add(culture);
+    }
+});
 
 // Localization: culture comes from the URL ("/pl/…"); "/" negotiates it from Accept-Language.
 // Invalid settings stop the host on startup (ValidateOnStart), so the factory below only sees valid ones.
@@ -74,6 +89,7 @@ app.MapGet("/", CultureRedirect.ToPreferredCulture).ExcludeFromDescription();
 app.MapHealthChecks("/health");
 app.MapOpenApi("/openapi/{documentName}.json");
 app.MapIntegrationApi();
+app.MapMediaEndpoints();
 
 await app.RunAsync();
 

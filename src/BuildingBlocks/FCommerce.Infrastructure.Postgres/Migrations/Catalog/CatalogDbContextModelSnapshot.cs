@@ -102,11 +102,6 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Catalog
                         .HasColumnType("text")
                         .HasColumnName("name");
 
-                    b.Property<string>("SearchDocument")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("search_document");
-
                     b.Property<string>("Unit")
                         .IsRequired()
                         .HasMaxLength(16)

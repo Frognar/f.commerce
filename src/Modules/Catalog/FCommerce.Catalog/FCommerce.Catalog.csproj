@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\FCommerce.Catalog.Domain\FCommerce.Catalog.Domain.csproj" />
+    <ProjectReference Include="..\..\Media\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
   </ItemGroup>
 

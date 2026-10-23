@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
+    <ProjectReference Include="..\FCommerce.Media.Domain\FCommerce.Media.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Image decoding/resizing; MIT licensed. -->
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FCommerce.Infrastructure.Postgres" />
+    <InternalsVisibleTo Include="FCommerce.Media.Tests" />
+  </ItemGroup>
+
+</Project>

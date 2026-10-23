@@ -2,7 +2,7 @@
 @foreach (var node in Model.Nodes)
 {
     <li>
-        <a asp-page="/Catalog/Index" asp-all-route-data="Model.Page.Link(category: node.Code)"
+        <a href="@Model.Page.Href(category: node.Code, keepFilters: false)"
            aria-current="@(node.Code == Model.Page.Category ? "page" : null)">@node.Name</a>
         @if (node.Children.Count > 0)
         {

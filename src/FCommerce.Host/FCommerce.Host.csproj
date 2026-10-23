@@ -6,7 +6,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\BuildingBlocks\FCommerce.Infrastructure.Postgres\FCommerce.Infrastructure.Postgres.csproj" />
+    <ProjectReference Include="..\BuildingBlocks\FCommerce.Infrastructure.Search\FCommerce.Infrastructure.Search.csproj" />
     <ProjectReference Include="..\Modules\Catalog\FCommerce.Catalog\FCommerce.Catalog.csproj" />
+    <ProjectReference Include="..\Modules\Media\FCommerce.Media\FCommerce.Media.csproj" />
   </ItemGroup>
 
   <ItemGroup>

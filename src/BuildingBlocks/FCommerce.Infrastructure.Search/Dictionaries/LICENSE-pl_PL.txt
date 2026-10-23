@@ -1,0 +1,10 @@
+Polish dictionary (pl_PL.aff, pl_PL.dic)
+
+Source: https://sjp.pl/sl/ort/ — sjp-hunspell-pl-20260901.zip (generated 2026-09-01)
+Converted from ISO-8859-2 to UTF-8 and gzip-compressed; content otherwise unchanged.
+
+The dictionary is licensed under GPL 2, LGPL 2.1, MPL 1.1, Apache 2.0 and
+Creative Commons Attribution 4.0 International. It is used here under the
+Apache License, Version 2.0: https://www.apache.org/licenses/LICENSE-2.0
+
+Contact: sjpslownik@gmail.com

@@ -20,6 +20,8 @@ internal static class Solution
         "FCommerce.Application",
         "FCommerce.Infrastructure",
         "FCommerce.Infrastructure.Postgres",
+        "FCommerce.Infrastructure.Search",
+        "FCommerce.Search.Core",
         "FCommerce.Host",
     ];
 
@@ -28,9 +30,11 @@ internal static class Solution
     public static IEnumerable<string> References(this Assembly assembly) =>
         assembly.GetReferencedAssemblies().Select(r => r.Name!);
 
-    /// <summary>Functional core: SharedKernel and every module's *.Domain.</summary>
+    /// <summary>Functional core: SharedKernel, every module's *.Domain and every *.Core library.</summary>
     public static IEnumerable<Assembly> Pure =>
-        All.Where(a => a.Name() == "FCommerce.SharedKernel" || a.Name().EndsWith(".Domain", StringComparison.Ordinal));
+        All.Where(a => a.Name() == "FCommerce.SharedKernel"
+            || a.Name().EndsWith(".Domain", StringComparison.Ordinal)
+            || a.Name().EndsWith(".Core", StringComparison.Ordinal));
 
     /// <summary>Module name ("Catalog") for module assemblies, null for building blocks.</summary>
     public static string? ModuleOf(string assemblyName)

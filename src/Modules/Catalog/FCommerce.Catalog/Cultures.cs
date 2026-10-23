@@ -14,7 +14,5 @@ internal static class Cultures
 
     /// <summary>Best translation, or any translation when none of the preferred cultures has one.</summary>
     public static string Resolve(this LocalizedText text, EquatableArray<CultureCode> cultures) =>
-        text.Resolve(cultures[0], [.. cultures.Skip(1)])
-        ?? text.Translations.Values.FirstOrDefault()
-        ?? string.Empty;
+        text.ResolveOrAny(cultures[0], [.. cultures.Skip(1)]);
 }

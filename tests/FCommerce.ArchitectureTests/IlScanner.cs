@@ -34,7 +34,7 @@ internal static class IlScanner
             foreach (var methodHandle in type.GetMethods())
             {
                 var method = metadata.GetMethodDefinition(methodHandle);
-                if (method.RelativeVirtualAddress == 0)
+                if (method.RelativeVirtualAddress == 0 || IsIteratorReset(typeName, metadata.GetString(method.Name)))
                 {
                     continue;
                 }
@@ -58,6 +58,11 @@ internal static class IlScanner
     private static bool IsCompilerHelper(string typeName) =>
         typeName.StartsWith("<PrivateImplementationDetails>", StringComparison.Ordinal)
         || typeName.StartsWith("<>z__", StringComparison.Ordinal);
+
+    /// <summary>Iterator state machines ("&lt;Name&gt;d__N") implement IEnumerator.Reset by throwing NotSupportedException.</summary>
+    private static bool IsIteratorReset(string typeName, string methodName) =>
+        typeName.StartsWith('<') && typeName.Contains(">d__", StringComparison.Ordinal)
+        && methodName == "System.Collections.IEnumerator.Reset";
 
     private static bool Uses(byte[] il, HashSet<short> wanted)
     {

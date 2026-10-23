@@ -1,6 +1,9 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FCommerce.Catalog.Contracts;
+using FCommerce.Media.Contracts;
+using SkiaSharp;
 
 namespace FCommerce.IntegrationTests;
 
@@ -10,7 +13,10 @@ public sealed class CatalogTests(HostFixture host)
 
     private static string Unique(string prefix) => $"{prefix}-{Guid.CreateVersion7():N}"[..24];
 
-    private static ProductData Product(string sku, string? category = null, long version = 1, string pl = "Śruba M8x40", string en = "M8x40 bolt") =>
+    /// <summary>A word no other test uses, so search results can be asserted exactly.</summary>
+    private static string Marker() => string.Concat(Guid.NewGuid().ToString("N").Where(char.IsAsciiLetter).Take(8).Select(c => (char)('k' + (c - 'a'))));
+
+    private static ProductData Product(string sku, string? category = null, long version = 1, string pl = "Śruba M8x40", string en = "M8x40 bolt", string thread = "M8", IReadOnlyList<string>? images = null) =>
         new(
             sku,
             version,
@@ -19,8 +25,8 @@ public sealed class CatalogTests(HostFixture host)
             category,
             "szt",
             null,
-            ["https://cdn.example.com/bolt.jpg"],
-            [new AttributeData("thread", new Dictionary<string, string> { ["pl"] = "Gwint", ["en"] = "Thread" }, new Dictionary<string, string> { ["pl"] = "M8" })]);
+            images ?? [],
+            [new AttributeData("thread", new Dictionary<string, string> { ["pl"] = "Gwint", ["en"] = "Thread" }, new Dictionary<string, string> { ["pl"] = thread })]);
 
     private async Task<ImportReport> ImportAsync(params ProductData[] products)
     {
@@ -37,6 +43,28 @@ public sealed class CatalogTests(HostFixture host)
         response.EnsureSuccessStatusCode();
     }
 
+    private async Task<(HttpStatusCode Status, UploadedImage? Image)> UploadAsync(byte[] content, string contentType = "image/png")
+    {
+        using var client = host.CreateIntegrationClient();
+        using var body = new ByteArrayContent(content);
+        body.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+        using var response = await client.PostAsync("/integration/v1/media/images", body, Token);
+        return (response.StatusCode, response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<UploadedImage>(Token) : null);
+    }
+
+    private static byte[] Png(SKColor colour, int width = 800, int height = 600)
+    {
+        using var bitmap = new SKBitmap(width, height);
+        using (var canvas = new SKCanvas(bitmap))
+        {
+            canvas.Clear(colour);
+        }
+
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        return data.ToArray();
+    }
+
     private async Task<string> FragmentAsync(string url)
     {
         using var client = host.CreateClient();
@@ -46,6 +74,26 @@ public sealed class CatalogTests(HostFixture host)
         using var response = await client.SendAsync(request, Token);
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadAsStringAsync(Token);
+    }
+
+    /// <summary>Indexing is asynchronous (outbox → search engine): polls the fragment until the condition holds.</summary>
+    private async Task<string> EventuallyAsync(string url, Func<string, bool> condition)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        string html;
+        do
+        {
+            html = await FragmentAsync(url);
+            if (condition(html))
+            {
+                return html;
+            }
+
+            await Task.Delay(100, Token);
+        }
+        while (DateTime.UtcNow < deadline);
+
+        return html;
     }
 
     [Fact]
@@ -61,9 +109,7 @@ public sealed class CatalogTests(HostFixture host)
     [Fact]
     public async Task Import_applies_valid_items_and_reports_invalid_ones_with_field_paths()
     {
-        var sku = Unique("OK");
-
-        var report = await ImportAsync(Product(sku), Product(Unique("BAD")) with { Unit = "", Name = new Dictionary<string, string> { ["english"] = "x" } });
+        var report = await ImportAsync(Product(Unique("OK")), Product(Unique("BAD")) with { Unit = "", Name = new Dictionary<string, string> { ["english"] = "x" } });
 
         Assert.Equal((2, 1), (report.Received, report.Created));
         var rejected = Assert.Single(report.Rejected);
@@ -87,18 +133,35 @@ public sealed class CatalogTests(HostFixture host)
     }
 
     [Fact]
-    public async Task Search_matches_word_prefixes_without_diacritics_in_any_language()
+    public async Task Search_ignores_diacritics_tolerates_typos_and_requires_every_word()
     {
-        var sku = Unique("SRCH");
-        await ImportAsync(Product(sku, pl: $"Łożysko kulkowe {sku}", en: $"Ball bearing {sku}"));
+        var marker = Marker();
+        await ImportAsync(Product(Unique("SRCH"), pl: $"Łożysko kulkowe {marker}", en: $"Ball bearing {marker}"));
 
-        var polish = await FragmentAsync($"/pl/catalog?q=lozy+kulk+{sku}");
-        var english = await FragmentAsync($"/en/catalog?q=bearing+{sku}");
-        var none = await FragmentAsync($"/pl/catalog?q=wiertlo+{sku}");
+        var polish = await EventuallyAsync($"/pl/catalog?q=lozysko+{marker}", html => html.Contains(marker, StringComparison.Ordinal));
+        var typo = await FragmentAsync($"/pl/catalog?q=kulkowr+{marker}");
+        var english = await EventuallyAsync($"/en/catalog?q=bearing+{marker}", html => html.Contains(marker, StringComparison.Ordinal));
+        var notAllWords = await FragmentAsync($"/pl/catalog?q=wiertlo+{marker}");
 
-        Assert.Contains($"Łożysko kulkowe {sku}", polish, StringComparison.Ordinal);
-        Assert.Contains($"Ball bearing {sku}", english, StringComparison.Ordinal);
-        Assert.DoesNotContain(sku, none.Replace($"q=wiertlo+{sku}", string.Empty, StringComparison.Ordinal), StringComparison.Ordinal);
+        Assert.Contains($"Łożysko kulkowe {marker}", polish, StringComparison.Ordinal);
+        Assert.Contains($"Łożysko kulkowe {marker}", typo, StringComparison.Ordinal);
+        Assert.Contains($"Ball bearing {marker}", english, StringComparison.Ordinal);
+        Assert.DoesNotContain("product-card", notAllWords, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Wiertło do betonu", "wierteł do betonu")]
+    [InlineData("Wiertło do betonu", "wiertłami do betonu")]
+    [InlineData("Kołek rozporowy", "kolkow rozporowych")]
+    [InlineData("Śruba nierdzewna", "srub nierdzewnych")]
+    public async Task Search_understands_polish_inflection(string name, string query)
+    {
+        var marker = Marker();
+        await ImportAsync(Product(Unique("INFL"), pl: $"{name} {marker}"));
+
+        var found = await EventuallyAsync($"/pl/catalog?q={Uri.EscapeDataString(query)}+{marker}", html => html.Contains(marker, StringComparison.Ordinal));
+
+        Assert.Contains($"{name} {marker}", found, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -115,10 +178,122 @@ public sealed class CatalogTests(HostFixture host)
         var inOther = Unique("OTHER");
         await ImportAsync(Product(inChild, child), Product(inOther, other));
 
-        var fragment = await FragmentAsync($"/pl/catalog?category={parent}");
+        var fragment = await EventuallyAsync($"/pl/catalog?category={parent}", html => html.Contains(inChild, StringComparison.Ordinal));
 
         Assert.Contains(inChild, fragment, StringComparison.Ordinal);
         Assert.DoesNotContain(inOther, fragment, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Facets_narrow_results_and_keep_counts_of_other_values()
+    {
+        var category = Unique("fac");
+        await ImportCategoriesAsync(new CategoryData(category, null, new Dictionary<string, string> { ["pl"] = "Fasety" }, 1));
+        var m8 = Unique("M8");
+        var m10 = Unique("M10");
+        await ImportAsync(Product(m8, category, thread: "M8"), Product(m10, category, thread: "M10"), Product(Unique("M10B"), category, thread: "M10"));
+
+        var all = await EventuallyAsync($"/pl/catalog?category={category}", html => html.Contains("Wyniki: 3", StringComparison.Ordinal));
+        var onlyM8 = await FragmentAsync($"/pl/catalog?category={category}&f=thread%3DM8");
+
+        Assert.Contains("<legend>Gwint</legend>", all, StringComparison.Ordinal);
+        Assert.Contains("Wyniki: 1", onlyM8, StringComparison.Ordinal);
+        Assert.Contains(m8, onlyM8, StringComparison.Ordinal);
+        Assert.DoesNotContain(m10, onlyM8, StringComparison.Ordinal);
+        Assert.Contains("value=\"thread=M8\" checked", onlyM8, StringComparison.Ordinal);
+        Assert.Contains("<span>M10</span> <span class=\"muted\">(2)</span>", onlyM8, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Deactivated_products_leave_the_search_results()
+    {
+        var marker = Marker();
+        var sku = Unique("GONE");
+        await ImportAsync(Product(sku, pl: $"Produkt {marker}"));
+        await EventuallyAsync($"/pl/catalog?q={marker}", html => html.Contains(sku, StringComparison.Ordinal));
+
+        await ImportAsync(Product(sku, version: 2, pl: $"Produkt {marker}") with { Active = false });
+        var after = await EventuallyAsync($"/pl/catalog?q={marker}", html => !html.Contains(sku, StringComparison.Ordinal));
+
+        Assert.DoesNotContain(sku, after, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Uploading_the_same_image_twice_returns_the_same_id()
+    {
+        var content = Png(new SKColor(10, 120, (byte)Random.Shared.Next(256)));
+
+        var first = await UploadAsync(content);
+        var second = await UploadAsync(content);
+        var invalid = await UploadAsync("not an image"u8.ToArray());
+
+        Assert.Equal(HttpStatusCode.Created, first.Status);
+        Assert.Equal(HttpStatusCode.OK, second.Status);
+        Assert.Equal(first.Image!.Id, second.Image!.Id);
+        Assert.Equal((800, 600), (first.Image.Width, first.Image.Height));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.Status);
+    }
+
+    [Fact]
+    public async Task Images_are_served_as_cacheable_webp_variants()
+    {
+        var (_, image) = await UploadAsync(Png(SKColors.OrangeRed, 2000, 1000));
+        using var client = host.CreateClient();
+
+        using var thumb = await client.GetAsync($"/media/images/{image!.Id}/thumb", Token);
+        using var unknown = await client.GetAsync($"/media/images/{image.Id}/huge", Token);
+        var bytes = await thumb.Content.ReadAsByteArrayAsync(Token);
+        using var codec = SKCodec.Create(SKData.CreateCopy(bytes));
+
+        Assert.Equal("image/webp", thumb.Content.Headers.ContentType?.MediaType);
+        Assert.Contains("immutable", thumb.Headers.CacheControl?.ToString(), StringComparison.Ordinal);
+        Assert.Equal((240, 120), (codec.Info.Width, codec.Info.Height));
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact]
+    public async Task Products_must_reference_uploaded_images()
+    {
+        var (_, image) = await UploadAsync(Png(SKColors.Teal));
+
+        var report = await ImportAsync(Product(Unique("IMG"), images: [image!.Id, new string('f', 64)]));
+
+        var rejected = Assert.Single(report.Rejected);
+        Assert.Equal("imageIds[1]", Assert.Single(rejected.Errors).Field);
+    }
+
+    [Fact]
+    public async Task Product_page_shows_a_gallery_of_all_images()
+    {
+        var images = new List<string>();
+        foreach (var colour in new[] { SKColors.Red, SKColors.Green, SKColors.Blue })
+        {
+            images.Add((await UploadAsync(Png(colour.WithAlpha((byte)Random.Shared.Next(200, 256))))).Image!.Id);
+        }
+
+        var sku = Unique("GAL");
+        await ImportAsync(Product(sku, images: images));
+        using var client = host.CreateClient();
+
+        var html = await client.GetStringAsync($"/pl/products/{sku}", Token);
+
+        Assert.Contains("data-gallery", html, StringComparison.Ordinal);
+        Assert.Contains($"src=\"/media/images/{images[0]}/medium\"", html, StringComparison.Ordinal);
+        Assert.All(images, id => Assert.Contains($"src=\"/media/images/{id}/thumb\"", html, StringComparison.Ordinal));
+        Assert.Contains($"data-large=\"/media/images/{images[2]}/large\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Product_without_images_shows_a_placeholder()
+    {
+        var sku = Unique("NOIMG");
+        await ImportAsync(Product(sku));
+        using var client = host.CreateClient();
+
+        var html = await client.GetStringAsync($"/pl/products/{sku}", Token);
+
+        Assert.Contains("src=\"/img/placeholder.svg\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-gallery", html, StringComparison.Ordinal);
     }
 
     [Fact]

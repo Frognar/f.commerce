@@ -49,6 +49,10 @@ public sealed class LocalizedText : IEquatable<LocalizedText>, IPersistedValue<L
         return resolved;
     }
 
+    /// <summary>Like <see cref="Resolve"/>, but falls back to any translation (empty string when there is none).</summary>
+    public string ResolveOrAny(CultureCode culture, params ReadOnlySpan<CultureCode> fallbacks) =>
+        Resolve(culture, fallbacks) ?? Translations.Values.FirstOrDefault() ?? string.Empty;
+
     private string? ResolveSingle(CultureCode culture)
     {
         if (Translations.TryGetValue(culture, out var exact))

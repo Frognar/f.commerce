@@ -32,4 +32,11 @@
   <data name="PageOf" xml:space="preserve"><value>Page {0} of {1}</value></data>
   <data name="ProductNotFound" xml:space="preserve"><value>Product not found</value></data>
   <data name="BackToCatalog" xml:space="preserve"><value>Back to the catalogue</value></data>
+  <data name="Filters" xml:space="preserve"><value>Filters</value></data>
+  <data name="NoImage" xml:space="preserve"><value>No image</value></data>
+  <data name="EnlargeImage" xml:space="preserve"><value>Enlarge image</value></data>
+  <data name="ImageOf" xml:space="preserve"><value>Image {0} of {1}</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="PreviousImage" xml:space="preserve"><value>Previous image</value></data>
+  <data name="NextImage" xml:space="preserve"><value>Next image</value></data>
 </root>

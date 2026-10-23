@@ -6,7 +6,13 @@
 
   <!-- Talks to the host only over the integration API; contracts give it the request shapes. -->
   <ItemGroup>
+    <PackageReference Include="SkiaSharp" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Modules\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Media\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

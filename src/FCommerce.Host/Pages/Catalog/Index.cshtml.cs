@@ -3,6 +3,7 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.SharedKernel.Results;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -21,17 +22,24 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "category")]
     public string? Category { get; set; }
 
+    /// <summary>Selected attribute values as <see cref="FilterValue"/> tokens.</summary>
+    [BindProperty(SupportsGet = true, Name = "f")]
+    public IReadOnlyList<string> Filters { get; set; } = [];
+
     [BindProperty(SupportsGet = true, Name = "p")]
     public int PageNumber { get; set; } = 1;
 
-    public ProductPage Results { get; private set; } = new([], 1, 1, 0);
+    public ProductPage Results { get; private set; } = new([], 1, 1, 0, []);
 
     public IReadOnlyList<CategoryView> Categories { get; private set; } = [];
+
+    /// <summary>URL token of a filter: the escaped code cannot contain '=', so the first '=' separates code and value.</summary>
+    public static string FilterValue(string code, string value) => $"{Uri.EscapeDataString(code)}={value}";
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         var requestCultures = cultures.ForRequest();
-        var page = await search.HandleAsync(new SearchProducts(requestCultures, Query, Category, PageNumber), cancellationToken);
+        var page = await search.HandleAsync(new SearchProducts(requestCultures, Query, Category, ParseFilters(), PageNumber), cancellationToken);
         var tree = await categories.HandleAsync(new GetCategoryTree(requestCultures), cancellationToken);
 
         return (from results in page from categoryTree in tree select (results, categoryTree)).Match<IActionResult>(
@@ -43,12 +51,36 @@ public sealed class IndexModel(
             error => BadRequest(error.Message));
     }
 
-    /// <summary>Route values for a link that keeps the current filters but changes some of them.</summary>
-    public Dictionary<string, string?> Link(string? category = null, int? page = null, bool keepCategory = true) =>
-        new()
+    /// <summary>Link to the catalogue with the current search, optionally changing the category or the page.</summary>
+    public string Href(string? category = null, int? page = null, bool keepCategory = true, bool keepFilters = true)
+    {
+        var query = new QueryBuilder();
+        if (!string.IsNullOrWhiteSpace(Query))
         {
-            ["q"] = string.IsNullOrWhiteSpace(Query) ? null : Query,
-            ["category"] = category ?? (keepCategory ? Category : null),
-            ["p"] = page is > 1 ? page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : null,
-        };
+            query.Add("q", Query);
+        }
+
+        if ((category ?? (keepCategory ? Category : null)) is { } selectedCategory)
+        {
+            query.Add("category", selectedCategory);
+        }
+
+        if (keepFilters && Filters.Count > 0)
+        {
+            query.Add("f", Filters);
+        }
+
+        if (page is > 1)
+        {
+            query.Add("p", page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        return Url.CulturePage("/Catalog/Index") + query.ToQueryString();
+    }
+
+    private List<AttributeFilter> ParseFilters() =>
+        [.. Filters
+            .Select(token => token.Split('=', 2))
+            .Where(parts => parts.Length == 2 && parts[0].Length > 0)
+            .Select(parts => new AttributeFilter(Uri.UnescapeDataString(parts[0]), parts[1]))];
 }

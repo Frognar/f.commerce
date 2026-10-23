@@ -12,6 +12,7 @@ public sealed record ImportProducts(IReadOnlyList<ProductData> Products) : IComm
 /// <param name="Sku">ERP product code (index); identifies the product.</param>
 /// <param name="Version">Monotonic version from the ERP (row version or change timestamp).</param>
 /// <param name="Name">Translations by culture, e.g. { "pl": "Śruba M8", "en": "M8 bolt" }.</param>
+/// <param name="ImageIds">Ids returned by the media upload (POST /integration/v1/media/images), in display order.</param>
 /// <param name="Active">False hides the product from the catalog.</param>
 public sealed record ProductData(
     string Sku,
@@ -21,7 +22,7 @@ public sealed record ProductData(
     string? CategoryCode,
     string Unit,
     string? Gtin,
-    IReadOnlyList<string>? ImageUrls,
+    IReadOnlyList<string>? ImageIds,
     IReadOnlyList<AttributeData>? Attributes,
     bool Active = true);
 

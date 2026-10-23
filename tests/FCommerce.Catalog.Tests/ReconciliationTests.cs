@@ -65,6 +65,20 @@ public sealed class ReconciliationTests
     }
 
     [Fact]
+    public void Products_referencing_images_that_are_not_stored_are_rejected()
+    {
+        UnvalidatedProduct[] inputs = [Input("A"), Input("B") with { ImageIds = [ImageB] }];
+        var batch = Reconciliation.ValidateBatch(inputs, i => i.Sku, Product.Validate);
+
+        var checkedBatch = Reconciliation.RequireStoredImages(batch, new HashSet<string> { ImageB });
+
+        Assert.Equal([1], checkedBatch.Valid.Select(v => v.Index));
+        var rejected = Assert.Single(checkedBatch.Rejected);
+        Assert.Equal((0, "A"), (rejected.Index, rejected.Key));
+        Assert.Equal("imageIds[0]", Assert.Single(rejected.Errors).Field);
+    }
+
+    [Fact]
     public void Batch_validation_rejects_every_occurrence_of_a_duplicated_key()
     {
         UnvalidatedProduct[] inputs = [Input("A"), Input(" A "), Input("B")];

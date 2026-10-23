@@ -61,6 +61,28 @@ public static class Reconciliation
             outcomes.Where(o => o.Rejected is not null).Select(o => o.Rejected!).ToEquatableArray());
     }
 
+    /// <summary>
+    /// Contextual check: every referenced image must already be in the media store (<paramref name="storedImages"/>).
+    /// Products referencing missing images move to the rejected items.
+    /// </summary>
+    public static ValidatedBatch<Product> RequireStoredImages(ValidatedBatch<Product> batch, IReadOnlySet<string> storedImages)
+    {
+        var missing = batch.Valid
+            .Select(v => (v.Index, v.Item, Errors: v.Item.Content.Images
+                .Select((image, position) => (image, position))
+                .Where(i => !storedImages.Contains(i.image.Value))
+                .Select(i => Error.Validation("image.not-uploaded", $"Image '{i.image}' has not been uploaded.") with { Field = $"imageIds[{i.position}]" })
+                .ToEquatableArray()))
+            .ToList();
+
+        return new ValidatedBatch<Product>(
+            missing.Where(m => m.Errors.IsEmpty).Select(m => (m.Index, m.Item)).ToEquatableArray(),
+            batch.Rejected
+                .Concat(missing.Where(m => !m.Errors.IsEmpty).Select(m => new Rejection(m.Index, m.Item.Sku.Value, m.Errors)))
+                .OrderBy(r => r.Index)
+                .ToEquatableArray());
+    }
+
     public static Change<Product> Reconcile(Product? stored, Product incoming) =>
         Reconcile(stored, incoming, p => p.Version, (a, b) => a.Content == b.Content && a.Active == b.Active);
 

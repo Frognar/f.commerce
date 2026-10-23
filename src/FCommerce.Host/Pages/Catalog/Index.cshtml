@@ -7,17 +7,17 @@
     <aside class="catalog-sidebar" aria-label="@T["Categories"]">
         <h2>@T["Categories"]</h2>
         <ul class="category-tree">
-            <li><a asp-page="/Catalog/Index" asp-all-route-data="Model.Link(keepCategory: false)"
+            <li><a href="@Model.Href(keepCategory: false, keepFilters: false)"
                    aria-current="@(Model.Category is null ? "page" : null)">@T["AllCategories"]</a></li>
             <partial name="_CategoryTree" model="(Model, Model.Categories)" />
         </ul>
     </aside>
 
-    <section class="catalog-main">
+    <form class="catalog-main" role="search" method="get" action="@Url.CulturePage("/Catalog/Index")"
+          hx-get="@Url.CulturePage("/Catalog/Index")" hx-target="#@IndexModel.ResultsId" hx-push-url="true"
+          hx-trigger="input changed delay:300ms from:find input[name=q], change from:find input[name=f], submit">
         <h1>@T["Catalog"]</h1>
-        <form class="search" role="search" method="get" asp-page="/Catalog/Index"
-              hx-get="@Url.CulturePage("/Catalog/Index")" hx-target="#@IndexModel.ResultsId" hx-push-url="true"
-              hx-trigger="input changed delay:300ms from:find input[name=q], submit">
+        <div class="search">
             <input type="search" name="q" value="@Model.Query" placeholder="@T["SearchPlaceholder"]"
                    aria-label="@T["SearchPlaceholder"]" autocomplete="off" />
             @if (Model.Category is not null)
@@ -25,10 +25,10 @@
                 <input type="hidden" name="category" value="@Model.Category" />
             }
             <button class="button" type="submit">@T["SearchButton"]</button>
-        </form>
+        </div>
 
         <div id="@IndexModel.ResultsId" aria-live="polite">
             <partial name="_ProductResults" model="Model" />
         </div>
-    </section>
+    </form>
 </div>

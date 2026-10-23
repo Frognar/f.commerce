@@ -6,6 +6,9 @@ namespace FCommerce.Catalog.Tests;
 
 internal static class TestProducts
 {
+    public static readonly string ImageA = new('a', 64);
+    public static readonly string ImageB = new('b', 64);
+
     public static UnvalidatedProduct Input(string sku = "SR-M8-40", long version = 1) =>
         new(
             sku,
@@ -15,7 +18,7 @@ internal static class TestProducts
             "fasteners",
             "szt",
             "5901234123457",
-            ["https://cdn.example.com/sr-m8-40.jpg"],
+            [ImageA, ImageB],
             [new UnvalidatedAttribute("material", new Dictionary<string, string> { ["pl"] = "Materiał" }, new Dictionary<string, string> { ["pl"] = "Stal" })],
             Active: true);
 

@@ -3,6 +3,7 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Import;
 using FCommerce.Catalog.Persistence;
 using FCommerce.Catalog.Queries;
+using FCommerce.Catalog.Search;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Outbox;
 using FCommerce.Infrastructure.Persistence;
@@ -13,11 +14,27 @@ namespace FCommerce.Catalog;
 
 public static class CatalogModule
 {
-    public static IServiceCollection AddCatalogModule(this IServiceCollection services)
+    /// <summary>
+    /// Requires an <see cref="Application.Search.ISearchEngine"/> and the Media module's <c>FindStoredImages</c> query.
+    /// Invalid options stop the host on startup.
+    /// </summary>
+    public static IServiceCollection AddCatalogModule(this IServiceCollection services, Action<CatalogOptions> configure)
     {
+        var options = new CatalogOptions();
+        configure(options);
+        services.AddSingleton(CatalogCultures.From(options).Match(
+            cultures => cultures,
+            error => throw new InvalidOperationException($"Catalog options: {error.Message}")));
+
         services.AddModuleDbContext<CatalogDbContext>(CatalogDbContext.Schema);
         services.AddOutbox<CatalogDbContext>();
         services.AddMessageType<ProductChanged>("catalog.product-changed.v1");
+        services.AddMessageType<CategoriesChanged>("catalog.categories-changed.v1");
+
+        services.AddScoped<ProductSearchIndex>();
+        services.AddIntegrationEventHandler<ProductChanged, IndexChangedProduct>();
+        services.AddIntegrationEventHandler<CategoriesChanged, ReindexOnCategoriesChanged>();
+        services.AddHostedService<SearchIndexInitializer>();
 
         services.AddScoped<ICommandHandler<ImportProducts, Result<ImportReport, Error>>, ImportProductsHandler>();
         services.AddScoped<ICommandHandler<ImportCategories, Result<ImportReport, Error>>, ImportCategoriesHandler>();

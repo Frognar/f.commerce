@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.Application\FCommerce.Application.csproj" />
+    <ProjectReference Include="..\FCommerce.Search.Core\FCommerce.Search.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Dictionaries\*.gz" LogicalName="Dictionaries.%(Filename)%(Extension)" />
+    <None Include="Dictionaries\LICENSE-pl_PL.txt" CopyToOutputDirectory="PreserveNewest" Link="licenses\LICENSE-pl_PL.txt" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FCommerce.Infrastructure.Tests" />
+  </ItemGroup>
+
+</Project>

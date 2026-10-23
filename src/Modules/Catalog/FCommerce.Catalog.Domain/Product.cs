@@ -14,7 +14,7 @@ public sealed record UnvalidatedProduct(
     string? CategoryCode,
     string? Unit,
     string? Gtin,
-    IReadOnlyList<string>? ImageUrls,
+    IReadOnlyList<string>? ImageIds,
     IReadOnlyList<UnvalidatedAttribute>? Attributes,
     bool Active);
 
@@ -32,7 +32,7 @@ public sealed record ProductContent(
     CategoryCode? Category,
     UnitCode Unit,
     Gtin? Gtin,
-    EquatableArray<ImageUrl> Images,
+    EquatableArray<ImageId> Images,
     EquatableArray<ProductAttribute> Attributes);
 
 /// <summary>A catalog product. Built only from validated parts, so it is always valid.</summary>
@@ -46,7 +46,7 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
     private static readonly Func<Sku, SourceVersion, ProductContent, Func<bool, Product>> Create =
         (sku, version, content) => active => new Product(sku, version, content, active);
 
-    private static readonly Func<ProductName, LocalizedText, CategoryCode?, UnitCode, Gtin?, EquatableArray<ImageUrl>, EquatableArray<ProductAttribute>, ProductContent> CreateContent =
+    private static readonly Func<ProductName, LocalizedText, CategoryCode?, UnitCode, Gtin?, EquatableArray<ImageId>, EquatableArray<ProductAttribute>, ProductContent> CreateContent =
         (name, description, category, unit, gtin, images, attributes) => new ProductContent(name, description, category, unit, gtin, images, attributes);
 
     private static readonly Func<AttributeCode, LocalizedText, LocalizedText, ProductAttribute> CreateAttribute =
@@ -67,7 +67,7 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
             .Apply(Optional(input.CategoryCode, CategoryCode.Parse).ToValidated("categoryCode"))
             .Apply(UnitCode.Parse(input.Unit).ToValidated("unit"))
             .Apply(Optional(input.Gtin, Domain.Gtin.Parse).ToValidated("gtin"))
-            .Apply(Bounded(input.ImageUrls, MaxImages, "imageUrls", url => ImageUrl.Parse(url).ToValidated()))
+            .Apply(Bounded(input.ImageIds, MaxImages, "imageIds", id => ImageId.Parse(id).ToValidated()))
             .Apply(Bounded(input.Attributes, MaxAttributes, "attributes", ValidateAttribute));
 
     private static Validated<ProductAttribute> ValidateAttribute(UnvalidatedAttribute input) =>

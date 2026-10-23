@@ -2,12 +2,15 @@ using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Domain;
 using FCommerce.Catalog.Persistence;
+using FCommerce.Catalog.Search;
+using FCommerce.Infrastructure.Outbox;
+using FCommerce.Application.Results;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Catalog.Import;
 
-internal sealed class ImportCategoriesHandler(CatalogDbContext db, TimeProvider time)
+internal sealed class ImportCategoriesHandler(CatalogDbContext db, Outbox<CatalogDbContext> outbox, TimeProvider time)
     : ICommandHandler<ImportCategories, Result<ImportReport, Error>>
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportCategories command, CancellationToken cancellationToken = default)
@@ -41,7 +44,12 @@ internal sealed class ImportCategoriesHandler(CatalogDbContext db, TimeProvider 
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
-        return ImportReports.Create(command.Categories.Count, changes, batch.Rejected);
+        var treeChanged = changes.Any(c => c is Change<Category>.Created or Change<Category>.Updated);
+        return await (treeChanged ? outbox.Enqueue(new CategoriesChanged()) : Unit.Value)
+            .MapAsync(async _ =>
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return ImportReports.Create(command.Categories.Count, changes, batch.Rejected);
+            });
     }
 }

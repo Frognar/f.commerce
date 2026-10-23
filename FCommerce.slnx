@@ -17,7 +17,9 @@
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/FCommerce.Application/FCommerce.Application.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure.Postgres/FCommerce.Infrastructure.Postgres.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.Infrastructure.Search/FCommerce.Infrastructure.Search.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure/FCommerce.Infrastructure.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.Search.Core/FCommerce.Search.Core.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.SharedKernel/FCommerce.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
@@ -26,12 +28,19 @@
     <Project Path="src/Modules/Catalog/FCommerce.Catalog.Domain/FCommerce.Catalog.Domain.csproj" />
     <Project Path="src/Modules/Catalog/FCommerce.Catalog/FCommerce.Catalog.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Media/">
+    <Project Path="src/Modules/Media/FCommerce.Media.Contracts/FCommerce.Media.Contracts.csproj" />
+    <Project Path="src/Modules/Media/FCommerce.Media.Domain/FCommerce.Media.Domain.csproj" />
+    <Project Path="src/Modules/Media/FCommerce.Media/FCommerce.Media.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
     <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
     <Project Path="tests/FCommerce.Catalog.Tests/FCommerce.Catalog.Tests.csproj" />
     <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
     <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />
+    <Project Path="tests/FCommerce.Media.Tests/FCommerce.Media.Tests.csproj" />
+    <Project Path="tests/FCommerce.Search.Core.Tests/FCommerce.Search.Core.Tests.csproj" />
     <Project Path="tests/FCommerce.SharedKernel.Tests/FCommerce.SharedKernel.Tests.csproj" />
     <Project Path="tests/FCommerce.Testing/FCommerce.Testing.csproj" />
   </Folder>

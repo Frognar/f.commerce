@@ -1,4 +1,6 @@
 @page "/products/{**sku}"
+@using FCommerce.Host.Media
+@using FCommerce.Media.Contracts
 @model FCommerce.Host.Pages.Products.DetailsModel
 @{
     var product = Model.Product;
@@ -23,12 +25,49 @@ else
     </nav>
 
     <article class="product">
-        <div class="product-gallery">
-            @foreach (var image in product.ImageUrls)
-            {
-                <img src="@image" alt="@product.Name" loading="lazy" />
-            }
-        </div>
+        @if (product.ImageIds.Count == 0)
+        {
+            <div class="gallery">
+                <div class="gallery-main"><img src="/img/placeholder.svg" alt="@T["NoImage"]" /></div>
+            </div>
+        }
+        else
+        {
+            var first = product.ImageIds[0];
+            <div class="gallery" data-gallery>
+                <a class="gallery-main" href="@MediaEndpoints.ImageUrl(first, ImageVariantNames.Large)" data-gallery-main
+                   aria-label="@T["EnlargeImage"]">
+                    <img src="@MediaEndpoints.ImageUrl(first, ImageVariantNames.Medium)" alt="@product.Name" />
+                </a>
+                @if (product.ImageIds.Count > 1)
+                {
+                    <ul class="gallery-thumbs">
+                        @for (var i = 0; i < product.ImageIds.Count; i++)
+                        {
+                            var id = product.ImageIds[i];
+                            <li>
+                                <button type="button" data-gallery-thumb="@i" aria-current="@(i == 0 ? "true" : null)"
+                                        data-medium="@MediaEndpoints.ImageUrl(id, ImageVariantNames.Medium)"
+                                        data-large="@MediaEndpoints.ImageUrl(id, ImageVariantNames.Large)"
+                                        aria-label="@T["ImageOf", i + 1, product.ImageIds.Count]">
+                                    <img src="@MediaEndpoints.ImageUrl(id, ImageVariantNames.Thumbnail)" alt="" loading="lazy" />
+                                </button>
+                            </li>
+                        }
+                    </ul>
+                }
+                <dialog class="lightbox" data-gallery-dialog aria-label="@product.Name">
+                    <img alt="@product.Name" data-gallery-large />
+                    <p class="lightbox-counter" data-gallery-counter></p>
+                    <button type="button" class="lightbox-close" data-gallery-close aria-label="@T["Close"]">×</button>
+                    @if (product.ImageIds.Count > 1)
+                    {
+                        <button type="button" class="lightbox-prev" data-gallery-prev aria-label="@T["PreviousImage"]">‹</button>
+                        <button type="button" class="lightbox-next" data-gallery-next aria-label="@T["NextImage"]">›</button>
+                    }
+                </dialog>
+            </div>
+        }
         <div class="product-info">
             <h1>@product.Name</h1>
             <dl class="facts">

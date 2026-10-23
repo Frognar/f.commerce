@@ -1,8 +1,10 @@
 using FCommerce.Application.Messaging;
+using FCommerce.Application.Search;
 using FCommerce.Application.Results;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Domain;
 using FCommerce.Catalog.Persistence;
+using FCommerce.Catalog.Search;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
 using FCommerce.SharedKernel.Results;
@@ -10,7 +12,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Catalog.Queries;
 
-internal sealed class SearchProductsHandler(CatalogDbContext db) : IQueryHandler<SearchProducts, Result<ProductPage, Error>>
+internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCultures catalogCultures)
+    : IQueryHandler<SearchProducts, Result<ProductPage, Error>>
 {
     public const int MaxPageSize = 100;
 
@@ -19,48 +22,58 @@ internal sealed class SearchProductsHandler(CatalogDbContext db) : IQueryHandler
 
     private async Task<ProductPage> SearchAsync(SearchProducts query, EquatableArray<CultureCode> cultures, CancellationToken cancellationToken)
     {
+        var index = ProductSearchIndex.IndexName(catalogCultures.IndexFor(cultures));
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
-        var products = db.Products.AsNoTracking().Where(p => p.Active);
+        var selected = (query.Filters ?? []).Select(f => (f.Code, f.Value)).ToHashSet();
+        var category = string.IsNullOrWhiteSpace(query.CategoryCode) ? null : query.CategoryCode.Trim();
 
-        if (!string.IsNullOrWhiteSpace(query.CategoryCode))
+        var main = await engine.SearchAsync<ProductSearchDocument>(
+            index,
+            new SearchRequest(query.Text, Filter(category, selected, except: null), [ProductSearchIndex.FacetsField, ProductSearchIndex.FacetNamesField], page, pageSize),
+            cancellationToken);
+
+        // Disjunctive facets: a selected attribute's own values are counted without its own filter,
+        // so choosing "M8" still shows how many "M10" products there are.
+        var counts = new Dictionary<string, int>(FacetCounts(main, ProductSearchIndex.FacetsField).Where(c => !IsSelectedAttribute(c.Key, selected)));
+        foreach (var code in selected.Select(s => s.Code).Distinct())
         {
-            var codes = await CategoryScopeAsync(query.CategoryCode, cancellationToken);
-            products = products.Where(p => p.CategoryCode != null && codes.Contains(p.CategoryCode));
+            var others = await engine.SearchAsync<ProductSearchDocument>(
+                index,
+                new SearchRequest(query.Text, Filter(category, selected, except: code), [ProductSearchIndex.FacetsField], 1, 0),
+                cancellationToken);
+            foreach (var (token, count) in FacetCounts(others, ProductSearchIndex.FacetsField).Where(c => CatalogSearch.ParseFacetToken(c.Key)?.Code == code))
+            {
+                counts[token] = count;
+            }
         }
 
-        // Word-prefix match on the normalized document: "sru m8" finds "Śruba M8x40".
-        foreach (var token in SearchText.Tokens(query.Text))
-        {
-            var prefix = " " + token;
-            products = products.Where(p => p.SearchDocument.Contains(prefix));
-        }
-
-        var total = await products.CountAsync(cancellationToken);
-        var rows = await products
-            .OrderBy(p => p.Sku)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToListAsync(cancellationToken);
-
-        return new ProductPage([.. rows.Select(r => Summarize(r.ToDomain(), cultures))], page, pageSize, total);
+        var facets = CatalogSearch.Facets(counts, FacetCounts(main, ProductSearchIndex.FacetNamesField), selected);
+        return new ProductPage(
+            [.. main.Hits.Select(h => new ProductSummary(h.Sku, h.Name, h.Unit, h.ImageId, h.Categories.Length > 0 ? h.Categories[^1] : null))],
+            page,
+            pageSize,
+            main.TotalHits,
+            [.. facets.Select(f => new FacetView(f.Code, f.Name, [.. f.Values.Select(v => new FacetValueView(v.Value, v.Count, v.Selected))]))]);
     }
 
-    private async Task<List<string>> CategoryScopeAsync(string rawCode, CancellationToken cancellationToken)
-    {
-        var tree = CategoryTree.Build((await db.Categories.AsNoTracking().ToListAsync(cancellationToken)).Select(c => c.ToDomain()));
-        return CategoryCode.Parse(rawCode).Match(
-            code => CategoryTree.SelfAndDescendants(tree, code).Select(c => c.Value).ToList(),
-            _ => []);
-    }
+    private static SearchFilter.All Filter(string? category, IReadOnlySet<(string Code, string Value)> selected, string? except) =>
+        new SearchFilter.All(
+        [
+            .. category is null ? [] : new SearchFilter[] { new SearchFilter.Equal(ProductSearchIndex.CategoriesField, category) },
+            .. selected
+                .Where(s => s.Code != except)
+                .GroupBy(s => s.Code)
+                .Select(attribute => new SearchFilter.AnyOf(
+                    ProductSearchIndex.FacetsField,
+                    attribute.Select(s => CatalogSearch.FacetToken(s.Code, s.Value)).ToEquatableArray())),
+        ]);
 
-    private static ProductSummary Summarize(Product product, EquatableArray<CultureCode> cultures) =>
-        new(
-            product.Sku.Value,
-            product.Content.Name.Text.Resolve(cultures),
-            product.Content.Unit.Value,
-            product.Content.Images.IsEmpty ? null : product.Content.Images[0].Value,
-            product.Content.Category?.Value);
+    private static bool IsSelectedAttribute(string token, IReadOnlySet<(string Code, string Value)> selected) =>
+        CatalogSearch.ParseFacetToken(token) is { } parsed && selected.Any(s => s.Code == parsed.Code);
+
+    private static IReadOnlyDictionary<string, int> FacetCounts(SearchResult<ProductSearchDocument> result, string field) =>
+        result.Facets.GetValueOrDefault(field) ?? new Dictionary<string, int>();
 }
 
 internal sealed class GetProductHandler(CatalogDbContext db) : IQueryHandler<GetProduct, Result<ProductDetails, Error>>

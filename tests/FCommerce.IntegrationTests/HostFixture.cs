@@ -15,6 +15,7 @@ namespace FCommerce.IntegrationTests;
 public sealed class HostFixture : IAsyncLifetime
 {
     private readonly PostgreSqlContainer postgres = new PostgreSqlBuilder("postgres:17-alpine").Build();
+    private readonly string dataPath = Path.Combine(Path.GetTempPath(), $"fcommerce-tests-{Guid.NewGuid():N}");
     private WebApplicationFactory<Program>? factory;
 
     public const string IntegrationApiKey = "test-integration-key";
@@ -42,6 +43,8 @@ public sealed class HostFixture : IAsyncLifetime
             .UseSetting("ConnectionStrings:Postgres", postgres.GetConnectionString())
             .UseSetting("Database:ApplyChangesOnStartup", "true")
             .UseSetting("Integration:ApiKey", IntegrationApiKey)
+            .UseSetting("Search:StoragePath", Path.Combine(dataPath, "search"))
+            .UseSetting("Media:StoragePath", Path.Combine(dataPath, "media"))
             .ConfigureTestServices(services => services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events)));
         _ = Factory.Server; // start now, so failures surface in the fixture
     }
@@ -67,5 +70,9 @@ public sealed class HostFixture : IAsyncLifetime
         }
 
         await postgres.DisposeAsync();
+        if (Directory.Exists(dataPath))
+        {
+            Directory.Delete(dataPath, recursive: true);
+        }
     }
 }

@@ -30,7 +30,6 @@ internal sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> option
             product.Property(p => p.Images).HasColumnName("images");
             product.Property(p => p.Attributes).HasColumnName("attributes");
             product.Property(p => p.Active).HasColumnName("active");
-            product.Property(p => p.SearchDocument).HasColumnName("search_document");
             product.Property(p => p.UpdatedAt).HasColumnName("updated_at");
             product.HasIndex(p => p.CategoryCode).HasDatabaseName("ix_products_category_code");
         });

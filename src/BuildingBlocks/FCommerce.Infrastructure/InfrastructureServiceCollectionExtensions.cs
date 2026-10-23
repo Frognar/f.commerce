@@ -30,6 +30,10 @@ public static class InfrastructureServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>Blob storage on the local file system (single-instance deployments, development).</summary>
+    public static IServiceCollection AddFileSystemBlobStore(this IServiceCollection services, string rootPath) =>
+        services.AddSingleton<Application.Storage.IBlobStore>(new Storage.FileSystemBlobStore(rootPath));
+
     /// <summary>Registers a persisted name for an event or message type.</summary>
     public static IServiceCollection AddMessageType<T>(this IServiceCollection services, string name) =>
         services.AddSingleton(new MessageTypeRegistration(typeof(T), name));

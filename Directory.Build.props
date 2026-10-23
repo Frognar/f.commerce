@@ -11,10 +11,10 @@
   </PropertyGroup>
 
   <!--
-    Pure projects (SharedKernel and every *.Domain): the functional core.
+    Pure projects (SharedKernel, every *.Domain and *.Core): the functional core.
     BannedApiAnalyzers turns any use of clocks, randomness, IO or ambient state into a compile error.
   -->
-  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'FCommerce.SharedKernel' Or $(MSBuildProjectName.EndsWith('.Domain'))">
+  <PropertyGroup Condition="'$(MSBuildProjectName)' == 'FCommerce.SharedKernel' Or $(MSBuildProjectName.EndsWith('.Domain')) Or $(MSBuildProjectName.EndsWith('.Core'))">
     <IsPureProject>true</IsPureProject>
   </PropertyGroup>
 
