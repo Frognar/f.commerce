@@ -26,6 +26,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.TryAddSingleton(subscriptionOptions);
         services.TryAddSingleton<SubscriptionProcessor>();
         services.AddHostedService<EventSubscriptionWorker>();
+        services.AddModuleDbContext<MessagingDbContext>(MessagingDbContext.Schema);
         return services;
     }
 

@@ -14,4 +14,22 @@
   <data name="ErrorTitle" xml:space="preserve"><value>Something went wrong</value></data>
   <data name="ErrorLead" xml:space="preserve"><value>Please try again in a moment. If the problem persists, contact your account manager.</value></data>
   <data name="BackHome" xml:space="preserve"><value>Back to the home page</value></data>
+  <data name="Catalog" xml:space="preserve"><value>Catalogue</value></data>
+  <data name="Categories" xml:space="preserve"><value>Categories</value></data>
+  <data name="AllCategories" xml:space="preserve"><value>All products</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Search by name, SKU or EAN</value></data>
+  <data name="SearchButton" xml:space="preserve"><value>Search</value></data>
+  <data name="ResultsCount" xml:space="preserve"><value>Results: {0}</value></data>
+  <data name="NoResults" xml:space="preserve"><value>No products match your criteria.</value></data>
+  <data name="Sku" xml:space="preserve"><value>SKU</value></data>
+  <data name="Unit" xml:space="preserve"><value>Unit</value></data>
+  <data name="Gtin" xml:space="preserve"><value>EAN</value></data>
+  <data name="Description" xml:space="preserve"><value>Description</value></data>
+  <data name="Attributes" xml:space="preserve"><value>Specifications</value></data>
+  <data name="Pages" xml:space="preserve"><value>Pages</value></data>
+  <data name="PreviousPage" xml:space="preserve"><value>← Previous</value></data>
+  <data name="NextPage" xml:space="preserve"><value>Next →</value></data>
+  <data name="PageOf" xml:space="preserve"><value>Page {0} of {1}</value></data>
+  <data name="ProductNotFound" xml:space="preserve"><value>Product not found</value></data>
+  <data name="BackToCatalog" xml:space="preserve"><value>Back to the catalogue</value></data>
 </root>

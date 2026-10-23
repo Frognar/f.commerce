@@ -34,6 +34,10 @@ public sealed record SupportedCultures(CultureCode Default, IReadOnlyList<Cultur
             .FirstOrDefault(All.Contains)
         ?? Default;
 
+    /// <summary>Cultures to resolve content for in the current request: the request culture, then the default.</summary>
+    public IReadOnlyList<string> ForRequest() =>
+        [.. new[] { CultureInfo.CurrentUICulture.Name, Default.Value }.Distinct(StringComparer.OrdinalIgnoreCase)];
+
     public IList<CultureInfo> CultureInfos => [.. All.Select(c => CultureInfo.GetCultureInfo(c.Value))];
 }
 

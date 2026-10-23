@@ -1,3 +1,5 @@
+using FCommerce.Catalog;
+using FCommerce.Host.Integration;
 using FCommerce.Host.Localization;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Persistence;
@@ -14,6 +16,9 @@ var applyDatabaseChanges = builder.Configuration.GetValue<bool>("Database:ApplyC
 builder.Services.AddFCommerceInfrastructure();
 builder.Services.AddPostgres(connectionString, applySchemaChanges: applyDatabaseChanges);
 
+// Modules.
+builder.Services.AddCatalogModule();
+
 // Localization: culture comes from the URL ("/pl/…"); "/" negotiates it from Accept-Language.
 // Invalid settings stop the host on startup (ValidateOnStart), so the factory below only sees valid ones.
 builder.Services.AddOptions<LocalizationSettings>().Bind(builder.Configuration.GetSection(LocalizationSettings.Section)).ValidateOnStart();
@@ -21,6 +26,9 @@ builder.Services.AddSingleton<IValidateOptions<LocalizationSettings>, Localizati
 builder.Services.AddSingleton(sp => SupportedCultures.From(sp.GetRequiredService<IOptions<LocalizationSettings>>().Value)
     .Match(cultures => cultures, error => throw new OptionsValidationException(LocalizationSettings.Section, typeof(LocalizationSettings), [error.Message])));
 builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+// Emit non-Latin text (ą, ł, ö, …) as-is instead of HTML entities; encoding still escapes markup characters.
+builder.Services.Configure<Microsoft.Extensions.WebEncoders.WebEncoderOptions>(options =>
+    options.TextEncoderSettings = new System.Text.Encodings.Web.TextEncoderSettings(System.Text.Unicode.UnicodeRanges.All));
 builder.Services.Configure<RouteOptions>(options => options.ConstraintMap[CultureRouteConstraint.Name] = typeof(CultureRouteConstraint));
 builder.Services.AddOptions<RequestLocalizationOptions>().Configure<SupportedCultures>((options, cultures) =>
 {
@@ -65,6 +73,7 @@ app.MapRazorPages().WithStaticAssets();
 app.MapGet("/", CultureRedirect.ToPreferredCulture).ExcludeFromDescription();
 app.MapHealthChecks("/health");
 app.MapOpenApi("/openapi/{documentName}.json");
+app.MapIntegrationApi();
 
 await app.RunAsync();
 

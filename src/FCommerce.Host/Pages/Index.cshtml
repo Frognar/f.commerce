@@ -11,5 +11,5 @@
 <section class="card">
     <h2>@T["SystemStatus"]</h2>
     <div id="status" aria-live="polite"></div>
-    <button class="button" hx-get="@Url.Page("/Index", "Status")" hx-target="#status">@T["StatusCheck"]</button>
+    <button class="button" hx-get="@Url.CulturePageHandler("/Index", "Status")" hx-target="#status">@T["StatusCheck"]</button>
 </section>

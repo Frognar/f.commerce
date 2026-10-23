@@ -20,11 +20,9 @@ public sealed class ValidatedTests
     private static Validated<string> Email(string value) =>
         value.Contains('@', StringComparison.Ordinal) ? value : Error.Validation("email.invalid", "Invalid e-mail.") with { Field = "email" };
 
-    private static EquatableArray<Error> Errors<T>(Validated<T> validated) =>
-        validated.Match(value => throw new ResultAssertionException($"Expected errors but got {value}"), errors => errors);
+    private static EquatableArray<Error> Errors<T>(Validated<T> validated) => validated.ShouldBeInvalid();
 
-    private static T Value<T>(Validated<T> validated) =>
-        validated.Match(value => value, errors => throw new ResultAssertionException($"Expected a value but got {errors}"));
+    private static T Value<T>(Validated<T> validated) => validated.ShouldBeValid();
 
     [Fact]
     public void Apply_builds_the_value_when_every_input_is_valid()

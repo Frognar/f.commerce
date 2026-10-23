@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Immutable;
+using System.Runtime.CompilerServices;
 
 namespace FCommerce.SharedKernel.Collections;
 
@@ -7,6 +8,11 @@ namespace FCommerce.SharedKernel.Collections;
 /// An immutable array with structural equality, so records that contain collections
 /// compare by value (ImmutableArray alone compares by reference).
 /// </summary>
+/// <remarks>
+/// Collection expressions (<c>[a, b]</c>) go through <see cref="EquatableArray.Create{T}"/>; without the builder the
+/// compiler would call the non-mutating <see cref="Add"/> and silently produce an empty array.
+/// </remarks>
+[CollectionBuilder(typeof(EquatableArray), nameof(EquatableArray.Create))]
 public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadOnlyList<T>
 {
     private readonly ImmutableArray<T> items;

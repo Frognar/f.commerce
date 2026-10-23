@@ -37,6 +37,8 @@ public sealed class WebShellTests(HostFixture host)
         Assert.Contains(heading, html, StringComparison.Ordinal);
         Assert.Contains("hreflang=\"pl\" href=\"/pl\"", html, StringComparison.Ordinal);
         Assert.Contains("hreflang=\"en\" href=\"/en\"", html, StringComparison.Ordinal);
+        Assert.Contains($"hx-get=\"{path}?handler=Status\"", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"{path}/catalog\"", html, StringComparison.Ordinal);
     }
 
     [Fact]

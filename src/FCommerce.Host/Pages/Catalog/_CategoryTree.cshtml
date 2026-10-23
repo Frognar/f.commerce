@@ -1,0 +1,12 @@
+@model (FCommerce.Host.Pages.Catalog.IndexModel Page, IReadOnlyList<FCommerce.Catalog.Contracts.CategoryView> Nodes)
+@foreach (var node in Model.Nodes)
+{
+    <li>
+        <a asp-page="/Catalog/Index" asp-all-route-data="Model.Page.Link(category: node.Code)"
+           aria-current="@(node.Code == Model.Page.Category ? "page" : null)">@node.Name</a>
+        @if (node.Children.Count > 0)
+        {
+            <ul><partial name="_CategoryTree" model="(Model.Page, node.Children)" /></ul>
+        }
+    </li>
+}

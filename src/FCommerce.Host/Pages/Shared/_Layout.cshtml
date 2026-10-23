@@ -20,7 +20,7 @@
     {
         foreach (var alternate in Cultures.All)
         {
-            <link rel="alternate" hreflang="@alternate" href="@Url.Page(currentPage, new { culture = alternate.Value })" />
+            <link rel="alternate" hreflang="@alternate" href="@Url.CurrentPageIn(ViewContext, alternate.Value)" />
         }
     }
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
@@ -30,12 +30,15 @@
     <header class="site-header">
         <div class="container header-row">
             <a class="brand" asp-page="/Index">f.commerce <span class="brand-tagline">@T["Tagline"]</span></a>
+            <nav class="main-nav">
+                <a asp-page="/Catalog/Index">@T["Catalog"]</a>
+            </nav>
             @if (currentPage is not null)
             {
                 <nav class="language-switcher" aria-label="@T["Language"]">
                     @foreach (var option in Cultures.All)
                     {
-                        <a asp-page="@currentPage" asp-route-culture="@option.Value"
+                        <a href="@Url.CurrentPageIn(ViewContext, option.Value)"
                            aria-current="@(option.Value == culture ? "true" : null)">@option.Value.ToUpperInvariant()</a>
                     }
                 </nav>

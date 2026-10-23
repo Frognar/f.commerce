@@ -4,4 +4,6 @@
 @using Microsoft.Extensions.Localization
 @namespace FCommerce.Host.Pages
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+@removeTagHelper Microsoft.AspNetCore.Mvc.TagHelpers.AnchorTagHelper, Microsoft.AspNetCore.Mvc.TagHelpers
+@addTagHelper *, FCommerce.Host
 @inject IStringLocalizer<SharedResource> T

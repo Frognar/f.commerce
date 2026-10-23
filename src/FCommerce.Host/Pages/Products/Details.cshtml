@@ -1,0 +1,61 @@
+@page "/products/{**sku}"
+@model FCommerce.Host.Pages.Products.DetailsModel
+@{
+    var product = Model.Product;
+    ViewData["Title"] = product?.Name ?? T["ProductNotFound"];
+}
+@if (product is null)
+{
+    <section class="hero">
+        <h1>@T["ProductNotFound"]</h1>
+        <p><a asp-page="/Catalog/Index">@T["BackToCatalog"]</a></p>
+    </section>
+}
+else
+{
+    <nav class="breadcrumb" aria-label="@T["Categories"]">
+        <a asp-page="/Catalog/Index">@T["Catalog"]</a>
+        @foreach (var category in product.CategoryPath)
+        {
+            <span aria-hidden="true">/</span>
+            <a asp-page="/Catalog/Index" asp-route-category="@category.Code">@category.Name</a>
+        }
+    </nav>
+
+    <article class="product">
+        <div class="product-gallery">
+            @foreach (var image in product.ImageUrls)
+            {
+                <img src="@image" alt="@product.Name" loading="lazy" />
+            }
+        </div>
+        <div class="product-info">
+            <h1>@product.Name</h1>
+            <dl class="facts">
+                <dt>@T["Sku"]</dt><dd>@product.Sku</dd>
+                <dt>@T["Unit"]</dt><dd>@product.Unit</dd>
+                @if (product.Gtin is not null)
+                {
+                    <dt>@T["Gtin"]</dt><dd>@product.Gtin</dd>
+                }
+            </dl>
+            @if (product.Description is not null)
+            {
+                <h2>@T["Description"]</h2>
+                <p class="description">@product.Description</p>
+            }
+            @if (product.Attributes.Count > 0)
+            {
+                <h2>@T["Attributes"]</h2>
+                <table class="attributes">
+                    <tbody>
+                        @foreach (var spec in product.Attributes)
+                        {
+                            <tr><th scope="row">@spec.Name</th><td>@spec.Value</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </article>
+}

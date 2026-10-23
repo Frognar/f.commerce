@@ -26,6 +26,17 @@ public sealed class EquatableArrayTests
     }
 
     [Fact]
+    public void Collection_expressions_build_the_array()
+    {
+        EquatableArray<int> values = [1, 2, 3];
+        int[] more = [4, 5];
+        EquatableArray<int> spread = [0, .. more];
+
+        Assert.Equal(EquatableArray.Create(1, 2, 3), values);
+        Assert.Equal(EquatableArray.Create(0, 4, 5), spread);
+    }
+
+    [Fact]
     public void Changes_return_new_arrays()
     {
         var original = EquatableArray.Create(1, 2);

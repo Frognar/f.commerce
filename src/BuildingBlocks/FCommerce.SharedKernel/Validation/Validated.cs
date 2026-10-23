@@ -24,6 +24,17 @@ public abstract record Validated<T>
     public Validated<TOut> Map<TOut>(Func<T, TOut> map) =>
         Match(value => Validated<TOut>.Succeed(map(value)), Validated<TOut>.Fail);
 
+    /// <summary>
+    /// Sequential step for rules that need the whole, already valid value (e.g. cross-field rules).
+    /// Runs only when valid, so it does not accumulate with earlier errors — use Apply for independent inputs.
+    /// </summary>
+    public Validated<TOut> Bind<TOut>(Func<T, Validated<TOut>> bind) =>
+        Match(bind, Validated<TOut>.Fail);
+
+    /// <summary>Keeps a valid value that satisfies the predicate, otherwise fails with the given error.</summary>
+    public Validated<T> Ensure(Func<T, bool> predicate, Func<T, Error> error) =>
+        Bind(value => predicate(value) ? Succeed(value) : Fail(EquatableArray.Create(error(value))));
+
     /// <summary>Places all errors under a field (see <see cref="Error.AtField"/>).</summary>
     public Validated<T> AtField(string field) =>
         Match(Succeed, errors => Fail(errors.Select(e => e.AtField(field)).ToEquatableArray()));

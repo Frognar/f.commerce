@@ -1,12 +1,13 @@
 using FCommerce.Application.EventStore;
 using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Postgres.EventStore;
+using FCommerce.Infrastructure.Postgres.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using JasperFx;
 using Marten;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Weasel.Core;
+using IDatabaseProvider = FCommerce.Infrastructure.Persistence.IDatabaseProvider;
 
 namespace FCommerce.Infrastructure.Postgres;
 
@@ -15,8 +16,8 @@ public static class PostgresServiceCollectionExtensions
     public const string EventsSchema = "events";
 
     /// <summary>
-    /// PostgreSQL adapter: Marten-backed <see cref="IEventStore"/> and the Npgsql EF Core provider for the
-    /// shared messaging tables. <paramref name="applySchemaChanges"/> creates/updates Marten's event tables
+    /// PostgreSQL adapter: Marten-backed <see cref="IEventStore"/> and the Npgsql EF Core provider for every
+    /// module DbContext. <paramref name="applySchemaChanges"/> creates/updates Marten's event tables
     /// on startup (development and tests); EF Core tables are managed by migrations.
     /// </summary>
     public static IServiceCollection AddPostgres(this IServiceCollection services, string connectionString, bool applySchemaChanges)
@@ -51,12 +52,7 @@ public static class PostgresServiceCollectionExtensions
         }
 
         services.AddSingleton<IEventStore, MartenEventStore>();
-        services.AddMigratedDbContext<MessagingDbContext>();
-        services.AddDbContext<MessagingDbContext>(options => options.UseNpgsql(
-            connectionString,
-            npgsql => npgsql
-                .MigrationsAssembly(typeof(PostgresServiceCollectionExtensions).Assembly.GetName().Name)
-                .MigrationsHistoryTable("__ef_migrations_history", MessagingDbContext.Schema)));
+        services.AddSingleton<IDatabaseProvider>(new PostgresDatabaseProvider(connectionString));
 
         return services;
     }

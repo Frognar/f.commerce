@@ -9,7 +9,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace FCommerce.Infrastructure.Postgres.Persistence.Migrations
+namespace FCommerce.Infrastructure.Postgres.Migrations.Messaging
 {
     [DbContext(typeof(MessagingDbContext))]
     [Migration("20261023065536_InitialMessaging")]

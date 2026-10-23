@@ -14,4 +14,22 @@
   <data name="ErrorTitle" xml:space="preserve"><value>Coś poszło nie tak</value></data>
   <data name="ErrorLead" xml:space="preserve"><value>Spróbuj ponownie za chwilę. Jeśli problem się powtarza, skontaktuj się z opiekunem handlowym.</value></data>
   <data name="BackHome" xml:space="preserve"><value>Wróć na stronę główną</value></data>
+  <data name="Catalog" xml:space="preserve"><value>Katalog</value></data>
+  <data name="Categories" xml:space="preserve"><value>Kategorie</value></data>
+  <data name="AllCategories" xml:space="preserve"><value>Wszystkie produkty</value></data>
+  <data name="SearchPlaceholder" xml:space="preserve"><value>Szukaj po nazwie, indeksie lub EAN</value></data>
+  <data name="SearchButton" xml:space="preserve"><value>Szukaj</value></data>
+  <data name="ResultsCount" xml:space="preserve"><value>Wyniki: {0}</value></data>
+  <data name="NoResults" xml:space="preserve"><value>Nie znaleziono produktów spełniających kryteria.</value></data>
+  <data name="Sku" xml:space="preserve"><value>Indeks</value></data>
+  <data name="Unit" xml:space="preserve"><value>Jednostka</value></data>
+  <data name="Gtin" xml:space="preserve"><value>EAN</value></data>
+  <data name="Description" xml:space="preserve"><value>Opis</value></data>
+  <data name="Attributes" xml:space="preserve"><value>Parametry</value></data>
+  <data name="Pages" xml:space="preserve"><value>Strony</value></data>
+  <data name="PreviousPage" xml:space="preserve"><value>← Poprzednia</value></data>
+  <data name="NextPage" xml:space="preserve"><value>Następna →</value></data>
+  <data name="PageOf" xml:space="preserve"><value>Strona {0} z {1}</value></data>
+  <data name="ProductNotFound" xml:space="preserve"><value>Nie znaleziono produktu</value></data>
+  <data name="BackToCatalog" xml:space="preserve"><value>Wróć do katalogu</value></data>
 </root>

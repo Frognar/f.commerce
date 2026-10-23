@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <!-- Talks to the host only over the integration API; contracts give it the request shapes. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

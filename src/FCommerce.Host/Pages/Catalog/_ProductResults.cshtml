@@ -1,0 +1,47 @@
+@model FCommerce.Host.Pages.Catalog.IndexModel
+@{
+    var results = Model.Results;
+}
+<p class="muted">@T["ResultsCount", results.TotalCount]</p>
+
+@if (results.Items.Count == 0)
+{
+    <p class="empty">@T["NoResults"]</p>
+}
+else
+{
+    <ul class="product-grid">
+        @foreach (var product in results.Items)
+        {
+            <li class="product-card">
+                <a asp-page="/Products/Details" asp-route-sku="@product.Sku">
+                    <div class="product-image">
+                        @if (product.ImageUrl is not null)
+                        {
+                            <img src="@product.ImageUrl" alt="" loading="lazy" />
+                        }
+                    </div>
+                    <span class="product-name">@product.Name</span>
+                </a>
+                <span class="muted">@T["Sku"]: @product.Sku · @product.Unit</span>
+            </li>
+        }
+    </ul>
+}
+
+@if (results.PageCount > 1)
+{
+    <nav class="pagination" aria-label="@T["Pages"]">
+        @if (results.Page > 1)
+        {
+            <a asp-page="/Catalog/Index" asp-all-route-data="Model.Link(page: results.Page - 1)"
+               hx-get="@Url.CulturePage("/Catalog/Index", Model.Link(page: results.Page - 1))" hx-target="#@FCommerce.Host.Pages.Catalog.IndexModel.ResultsId" hx-push-url="true">@T["PreviousPage"]</a>
+        }
+        <span>@T["PageOf", results.Page, results.PageCount]</span>
+        @if (results.Page < results.PageCount)
+        {
+            <a asp-page="/Catalog/Index" asp-all-route-data="Model.Link(page: results.Page + 1)"
+               hx-get="@Url.CulturePage("/Catalog/Index", Model.Link(page: results.Page + 1))" hx-target="#@FCommerce.Host.Pages.Catalog.IndexModel.ResultsId" hx-push-url="true">@T["NextPage"]</a>
+        }
+    </nav>
+}

@@ -20,12 +20,22 @@
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure/FCommerce.Infrastructure.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.SharedKernel/FCommerce.SharedKernel.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Catalog/">
+    <Project Path="src/Modules/Catalog/FCommerce.Catalog.Contracts/FCommerce.Catalog.Contracts.csproj" />
+    <Project Path="src/Modules/Catalog/FCommerce.Catalog.Domain/FCommerce.Catalog.Domain.csproj" />
+    <Project Path="src/Modules/Catalog/FCommerce.Catalog/FCommerce.Catalog.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
     <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
+    <Project Path="tests/FCommerce.Catalog.Tests/FCommerce.Catalog.Tests.csproj" />
     <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
     <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />
     <Project Path="tests/FCommerce.SharedKernel.Tests/FCommerce.SharedKernel.Tests.csproj" />
     <Project Path="tests/FCommerce.Testing/FCommerce.Testing.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/FCommerce.DemoSeeder/FCommerce.DemoSeeder.csproj" />
   </Folder>
 </Solution>

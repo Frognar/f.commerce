@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace FCommerce.Infrastructure.Postgres.Persistence.Migrations
+namespace FCommerce.Infrastructure.Postgres.Migrations.Messaging
 {
     /// <inheritdoc />
     public partial class InitialMessaging : Migration
