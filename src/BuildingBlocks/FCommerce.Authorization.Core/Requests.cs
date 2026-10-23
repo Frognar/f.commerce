@@ -15,6 +15,9 @@ public abstract record Subject
 
     public sealed record AnonymousSubject : Subject;
 
+    /// <summary>Signed in, but neither acting for a customer nor an operator: may use the catalog and their own account.</summary>
+    public sealed record SignedInUser(Guid UserId) : Subject;
+
     /// <summary>A customer's employee acting for <paramref name="ActiveCustomer"/> (one of their memberships).</summary>
     public sealed record CustomerUser(Guid UserId, string ActiveCustomer, MembershipAttributes Attributes) : Subject;
 

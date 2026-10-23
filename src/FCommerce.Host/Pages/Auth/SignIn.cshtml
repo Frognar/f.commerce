@@ -1,0 +1,20 @@
+@page "/sign-in"
+@model FCommerce.Host.Pages.Auth.SignInModel
+@{
+    ViewData["Title"] = T["SignIn"];
+}
+<section class="narrow card">
+    <h1>@T["SignIn"]</h1>
+    @if (Model.Failure is not null)
+    {
+        <p class="alert" role="alert">@Model.Failure</p>
+    }
+    <form method="post" class="stack">
+        <input type="hidden" asp-for="ReturnUrl" />
+        <label>@T["Email"] <input asp-for="Email" type="email" autocomplete="username" required /></label>
+        <label>@T["Password"] <input asp-for="Password" type="password" autocomplete="current-password" required /></label>
+        <label class="inline"><input asp-for="Remember" type="checkbox" /> @T["RememberMe"]</label>
+        <button class="button" type="submit">@T["SignIn"]</button>
+    </form>
+    <p><a asp-page="/Auth/ForgotPassword">@T["ForgotPassword"]</a></p>
+</section>

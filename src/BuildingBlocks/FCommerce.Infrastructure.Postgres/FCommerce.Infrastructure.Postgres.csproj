@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
     <!-- Modules whose provider-specific migrations live here. -->
+    <ProjectReference Include="..\..\Modules\Access\FCommerce.Access\FCommerce.Access.csproj" />
     <ProjectReference Include="..\..\Modules\Catalog\FCommerce.Catalog\FCommerce.Catalog.csproj" />
     <ProjectReference Include="..\..\Modules\Media\FCommerce.Media\FCommerce.Media.csproj" />
   </ItemGroup>

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using FCommerce.Application.Email;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using Microsoft.AspNetCore.Hosting;
@@ -19,6 +20,10 @@ public sealed class HostFixture : IAsyncLifetime
     private WebApplicationFactory<Program>? factory;
 
     public const string IntegrationApiKey = "test-integration-key";
+    public const string AdminEmail = "admin@platform.test";
+
+    /// <summary>E-mails the host sent (instead of SMTP).</summary>
+    public Mailbox Mail { get; } = new();
 
     public WebApplicationFactory<Program> Factory => factory ?? throw new InvalidOperationException("Not initialized.");
 
@@ -45,8 +50,45 @@ public sealed class HostFixture : IAsyncLifetime
             .UseSetting("Integration:ApiKey", IntegrationApiKey)
             .UseSetting("Search:StoragePath", Path.Combine(dataPath, "search"))
             .UseSetting("Media:StoragePath", Path.Combine(dataPath, "media"))
-            .ConfigureTestServices(services => services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events)));
+            .UseSetting("Access:BootstrapAdminEmail", AdminEmail)
+            .UseSetting("Security:AuthenticationAttemptsPerMinute", "10000")
+            .ConfigureTestServices(services =>
+            {
+                services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events);
+                services.AddSingleton<IEmailSender>(Mail);
+            }));
         _ = Factory.Server; // start now, so failures surface in the fixture
+    }
+
+    public sealed class Mailbox : IEmailSender
+    {
+        private readonly ConcurrentQueue<EmailMessage> sent = new();
+
+        public Task SendAsync(EmailMessage message, CancellationToken cancellationToken = default)
+        {
+            sent.Enqueue(message);
+            return Task.CompletedTask;
+        }
+
+        /// <summary>Waits for an e-mail to the address whose text matches, and returns it.</summary>
+        public async Task<EmailMessage> WaitForAsync(string to, Func<EmailMessage, bool>? matching = null, int skip = 0)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
+            {
+                var found = sent.Where(m => m.To.Value == to && (matching?.Invoke(m) ?? true)).Skip(skip).FirstOrDefault();
+                if (found is not null)
+                {
+                    return found;
+                }
+
+                await Task.Delay(50);
+            }
+
+            throw new TimeoutException($"No e-mail to {to}.");
+        }
+
+        public int CountTo(string to) => sent.Count(m => m.To.Value == to);
     }
 
     public sealed class EventRecorder : IIntegrationEventHandler<ProductChanged>

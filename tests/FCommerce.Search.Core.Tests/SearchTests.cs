@@ -152,6 +152,22 @@ public sealed class SearchTests
     }
 
     [Fact]
+    public void A_merge_whose_sources_were_emptied_meanwhile_changes_nothing()
+    {
+        var snapshot = IndexSnapshot.Empty(Schema);
+        for (var i = 0; i < Merging.MaxSegments + 1; i++)
+        {
+            snapshot = snapshot.Add(SegmentBuilder.Build(Schema, Polish, [Read(new Doc($"{i}", $"S{i}", $"Śruba {i}"))]));
+        }
+
+        var plan = Merging.Plan(snapshot)!;
+        var merged = Merging.Build(snapshot, Polish, plan);
+        var emptied = snapshot.Without(plan.Segments.SelectMany(s => s.Ids)).Compact();
+
+        Assert.Same(emptied, Merging.Apply(emptied, plan, merged));
+    }
+
+    [Fact]
     public void English_analyzer_matches_plurals()
     {
         var english = IndexSnapshot.Empty(Schema).Add(SegmentBuilder.Build(Schema, Analyzer.English(), [Read(new Doc("1", "X", "Hex head bolt"))]));

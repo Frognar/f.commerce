@@ -34,6 +34,17 @@ public sealed class PolicyTests
         AssertDenied(Decide(Subject.Anonymous, AccessAction.Read, new Resource.OwnAccount()), "sign-in-required");
     }
 
+    [Fact]
+    public void Signed_in_users_without_a_customer_or_operator_rights_only_use_the_catalog_and_their_account()
+    {
+        var user = new Subject.SignedInUser(Guid.NewGuid());
+
+        Assert.True(Decide(user, AccessAction.Read, new Resource.Catalog(), Environment(CatalogVisibility.SignedInOnly)).IsPermitted);
+        Assert.True(Decide(user, AccessAction.Manage, new Resource.OwnAccount()).IsPermitted);
+        AssertDenied(Decide(user, AccessAction.Read, new Resource.CustomerProfile("C1", null)), "no-applicable-policy");
+        AssertDenied(Decide(user, AccessAction.Read, new Resource.Customers()), "no-applicable-policy");
+    }
+
     [Theory]
     [InlineData(CatalogVisibility.Public, false, true)]
     [InlineData(CatalogVisibility.SignedInOnly, false, false)]

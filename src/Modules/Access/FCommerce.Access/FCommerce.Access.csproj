@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.Access.Contracts\FCommerce.Access.Contracts.csproj" />
+    <ProjectReference Include="..\FCommerce.Access.Domain\FCommerce.Access.Domain.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="FCommerce.Infrastructure.Postgres" />
+    <InternalsVisibleTo Include="FCommerce.Access.Tests" />
+  </ItemGroup>
+
+</Project>

@@ -24,6 +24,11 @@
     <Project Path="src/BuildingBlocks/FCommerce.SharedKernel/FCommerce.SharedKernel.csproj" />
   </Folder>
   <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Access/">
+    <Project Path="src/Modules/Access/FCommerce.Access.Contracts/FCommerce.Access.Contracts.csproj" />
+    <Project Path="src/Modules/Access/FCommerce.Access.Domain/FCommerce.Access.Domain.csproj" />
+    <Project Path="src/Modules/Access/FCommerce.Access/FCommerce.Access.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Catalog/">
     <Project Path="src/Modules/Catalog/FCommerce.Catalog.Contracts/FCommerce.Catalog.Contracts.csproj" />
     <Project Path="src/Modules/Catalog/FCommerce.Catalog.Domain/FCommerce.Catalog.Domain.csproj" />
@@ -34,7 +39,11 @@
     <Project Path="src/Modules/Media/FCommerce.Media.Domain/FCommerce.Media.Domain.csproj" />
     <Project Path="src/Modules/Media/FCommerce.Media/FCommerce.Media.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Notifications/">
+    <Project Path="src/Modules/Notifications/FCommerce.Notifications/FCommerce.Notifications.csproj" />
+  </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/FCommerce.Access.Tests/FCommerce.Access.Tests.csproj" />
     <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
     <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
     <Project Path="tests/FCommerce.Authorization.Core.Tests/FCommerce.Authorization.Core.Tests.csproj" />
@@ -42,6 +51,7 @@
     <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
     <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />
     <Project Path="tests/FCommerce.Media.Tests/FCommerce.Media.Tests.csproj" />
+    <Project Path="tests/FCommerce.Notifications.Tests/FCommerce.Notifications.Tests.csproj" />
     <Project Path="tests/FCommerce.Search.Core.Tests/FCommerce.Search.Core.Tests.csproj" />
     <Project Path="tests/FCommerce.SharedKernel.Tests/FCommerce.SharedKernel.Tests.csproj" />
     <Project Path="tests/FCommerce.Testing/FCommerce.Testing.csproj" />

@@ -1,0 +1,10 @@
+@page "/access-denied"
+@{
+    ViewData["Title"] = T["AccessDenied"];
+    HttpContext.Response.StatusCode = StatusCodes.Status403Forbidden;
+}
+<section class="narrow card">
+    <h1>@T["AccessDenied"]</h1>
+    <p class="muted">@T["AccessDeniedLead"]</p>
+    <p><a asp-page="/Index">@T["BackHome"]</a></p>
+</section>

@@ -39,4 +39,68 @@
   <data name="Close" xml:space="preserve"><value>Zamknij</value></data>
   <data name="PreviousImage" xml:space="preserve"><value>Poprzednie zdjęcie</value></data>
   <data name="NextImage" xml:space="preserve"><value>Następne zdjęcie</value></data>
+  <data name="SignIn" xml:space="preserve"><value>Zaloguj się</value></data>
+  <data name="SignOut" xml:space="preserve"><value>Wyloguj</value></data>
+  <data name="Account" xml:space="preserve"><value>Konto</value></data>
+  <data name="Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Password" xml:space="preserve"><value>Hasło</value></data>
+  <data name="RememberMe" xml:space="preserve"><value>Zapamiętaj mnie na tym urządzeniu</value></data>
+  <data name="ForgotPassword" xml:space="preserve"><value>Nie pamiętam hasła</value></data>
+  <data name="ForgotPasswordLead" xml:space="preserve"><value>Podaj adres e-mail konta — wyślemy link do ustawienia nowego hasła.</value></data>
+  <data name="ResetLinkSent" xml:space="preserve"><value>Jeśli konto o tym adresie istnieje, wysłaliśmy na nie link do zmiany hasła. Link jest ważny przez godzinę.</value></data>
+  <data name="SendResetLink" xml:space="preserve"><value>Wyślij link</value></data>
+  <data name="ChooseNewPassword" xml:space="preserve"><value>Ustaw nowe hasło</value></data>
+  <data name="PasswordChanged" xml:space="preserve"><value>Hasło zostało zmienione.</value></data>
+  <data name="NewPassword" xml:space="preserve"><value>Nowe hasło</value></data>
+  <data name="ConfirmPassword" xml:space="preserve"><value>Powtórz hasło</value></data>
+  <data name="PasswordHint" xml:space="preserve"><value>Co najmniej 12 znaków. Najlepiej kilka słów, które łatwo zapamiętać.</value></data>
+  <data name="SavePassword" xml:space="preserve"><value>Zapisz hasło</value></data>
+  <data name="PasswordsDiffer" xml:space="preserve"><value>Hasła nie są identyczne.</value></data>
+  <data name="AcceptInvitation" xml:space="preserve"><value>Aktywacja konta</value></data>
+  <data name="InvitationLead" xml:space="preserve"><value>{0}, ustaw hasło do konta {1}.</value></data>
+  <data name="ActivateAccount" xml:space="preserve"><value>Aktywuj konto</value></data>
+  <data name="AccessDenied" xml:space="preserve"><value>Brak dostępu</value></data>
+  <data name="AccessDeniedLead" xml:space="preserve"><value>Nie masz uprawnień do tej strony. Jeśli to pomyłka, skontaktuj się z administratorem.</value></data>
+  <data name="MyAccount" xml:space="preserve"><value>Moje konto</value></data>
+  <data name="Profile" xml:space="preserve"><value>Profil</value></data>
+  <data name="FullName" xml:space="preserve"><value>Imię i nazwisko</value></data>
+  <data name="Save" xml:space="preserve"><value>Zapisz</value></data>
+  <data name="Saved" xml:space="preserve"><value>Zapisano zmiany.</value></data>
+  <data name="ChangePassword" xml:space="preserve"><value>Zmień hasło</value></data>
+  <data name="CurrentPassword" xml:space="preserve"><value>Obecne hasło</value></data>
+  <data name="SignOutEverywhereHint" xml:space="preserve"><value>Po zmianie hasła zostaniesz wylogowany na innych urządzeniach.</value></data>
+  <data name="ProfileSaved" xml:space="preserve"><value>Profil zapisany.</value></data>
+  <data name="BackOffice" xml:space="preserve"><value>Panel sprzedawcy</value></data>
+  <data name="BackOfficeLead" xml:space="preserve"><value>Zarządzanie platformą, kontrahentami i dostępem.</value></data>
+  <data name="Operators" xml:space="preserve"><value>Operatorzy</value></data>
+  <data name="OperatorsLead" xml:space="preserve"><value>Pracownicy z dostępem do panelu i ich uprawnienia.</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Status.Invited" xml:space="preserve"><value>Zaproszony</value></data>
+  <data name="Status.Active" xml:space="preserve"><value>Aktywny</value></data>
+  <data name="Status.Disabled" xml:space="preserve"><value>Zablokowany</value></data>
+  <data name="CanManageSettings" xml:space="preserve"><value>Ustawienia platformy</value></data>
+  <data name="CanManageOperators" xml:space="preserve"><value>Zarządza operatorami</value></data>
+  <data name="CanDecideRegistrations" xml:space="preserve"><value>Decyduje o rejestracjach</value></data>
+  <data name="CustomerScope" xml:space="preserve"><value>Kontrahenci</value></data>
+  <data name="CustomerScope.all" xml:space="preserve"><value>Wszyscy</value></data>
+  <data name="CustomerScope.as-salesperson" xml:space="preserve"><value>Tylko swoi (jako opiekun)</value></data>
+  <data name="Revoke" xml:space="preserve"><value>Odbierz dostęp</value></data>
+  <data name="InviteOperator" xml:space="preserve"><value>Zaproś operatora</value></data>
+  <data name="SendInvitation" xml:space="preserve"><value>Wyślij zaproszenie</value></data>
+  <data name="OperatorInvited" xml:space="preserve"><value>Zaproszenie wysłane.</value></data>
+  <data name="OperatorRevoked" xml:space="preserve"><value>Dostęp odebrany.</value></data>
+  <data name="Error.access.invalid-credentials" xml:space="preserve"><value>Nieprawidłowy e-mail lub hasło.</value></data>
+  <data name="Error.access.locked-out" xml:space="preserve"><value>Zbyt wiele nieudanych prób. Spróbuj ponownie za kilkanaście minut.</value></data>
+  <data name="Error.token.invalid" xml:space="preserve"><value>Link jest nieprawidłowy lub wygasł.</value></data>
+  <data name="Error.password.too-short" xml:space="preserve"><value>Hasło musi mieć co najmniej 12 znaków.</value></data>
+  <data name="Error.password.too-long" xml:space="preserve"><value>Hasło może mieć najwyżej 128 znaków.</value></data>
+  <data name="Error.password.too-simple" xml:space="preserve"><value>Hasło jest zbyt proste.</value></data>
+  <data name="Error.password.contains-email" xml:space="preserve"><value>Hasło nie może zawierać adresu e-mail.</value></data>
+  <data name="Error.password.current-invalid" xml:space="preserve"><value>Obecne hasło jest nieprawidłowe.</value></data>
+  <data name="Error.email.invalid" xml:space="preserve"><value>Nieprawidłowy adres e-mail.</value></data>
+  <data name="Error.name.empty" xml:space="preserve"><value>Podaj imię i nazwisko.</value></data>
+  <data name="Error.grant.not-allowed" xml:space="preserve"><value>Nie masz uprawnień do tej zmiany.</value></data>
+  <data name="Error.grant.last-operator-manager" xml:space="preserve"><value>Co najmniej jeden operator musi móc zarządzać operatorami.</value></data>
+  <data name="Error.operator.not-found" xml:space="preserve"><value>Nie znaleziono operatora.</value></data>
+  <data name="Error.account.disabled" xml:space="preserve"><value>Konto jest zablokowane.</value></data>
 </root>

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Notifications\FCommerce.Notifications\FCommerce.Notifications.csproj" />
+    <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
+  </ItemGroup>
+
+</Project>

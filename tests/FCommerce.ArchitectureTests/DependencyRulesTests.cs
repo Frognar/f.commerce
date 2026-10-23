@@ -16,11 +16,12 @@ public sealed class DependencyRulesTests
     }
 
     [Fact]
-    public void Functional_core_depends_only_on_the_base_library_and_the_shared_kernel()
+    public void Functional_core_depends_only_on_the_base_library_and_other_pure_building_blocks()
     {
+        var pureBlocks = Solution.Pure.Select(a => a.Name()).Where(n => Solution.ModuleOf(n) is null).ToHashSet();
         var violations = Solution.Pure
             .SelectMany(a => a.References()
-                .Where(r => !IsBaseLibrary(r) && r != "FCommerce.SharedKernel")
+                .Where(r => !IsBaseLibrary(r) && !pureBlocks.Contains(r))
                 .Select(r => $"{a.Name()} → {r}"))
             .ToList();
 

@@ -39,6 +39,11 @@ public static class Merging
     public static IndexSnapshot Apply(IndexSnapshot current, MergePlan plan, Segment merged)
     {
         var sources = current.Segments.Where(s => plan.Segments.Contains(s.Segment)).ToList();
+        if (sources.Count == 0)
+        {
+            return current; // every source was emptied and dropped meanwhile: nothing of the merge is live
+        }
+
         var stillLive = sources.SelectMany(s => s.Live.Docs().Select(doc => s.Segment.Ids[doc])).ToHashSet(StringComparer.Ordinal);
         var live = LiveDocs.All(merged.DocCount).Without(merged.Ids.Select((id, doc) => (id, doc)).Where(x => !stillLive.Contains(x.id)).Select(x => x.doc));
 

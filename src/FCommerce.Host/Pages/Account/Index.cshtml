@@ -1,0 +1,43 @@
+@page "/account"
+@inject SupportedCultures Cultures
+@model FCommerce.Host.Pages.Account.IndexModel
+@{
+    ViewData["Title"] = T["MyAccount"];
+}
+<h1>@T["MyAccount"]</h1>
+@if (Model.Saved is not null)
+{
+    <p class="notice" role="status">@Model.Saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+
+<div class="columns">
+    <section class="card">
+        <h2>@T["Profile"]</h2>
+        <form method="post" asp-page-handler="Profile" class="stack">
+            <label>@T["Email"] <input value="@Model.Session.Email" readonly /></label>
+            <label>@T["FullName"] <input asp-for="Name" required /></label>
+            <label>@T["Language"]
+                <select asp-for="Culture">
+                    @foreach (var culture in Cultures.All)
+                    {
+                        <option value="@culture.Value">@culture.Value.ToUpperInvariant()</option>
+                    }
+                </select>
+            </label>
+            <button class="button" type="submit">@T["Save"]</button>
+        </form>
+    </section>
+
+    <section class="card">
+        <h2>@T["ChangePassword"]</h2>
+        <form method="post" asp-page-handler="Password" class="stack">
+            <input type="email" value="@Model.Session.Email" autocomplete="username" hidden readonly />
+            <label>@T["CurrentPassword"] <input asp-for="CurrentPassword" type="password" autocomplete="current-password" required /></label>
+            <label>@T["NewPassword"] <input asp-for="NewPassword" type="password" autocomplete="new-password" minlength="12" required /></label>
+            <label>@T["ConfirmPassword"] <input asp-for="Confirmation" type="password" autocomplete="new-password" required /></label>
+            <p class="muted">@T["PasswordHint"] @T["SignOutEverywhereHint"]</p>
+            <button class="button" type="submit">@T["ChangePassword"]</button>
+        </form>
+    </section>
+</div>

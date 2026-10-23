@@ -1,0 +1,78 @@
+@page "/admin/operators"
+@inject SupportedCultures Cultures
+@model FCommerce.Host.Pages.Admin.OperatorsModel
+@{
+    ViewData["Title"] = T["Operators"];
+}
+<nav class="breadcrumb"><a asp-page="/Admin/Index">@T["BackOffice"]</a></nav>
+<h1>@T["Operators"]</h1>
+@if (Model.Saved is not null)
+{
+    <p class="notice" role="status">@Model.Saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+
+<table class="data">
+    <thead>
+        <tr>
+            <th>@T["FullName"]</th><th>@T["Email"]</th><th>@T["Status"]</th>
+            <th>@T["CanManageSettings"]</th><th>@T["CanManageOperators"]</th><th>@T["CanDecideRegistrations"]</th><th>@T["CustomerScope"]</th><th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var op in Model.Operators)
+        {
+            var formId = $"operator-{op.UserId:N}";
+            <tr>
+                <td>@op.Name</td>
+                <td>@op.Email</td>
+                <td>@T[$"Status.{op.Status}"]</td>
+                <td><input form="@formId" type="checkbox" name="Form.CanManageSettings" value="true" checked="@op.Attributes.CanManageSettings" aria-label="@T["CanManageSettings"]" /></td>
+                <td><input form="@formId" type="checkbox" name="Form.CanManageOperators" value="true" checked="@op.Attributes.CanManageOperators" aria-label="@T["CanManageOperators"]" /></td>
+                <td><input form="@formId" type="checkbox" name="Form.CanDecideRegistrations" value="true" checked="@op.Attributes.CanDecideRegistrations" aria-label="@T["CanDecideRegistrations"]" /></td>
+                <td>
+                    <select form="@formId" name="Form.CustomerScope" aria-label="@T["CustomerScope"]">
+                        <option value="all" selected="@(op.Attributes.CustomerScope == "all")">@T["CustomerScope.all"]</option>
+                        <option value="as-salesperson" selected="@(op.Attributes.CustomerScope == "as-salesperson")">@T["CustomerScope.as-salesperson"]</option>
+                    </select>
+                </td>
+                <td class="actions">
+                    <form id="@formId" method="post" asp-page-handler="Change" asp-route-id="@op.UserId">
+                        <button class="button small" type="submit">@T["Save"]</button>
+                    </form>
+                    <form method="post" asp-page-handler="Revoke" asp-route-id="@op.UserId">
+                        <button class="button small secondary" type="submit">@T["Revoke"]</button>
+                    </form>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<section class="card">
+    <h2>@T["InviteOperator"]</h2>
+    <form method="post" asp-page-handler="Invite" class="stack">
+        <label>@T["Email"] <input asp-for="Form.Email" type="email" required /></label>
+        <label>@T["FullName"] <input asp-for="Form.Name" required /></label>
+        <label>@T["Language"]
+            <select asp-for="Form.Culture">
+                @foreach (var culture in Cultures.All)
+                {
+                    <option value="@culture.Value">@culture.Value.ToUpperInvariant()</option>
+                }
+            </select>
+        </label>
+        <fieldset class="checks">
+            <label class="inline"><input asp-for="Form.CanManageSettings" /> @T["CanManageSettings"]</label>
+            <label class="inline"><input asp-for="Form.CanManageOperators" /> @T["CanManageOperators"]</label>
+            <label class="inline"><input asp-for="Form.CanDecideRegistrations" /> @T["CanDecideRegistrations"]</label>
+        </fieldset>
+        <label>@T["CustomerScope"]
+            <select asp-for="Form.CustomerScope">
+                <option value="as-salesperson">@T["CustomerScope.as-salesperson"]</option>
+                <option value="all">@T["CustomerScope.all"]</option>
+            </select>
+        </label>
+        <button class="button" type="submit">@T["SendInvitation"]</button>
+    </form>
+</section>

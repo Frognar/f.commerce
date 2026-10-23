@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Access\FCommerce.Access\FCommerce.Access.csproj" />
+    <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
+  </ItemGroup>
+
+</Project>

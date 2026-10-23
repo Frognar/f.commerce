@@ -2,6 +2,7 @@
 @using Microsoft.AspNetCore.Antiforgery
 @inject IAntiforgery Antiforgery
 @inject SupportedCultures Cultures
+@inject FCommerce.Host.Security.CurrentUser CurrentUser
 @{
     var culture = CultureInfo.CurrentUICulture.Name;
     // Only culture-prefixed pages get alternates and a language switcher.
@@ -9,6 +10,7 @@
         ? ViewContext.RouteData.Values["page"]?.ToString()
         : null;
     var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    var session = await CurrentUser.SessionAsync();
 }
 <!DOCTYPE html>
 <html lang="@culture">
@@ -33,6 +35,23 @@
             <a class="brand" asp-page="/Index">f.commerce <span class="brand-tagline">@T["Tagline"]</span></a>
             <nav class="main-nav">
                 <a asp-page="/Catalog/Index">@T["Catalog"]</a>
+            </nav>
+            <nav class="user-menu" aria-label="@T["Account"]">
+                @if (session is null)
+                {
+                    <a asp-page="/Auth/SignIn">@T["SignIn"]</a>
+                }
+                else
+                {
+                    @if (session.Operator is not null)
+                    {
+                        <a asp-page="/Admin/Index">@T["BackOffice"]</a>
+                    }
+                    <a asp-page="/Account/Index">@session.Name</a>
+                    <form method="post" asp-page="/Auth/SignOut">
+                        <button class="link" type="submit">@T["SignOut"]</button>
+                    </form>
+                }
             </nav>
             @if (currentPage is not null)
             {

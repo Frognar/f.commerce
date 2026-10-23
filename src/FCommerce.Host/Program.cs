@@ -1,4 +1,8 @@
+using FCommerce.Access;
 using FCommerce.Catalog;
+using FCommerce.Host.Security;
+using FCommerce.Notifications;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using FCommerce.Host.Media;
 using FCommerce.Infrastructure.Search;
 using FCommerce.Media;
@@ -28,8 +32,24 @@ builder.Services.AddSmtpEmail(builder.Configuration.GetSection(FCommerce.Infrast
 builder.Services.AddFileSystemBlobStore(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Media:StoragePath"] ?? "data/media"));
 builder.Services.AddEmbeddedSearch(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Search:StoragePath"] ?? "data/search"));
 
+// Identity and access: cookie session, ABAC policies, platform switches.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddSingleton<IPlatformState, ConfiguredPlatformState>();
+builder.Services.AddScoped<CurrentUser>();
+builder.Services.AddScoped<AccessControl>();
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
+builder.Services.AddAbacAuthorization();
+builder.Services.AddAuthenticationRateLimits(builder.Configuration.GetValue("Security:AuthenticationAttemptsPerMinute", 10));
+
 // Modules.
 var localization = builder.Configuration.GetSection(LocalizationSettings.Section).Get<LocalizationSettings>() ?? new LocalizationSettings();
+builder.Services.AddAccessModule(builder.Configuration.GetSection("Access").Get<AccessOptions>() ?? new AccessOptions());
+builder.Services.AddNotificationsModule(new NotificationsOptions
+{
+    PublicUrl = new Uri(builder.Configuration["Platform:PublicUrl"] ?? throw new InvalidOperationException("Platform:PublicUrl is not configured.")),
+    SellerName = builder.Configuration["Platform:SellerName"] ?? "f.commerce",
+});
 builder.Services.AddMediaModule();
 builder.Services.AddCatalogModule(options =>
 {
@@ -64,7 +84,15 @@ builder.Services.AddOptions<RequestLocalizationOptions>().Configure<SupportedCul
 });
 
 // Web UI (Razor Pages + htmx) and public API (Minimal APIs) are thin adapters over module contracts.
-builder.Services.AddRazorPages(options => options.Conventions.Add(new CultureRouteConvention()))
+builder.Services.AddRazorPages(options =>
+    {
+        options.Conventions.Add(new CultureRouteConvention());
+        options.Conventions.AuthorizePage("/Catalog/Index", Policies.CatalogRead);
+        options.Conventions.AuthorizePage("/Products/Details", Policies.CatalogRead);
+        options.Conventions.AuthorizeFolder("/Account", Policies.OwnAccount);
+        options.Conventions.AuthorizeFolder("/Admin", Policies.BackOffice);
+        options.Conventions.AuthorizePage("/Admin/Operators", Policies.OperatorsManage);
+    })
     .AddViewLocalization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
 builder.Services.AddOpenApi("v1");
@@ -87,6 +115,9 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseRequestLocalization();
+app.UseAuthentication();
+app.UseRateLimiter();
+app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();

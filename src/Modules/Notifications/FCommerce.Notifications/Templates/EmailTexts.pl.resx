@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Greeting" xml:space="preserve"><value>Dzień dobry, {0},</value></data>
+  <data name="InvitationOperatorSubject" xml:space="preserve"><value>Dostęp do panelu {0}</value></data>
+  <data name="InvitationOperatorBody" xml:space="preserve"><value>Otrzymujesz zaproszenie do zarządzania platformą B2B {0}. Ustaw hasło, aby aktywować konto.</value></data>
+  <data name="InvitationCustomerSubject" xml:space="preserve"><value>Twoje konto w {0}</value></data>
+  <data name="InvitationCustomerBody" xml:space="preserve"><value>Otrzymujesz zaproszenie do składania zamówień w {0} w imieniu firmy {1}. Ustaw hasło, aby aktywować konto.</value></data>
+  <data name="InvitationAction" xml:space="preserve"><value>Ustaw hasło</value></data>
+  <data name="InvitationExpiry" xml:space="preserve"><value>Link jest ważny przez 7 dni.</value></data>
+  <data name="ResetSubject" xml:space="preserve"><value>Reset hasła w {0}</value></data>
+  <data name="ResetBody" xml:space="preserve"><value>Otrzymaliśmy prośbę o zmianę hasła. Jeśli to Ty, ustaw nowe hasło poniżej.</value></data>
+  <data name="ResetAction" xml:space="preserve"><value>Ustaw nowe hasło</value></data>
+  <data name="ResetExpiry" xml:space="preserve"><value>Link jest ważny przez 1 godzinę. Jeśli to nie Ty, zignoruj tę wiadomość — hasło pozostaje bez zmian.</value></data>
+  <data name="Footer" xml:space="preserve"><value>Wiadomość wysłana automatycznie przez {0}.</value></data>
+</root>

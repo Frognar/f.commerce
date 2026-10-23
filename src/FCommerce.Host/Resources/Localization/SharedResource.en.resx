@@ -39,4 +39,68 @@
   <data name="Close" xml:space="preserve"><value>Close</value></data>
   <data name="PreviousImage" xml:space="preserve"><value>Previous image</value></data>
   <data name="NextImage" xml:space="preserve"><value>Next image</value></data>
+  <data name="SignIn" xml:space="preserve"><value>Sign in</value></data>
+  <data name="SignOut" xml:space="preserve"><value>Sign out</value></data>
+  <data name="Account" xml:space="preserve"><value>Account</value></data>
+  <data name="Email" xml:space="preserve"><value>E-mail</value></data>
+  <data name="Password" xml:space="preserve"><value>Password</value></data>
+  <data name="RememberMe" xml:space="preserve"><value>Remember me on this device</value></data>
+  <data name="ForgotPassword" xml:space="preserve"><value>Forgot password</value></data>
+  <data name="ForgotPasswordLead" xml:space="preserve"><value>Enter your account's e-mail address — we will send a link to choose a new password.</value></data>
+  <data name="ResetLinkSent" xml:space="preserve"><value>If an account with this address exists, we have sent it a link to change the password. The link is valid for one hour.</value></data>
+  <data name="SendResetLink" xml:space="preserve"><value>Send link</value></data>
+  <data name="ChooseNewPassword" xml:space="preserve"><value>Choose a new password</value></data>
+  <data name="PasswordChanged" xml:space="preserve"><value>Your password has been changed.</value></data>
+  <data name="NewPassword" xml:space="preserve"><value>New password</value></data>
+  <data name="ConfirmPassword" xml:space="preserve"><value>Repeat password</value></data>
+  <data name="PasswordHint" xml:space="preserve"><value>At least 12 characters. A few easy-to-remember words work best.</value></data>
+  <data name="SavePassword" xml:space="preserve"><value>Save password</value></data>
+  <data name="PasswordsDiffer" xml:space="preserve"><value>The passwords do not match.</value></data>
+  <data name="AcceptInvitation" xml:space="preserve"><value>Activate your account</value></data>
+  <data name="InvitationLead" xml:space="preserve"><value>{0}, choose a password for {1}.</value></data>
+  <data name="ActivateAccount" xml:space="preserve"><value>Activate account</value></data>
+  <data name="AccessDenied" xml:space="preserve"><value>Access denied</value></data>
+  <data name="AccessDeniedLead" xml:space="preserve"><value>You do not have access to this page. If this is a mistake, contact your administrator.</value></data>
+  <data name="MyAccount" xml:space="preserve"><value>My account</value></data>
+  <data name="Profile" xml:space="preserve"><value>Profile</value></data>
+  <data name="FullName" xml:space="preserve"><value>Full name</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="Saved" xml:space="preserve"><value>Changes saved.</value></data>
+  <data name="ChangePassword" xml:space="preserve"><value>Change password</value></data>
+  <data name="CurrentPassword" xml:space="preserve"><value>Current password</value></data>
+  <data name="SignOutEverywhereHint" xml:space="preserve"><value>Changing the password signs you out on other devices.</value></data>
+  <data name="ProfileSaved" xml:space="preserve"><value>Profile saved.</value></data>
+  <data name="BackOffice" xml:space="preserve"><value>Back-office</value></data>
+  <data name="BackOfficeLead" xml:space="preserve"><value>Manage the platform, customers and access.</value></data>
+  <data name="Operators" xml:space="preserve"><value>Operators</value></data>
+  <data name="OperatorsLead" xml:space="preserve"><value>Staff with back-office access and their rights.</value></data>
+  <data name="Status" xml:space="preserve"><value>Status</value></data>
+  <data name="Status.Invited" xml:space="preserve"><value>Invited</value></data>
+  <data name="Status.Active" xml:space="preserve"><value>Active</value></data>
+  <data name="Status.Disabled" xml:space="preserve"><value>Disabled</value></data>
+  <data name="CanManageSettings" xml:space="preserve"><value>Platform settings</value></data>
+  <data name="CanManageOperators" xml:space="preserve"><value>Manages operators</value></data>
+  <data name="CanDecideRegistrations" xml:space="preserve"><value>Decides registrations</value></data>
+  <data name="CustomerScope" xml:space="preserve"><value>Customers</value></data>
+  <data name="CustomerScope.all" xml:space="preserve"><value>All</value></data>
+  <data name="CustomerScope.as-salesperson" xml:space="preserve"><value>Own only (as salesperson)</value></data>
+  <data name="Revoke" xml:space="preserve"><value>Revoke access</value></data>
+  <data name="InviteOperator" xml:space="preserve"><value>Invite an operator</value></data>
+  <data name="SendInvitation" xml:space="preserve"><value>Send invitation</value></data>
+  <data name="OperatorInvited" xml:space="preserve"><value>Invitation sent.</value></data>
+  <data name="OperatorRevoked" xml:space="preserve"><value>Access revoked.</value></data>
+  <data name="Error.access.invalid-credentials" xml:space="preserve"><value>Invalid e-mail or password.</value></data>
+  <data name="Error.access.locked-out" xml:space="preserve"><value>Too many failed attempts. Try again in a few minutes.</value></data>
+  <data name="Error.token.invalid" xml:space="preserve"><value>The link is invalid or has expired.</value></data>
+  <data name="Error.password.too-short" xml:space="preserve"><value>The password must have at least 12 characters.</value></data>
+  <data name="Error.password.too-long" xml:space="preserve"><value>The password must not exceed 128 characters.</value></data>
+  <data name="Error.password.too-simple" xml:space="preserve"><value>The password is too simple.</value></data>
+  <data name="Error.password.contains-email" xml:space="preserve"><value>The password must not contain your e-mail address.</value></data>
+  <data name="Error.password.current-invalid" xml:space="preserve"><value>The current password is incorrect.</value></data>
+  <data name="Error.email.invalid" xml:space="preserve"><value>Invalid e-mail address.</value></data>
+  <data name="Error.name.empty" xml:space="preserve"><value>Enter a name.</value></data>
+  <data name="Error.grant.not-allowed" xml:space="preserve"><value>You are not allowed to make this change.</value></data>
+  <data name="Error.grant.last-operator-manager" xml:space="preserve"><value>At least one operator must be able to manage operators.</value></data>
+  <data name="Error.operator.not-found" xml:space="preserve"><value>Operator not found.</value></data>
+  <data name="Error.account.disabled" xml:space="preserve"><value>The account is disabled.</value></data>
 </root>
