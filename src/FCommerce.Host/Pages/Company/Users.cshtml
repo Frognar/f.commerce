@@ -1,0 +1,13 @@
+@page "/company/users"
+@model FCommerce.Host.Pages.Company.UsersModel
+@{
+    ViewData["Title"] = T["CompanyUsers"];
+}
+<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer!.Name</a></nav>
+<h1>@T["CompanyUsers"]</h1>
+@if (Model.Saved is not null)
+{
+    <p class="notice" role="status">@Model.Saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+<partial name="_CustomerUsers" model="Model.Users" />

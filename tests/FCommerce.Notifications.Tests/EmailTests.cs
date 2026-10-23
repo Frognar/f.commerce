@@ -71,4 +71,17 @@ public sealed class EmailTests
         Assert.Contains("https://b2b.example.com/en/reset-password?token=abc", email.Text, StringComparison.Ordinal);
         Assert.Contains("valid for 1 hour", email.Text, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Access_to_another_company_names_it_and_links_to_sign_in()
+    {
+        var recorder = new Recorder();
+
+        await new SendMembershipGranted(recorder, Options, new Settings()).HandleAsync(
+            new MembershipGranted(Guid.NewGuid(), "jan@firma.pl", "Jan", "pl", "Druga Firma sp. z o.o."), TestContext.Current.CancellationToken);
+
+        var email = Assert.Single(recorder.Sent);
+        Assert.Equal("Dostęp do firmy Druga Firma sp. z o.o. w Hurtownia <Śruba>", email.Subject);
+        Assert.Contains("https://b2b.example.com/pl/sign-in", email.Text, StringComparison.Ordinal);
+    }
 }

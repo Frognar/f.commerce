@@ -16,4 +16,8 @@
   <data name="ResetAction" xml:space="preserve"><value>Ustaw nowe hasło</value></data>
   <data name="ResetExpiry" xml:space="preserve"><value>Link jest ważny przez 1 godzinę. Jeśli to nie Ty, zignoruj tę wiadomość — hasło pozostaje bez zmian.</value></data>
   <data name="Footer" xml:space="preserve"><value>Wiadomość wysłana automatycznie przez {0}.</value></data>
+  <data name="MembershipGrantedSubject" xml:space="preserve"><value>Dostęp do firmy {1} w {0}</value></data>
+  <data name="MembershipGrantedBody" xml:space="preserve"><value>Otrzymujesz dostęp do składania zamówień w {0} w imieniu firmy {1}. Zaloguj się swoim dotychczasowym hasłem — firmę wybierzesz w menu u góry strony.</value></data>
+  <data name="MembershipGrantedAction" xml:space="preserve"><value>Zaloguj się</value></data>
+  <data name="MembershipGrantedNote" xml:space="preserve"><value>Jeśli nie spodziewasz się tej wiadomości, skontaktuj się ze sprzedawcą.</value></data>
 </root>

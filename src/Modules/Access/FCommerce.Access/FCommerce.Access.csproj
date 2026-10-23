@@ -3,6 +3,8 @@
   <ItemGroup>
     <ProjectReference Include="..\FCommerce.Access.Contracts\FCommerce.Access.Contracts.csproj" />
     <ProjectReference Include="..\FCommerce.Access.Domain\FCommerce.Access.Domain.csproj" />
+    <ProjectReference Include="..\..\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
+    <ProjectReference Include="..\..\Settings\FCommerce.Settings.Contracts\FCommerce.Settings.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
   </ItemGroup>
 

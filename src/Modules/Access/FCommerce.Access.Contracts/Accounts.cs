@@ -4,7 +4,8 @@ using FCommerce.SharedKernel.Results;
 namespace FCommerce.Access.Contracts;
 
 /// <summary>What a session needs to know about its user (re-read on every request; a changed stamp ends the session).</summary>
-public sealed record SessionView(Guid UserId, string Email, string Name, string Culture, OperatorView? Operator);
+/// <param name="Memberships">Customers the user may act for, ordered by customer code.</param>
+public sealed record SessionView(Guid UserId, string Email, string Name, string Culture, OperatorView? Operator, IReadOnlyList<MembershipView> Memberships);
 
 /// <summary>Operator attributes, as primitives (templates: "platform-administrator", "salesperson").</summary>
 public sealed record OperatorView(bool CanManageSettings, bool CanManageOperators, bool CanDecideRegistrations, string CustomerScope);

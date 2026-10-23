@@ -1,0 +1,63 @@
+@model FCommerce.Customers.Contracts.CustomerDetails
+<div class="customer-cards">
+    <section class="card">
+        <h2>@T["BillingAddress"]</h2>
+        <address>@Model.BillingAddress.Street<br />@Model.BillingAddress.PostalCode @Model.BillingAddress.City<br />@Model.BillingAddress.Country</address>
+    </section>
+
+    <section class="card">
+        <h2>@T["CommercialTerms"]</h2>
+        <dl class="terms">
+            <dt>@T["PriceList"]</dt><dd>@(Model.PriceListCode ?? T["PlatformDefault"])</dd>
+            <dt>@T["PaymentTerms"]</dt><dd>@(Model.PaymentTermDays is { } days ? T["Days", days] : "—")</dd>
+            <dt>@T["Currency"]</dt><dd>@Model.Currency</dd>
+        </dl>
+    </section>
+
+    <section class="card">
+        <h2>@T["Salesperson"]</h2>
+        @if (Model.Salesperson is { } salesperson)
+        {
+            <p>
+                @salesperson.Name<br />
+                @if (salesperson.Email is not null)
+                {
+                    <a href="mailto:@salesperson.Email">@salesperson.Email</a><br />
+                }
+                @salesperson.Phone
+            </p>
+        }
+        else
+        {
+            <p class="muted">@T["NoSalesperson"]</p>
+        }
+    </section>
+</div>
+
+<h2>@T["DeliveryAddresses"]</h2>
+@if (Model.DeliveryAddresses.Count == 0)
+{
+    <p class="muted">@T["NoDeliveryAddresses"]</p>
+}
+else
+{
+    <table class="data">
+        <thead><tr><th>@T["AddressCode"]</th><th>@T["AddressName"]</th><th>@T["Address"]</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var address in Model.DeliveryAddresses)
+            {
+                <tr>
+                    <td>@address.Code</td>
+                    <td>@address.Name</td>
+                    <td>@address.Address.Street, @address.Address.PostalCode @address.Address.City, @address.Address.Country</td>
+                    <td>
+                        @if (address.IsDefault)
+                        {
+                            <span class="badge">@T["DefaultAddress"]</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

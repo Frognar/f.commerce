@@ -192,4 +192,43 @@
   <data name="PortalAccess" xml:space="preserve"><value>Dostęp do platformy</value></data>
   <data name="Template.default" xml:space="preserve"><value>Domyślne (ustawienia platformy)</value></data>
   <data name="UpdatedFromErp" xml:space="preserve"><value>Ostatnia zmiana z ERP: {0}</value></data>
+  <data name="MembershipSource" xml:space="preserve"><value>Źródło</value></data>
+  <data name="MembershipSource.Erp" xml:space="preserve"><value>ERP</value></data>
+  <data name="MembershipSource.Operator" xml:space="preserve"><value>Sprzedawca</value></data>
+  <data name="MembershipSource.CustomerAdmin" xml:space="preserve"><value>Administrator firmy</value></data>
+  <data name="MembershipSource.Registration" xml:space="preserve"><value>Rejestracja</value></data>
+  <data name="CanOrder" xml:space="preserve"><value>Składa zamówienia</value></data>
+  <data name="OrderScope" xml:space="preserve"><value>Widzi zamówienia</value></data>
+  <data name="OrderScope.own" xml:space="preserve"><value>własne</value></data>
+  <data name="OrderScope.company" xml:space="preserve"><value>całej firmy</value></data>
+  <data name="CanViewDocuments" xml:space="preserve"><value>Widzi dokumenty</value></data>
+  <data name="CanManageUsers" xml:space="preserve"><value>Zarządza użytkownikami</value></data>
+  <data name="You" xml:space="preserve"><value>Ty</value></data>
+  <data name="RevokeAccess" xml:space="preserve"><value>Odbierz dostęp</value></data>
+  <data name="NoCustomerUsers" xml:space="preserve"><value>Nikt z firmy nie ma jeszcze dostępu do platformy.</value></data>
+  <data name="InviteUser" xml:space="preserve"><value>Zaproś osobę</value></data>
+  <data name="RightsTemplate" xml:space="preserve"><value>Uprawnienia</value></data>
+  <data name="UserInvited" xml:space="preserve"><value>Zaproszenie wysłane.</value></data>
+  <data name="AccessRevoked" xml:space="preserve"><value>Dostęp odebrany.</value></data>
+  <data name="PlatformUsers" xml:space="preserve"><value>Użytkownicy platformy</value></data>
+  <data name="AuditLog" xml:space="preserve"><value>Dziennik zmian dostępu</value></data>
+  <data name="WhatHappened" xml:space="preserve"><value>Zdarzenie</value></data>
+  <data name="SystemActor" xml:space="preserve"><value>system (ERP)</value></data>
+  <data name="Audit.membership.granted" xml:space="preserve"><value>Nadano dostęp</value></data>
+  <data name="Audit.membership.changed" xml:space="preserve"><value>Zmieniono uprawnienia</value></data>
+  <data name="Audit.membership.revoked" xml:space="preserve"><value>Odebrano dostęp</value></data>
+  <data name="Audit.membership.erp-skipped" xml:space="preserve"><value>Kontakt z ERP pominięty</value></data>
+  <data name="MyCompany" xml:space="preserve"><value>Moja firma</value></data>
+  <data name="NoCompany" xml:space="preserve"><value>Twoje konto nie jest powiązane z żadną firmą.</value></data>
+  <data name="CompanyBlocked" xml:space="preserve"><value>Konto firmy jest zablokowane przez sprzedawcę — skontaktuj się z opiekunem.</value></data>
+  <data name="CompanyUsers" xml:space="preserve"><value>Użytkownicy firmy</value></data>
+  <data name="SwitchCompany" xml:space="preserve"><value>Zmień firmę</value></data>
+  <data name="Error.membership.operator-account" xml:space="preserve"><value>Konto pracownika sprzedawcy nie może działać w imieniu firmy.</value></data>
+  <data name="Error.membership.account-disabled" xml:space="preserve"><value>To konto jest wyłączone.</value></data>
+  <data name="Error.membership.exists" xml:space="preserve"><value>Ta osoba ma już dostęp do firmy.</value></data>
+  <data name="Error.membership.single-customer" xml:space="preserve"><value>Ta osoba działa już w imieniu innej firmy.</value></data>
+  <data name="Error.membership.not-found" xml:space="preserve"><value>Ta osoba nie ma dostępu do firmy.</value></data>
+  <data name="Error.membership.order-scope-invalid" xml:space="preserve"><value>Wybierz zakres widocznych zamówień.</value></data>
+  <data name="Error.grant.last-administrator" xml:space="preserve"><value>Firma musi mieć co najmniej jedną osobę zarządzającą użytkownikami.</value></data>
+  <data name="Error.customer.not-found" xml:space="preserve"><value>Nie znaleziono kontrahenta.</value></data>
 </root>

@@ -4,6 +4,7 @@ using FCommerce.Authorization.Core;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Monetary;
 
 namespace FCommerce.Access.Persistence;
 
@@ -64,6 +65,77 @@ internal sealed class AccountRow
             FailedSignIns,
             LockedUntil,
             Operator is null ? null : JsonSerializer.Deserialize<OperatorAttributes>(Operator, PersistenceJson.Options));
+}
+
+internal sealed class MembershipRow
+{
+    public Guid UserId { get; init; }
+
+    public required string CustomerCode { get; init; }
+
+    /// <summary>Membership attributes as JSON (<see cref="AttributesDocument"/>).</summary>
+    public required string Attributes { get; set; }
+
+    public required string Source { get; init; }
+
+    public string? ErpContactId { get; set; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public static MembershipRow From(Membership membership, DateTimeOffset now) =>
+        new()
+        {
+            UserId = membership.UserId,
+            CustomerCode = membership.CustomerCode,
+            Attributes = AttributesDocument.Write(membership.Attributes),
+            Source = membership.Source.ToString(),
+            ErpContactId = membership.ErpContactId,
+            CreatedAt = now,
+        };
+
+    public void Apply(Membership membership)
+    {
+        Attributes = AttributesDocument.Write(membership.Attributes);
+        ErpContactId = membership.ErpContactId;
+    }
+
+    public Membership ToDomain() =>
+        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Enum.Parse<MembershipSource>(Source), ErpContactId);
+
+    /// <summary>Flat storage shape of <see cref="MembershipAttributes"/> (its address scope is a closed hierarchy).</summary>
+    private sealed record AttributesDocument(
+        bool CanOrder,
+        OrderScope OrderScope,
+        decimal? OrderLimit,
+        string? OrderLimitCurrency,
+        bool CanViewDocuments,
+        bool CanManageUsers,
+        IReadOnlyList<string>? DeliveryAddressCodes)
+    {
+        public static string Write(MembershipAttributes attributes) =>
+            JsonSerializer.Serialize(
+                new AttributesDocument(
+                    attributes.CanOrder,
+                    attributes.OrderScope,
+                    attributes.OrderLimit?.Amount,
+                    attributes.OrderLimit?.Currency.Code,
+                    attributes.CanViewDocuments,
+                    attributes.CanManageUsers,
+                    attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null),
+                PersistenceJson.Options);
+
+        public static MembershipAttributes Read(string json)
+        {
+            var document = JsonSerializer.Deserialize<AttributesDocument>(json, PersistenceJson.Options) ?? throw new JsonException("Stored membership attributes are null.");
+            return new MembershipAttributes(
+                document.CanOrder,
+                document.OrderScope,
+                document is { OrderLimit: { } amount, OrderLimitCurrency: { } currency } ? new Money(amount, Persisted.Rehydrate<Currency, string>(currency)) : null,
+                document.CanViewDocuments,
+                document.CanManageUsers,
+                document.DeliveryAddressCodes is { } codes ? DeliveryAddressScope.Only([.. codes]) : DeliveryAddressScope.All);
+        }
+    }
 }
 
 internal sealed class TokenRow

@@ -11,6 +11,8 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
 
     public DbSet<TokenRow> Tokens => Set<TokenRow>();
 
+    public DbSet<MembershipRow> Memberships => Set<MembershipRow>();
+
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -47,6 +49,20 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
             token.HasIndex(t => t.Hash).IsUnique().HasDatabaseName("ux_one_time_tokens_hash");
             token.Property(t => t.ExpiresAt).HasColumnName("expires_at");
             token.Property(t => t.UsedAt).HasColumnName("used_at");
+        });
+
+        modelBuilder.Entity<MembershipRow>(membership =>
+        {
+            membership.ToTable("memberships");
+            membership.HasKey(m => new { m.UserId, m.CustomerCode });
+            membership.Property(m => m.UserId).HasColumnName("user_id");
+            membership.Property(m => m.CustomerCode).HasColumnName("customer_code").HasMaxLength(64);
+            membership.Property(m => m.Attributes).HasColumnName("attributes");
+            membership.Property(m => m.Source).HasColumnName("source").HasMaxLength(16);
+            membership.Property(m => m.ErpContactId).HasColumnName("erp_contact_id").HasMaxLength(64);
+            membership.Property(m => m.CreatedAt).HasColumnName("created_at");
+            membership.HasIndex(m => m.CustomerCode).HasDatabaseName("ix_memberships_customer_code");
+            membership.HasOne<AccountRow>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuditEntry>(entry =>

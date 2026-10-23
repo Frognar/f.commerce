@@ -51,7 +51,13 @@ public sealed class InvitationModel(
             {
                 await SessionCookie.SignInAsync(HttpContext, signedIn, remember: false);
                 var session = (await sessions.HandleAsync(new GetSession(signedIn.UserId, signedIn.SecurityStamp), cancellationToken)).Match(s => (SessionView?)s, _ => null);
-                return LocalRedirect(Url.CulturePage(session?.Operator is null ? "/Index" : "/Admin/Index")!);
+                var landing = session switch
+                {
+                    { Operator: not null } => "/Admin/Index",
+                    { Memberships.Count: > 0 } => "/Company/Index",
+                    _ => "/Index",
+                };
+                return LocalRedirect(Url.CulturePage(landing)!);
             },
             error =>
             {

@@ -131,6 +131,45 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Access
                     b.ToTable("audit_log", "access");
                 });
 
+            modelBuilder.Entity("FCommerce.Access.Persistence.MembershipRow", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("CustomerCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("customer_code");
+
+                    b.Property<string>("Attributes")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("attributes");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ErpContactId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("erp_contact_id");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("source");
+
+                    b.HasKey("UserId", "CustomerCode");
+
+                    b.HasIndex("CustomerCode")
+                        .HasDatabaseName("ix_memberships_customer_code");
+
+                    b.ToTable("memberships", "access");
+                });
+
             modelBuilder.Entity("FCommerce.Access.Persistence.TokenRow", b =>
                 {
                     b.Property<long>("Id")
@@ -216,6 +255,15 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Access
                         .HasDatabaseName("ix_outbox_messages_processed_at");
 
                     b.ToTable("outbox_messages", "access");
+                });
+
+            modelBuilder.Entity("FCommerce.Access.Persistence.MembershipRow", b =>
+                {
+                    b.HasOne("FCommerce.Access.Persistence.AccountRow", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

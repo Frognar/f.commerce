@@ -1,0 +1,29 @@
+@page "/company"
+@model FCommerce.Host.Pages.Company.IndexModel
+@{
+    var customer = Model.Customer;
+    ViewData["Title"] = T["MyCompany"];
+}
+@if (customer is null)
+{
+    <h1>@T["MyCompany"]</h1>
+    <p class="muted">@T["NoCompany"]</p>
+    return;
+}
+<h1>@customer.Name</h1>
+<p class="muted">
+    @customer.Code
+    @if (customer.TaxId is not null)
+    {
+        <text>· @T["TaxId"] @customer.TaxId</text>
+    }
+</p>
+@if (customer.Blocked)
+{
+    <p class="alert" role="status">@T["CompanyBlocked"]</p>
+}
+@if (Model.CanSeeUsers)
+{
+    <p><a class="button secondary" asp-page="/Company/Users">@T["CompanyUsers"]</a></p>
+}
+<partial name="_CustomerProfile" model="customer" />

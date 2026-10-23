@@ -23,6 +23,7 @@ public static class NotificationsModule
         services.AddSingleton(options);
         services.AddIntegrationEventHandler<InvitationIssued, SendInvitation>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordReset>();
+        services.AddIntegrationEventHandler<MembershipGranted, SendMembershipGranted>();
         return services;
     }
 }
@@ -31,6 +32,9 @@ internal static class Links
 {
     public static Uri To(NotificationsOptions options, string culture, string path, string token) =>
         new(options.PublicUrl, $"/{culture}/{path}?token={Uri.EscapeDataString(token)}");
+
+    public static Uri To(NotificationsOptions options, string culture, string path) =>
+        new(options.PublicUrl, $"/{culture}/{path}");
 
     /// <summary>Addresses in events were validated when the account was created.</summary>
     public static EmailAddress Address(string email) =>
@@ -71,5 +75,23 @@ internal sealed class SendPasswordReset(IEmailSender sender, NotificationsOption
             Links.To(options, culture, "reset-password", reset.Token),
             EmailRenderer.Text("ResetExpiry", culture));
         await sender.SendAsync(EmailRenderer.Render(Links.Address(reset.Email), reset.Name, culture, storeName, email), cancellationToken);
+    }
+}
+
+internal sealed class SendMembershipGranted(IEmailSender sender, NotificationsOptions options, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IIntegrationEventHandler<MembershipGranted>
+{
+    public async Task HandleAsync(MembershipGranted granted, CancellationToken cancellationToken = default)
+    {
+        var storeName = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).Branding.StoreName;
+        var culture = granted.Culture;
+        var email = new ActionEmail(
+            EmailRenderer.Text("MembershipGrantedSubject", culture, storeName, granted.CustomerName),
+            EmailRenderer.Text("Greeting", culture, granted.Name),
+            EmailRenderer.Text("MembershipGrantedBody", culture, storeName, granted.CustomerName),
+            EmailRenderer.Text("MembershipGrantedAction", culture),
+            Links.To(options, culture, "sign-in"),
+            EmailRenderer.Text("MembershipGrantedNote", culture));
+        await sender.SendAsync(EmailRenderer.Render(Links.Address(granted.Email), granted.Name, culture, storeName, email), cancellationToken);
     }
 }

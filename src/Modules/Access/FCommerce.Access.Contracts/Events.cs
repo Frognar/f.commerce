@@ -12,3 +12,9 @@ public sealed record InvitationIssued(Guid UserId, string Email, string Name, st
 
 /// <summary>A password reset was requested for an active account. Published as "access.password-reset-requested.v1".</summary>
 public sealed record PasswordResetRequested(Guid UserId, string Email, string Name, string Culture, string Token) : IIntegrationEvent;
+
+/// <summary>
+/// An existing account got access to another customer (new accounts get <see cref="InvitationIssued"/> instead).
+/// Published as "access.membership-granted.v1".
+/// </summary>
+public sealed record MembershipGranted(Guid UserId, string Email, string Name, string Culture, string CustomerName) : IIntegrationEvent;

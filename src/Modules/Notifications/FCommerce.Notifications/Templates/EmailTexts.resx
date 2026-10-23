@@ -16,4 +16,8 @@
   <data name="ResetAction" xml:space="preserve"><value>Choose a new password</value></data>
   <data name="ResetExpiry" xml:space="preserve"><value>The link is valid for 1 hour. If you did not ask for it, ignore this message — your password stays unchanged.</value></data>
   <data name="Footer" xml:space="preserve"><value>This message was sent automatically by {0}.</value></data>
+  <data name="MembershipGrantedSubject" xml:space="preserve"><value>Access to {1} at {0}</value></data>
+  <data name="MembershipGrantedBody" xml:space="preserve"><value>You can now order at {0} on behalf of {1}. Sign in with your existing password and choose the company in the menu at the top of the page.</value></data>
+  <data name="MembershipGrantedAction" xml:space="preserve"><value>Sign in</value></data>
+  <data name="MembershipGrantedNote" xml:space="preserve"><value>If you did not expect this message, please contact the seller.</value></data>
 </root>

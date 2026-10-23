@@ -40,6 +40,8 @@ builder.Services.AddEmbeddedSearch(Path.Combine(builder.Environment.ContentRootP
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AccessControl>();
+builder.Services.AddScoped<FCommerce.Host.Pages.Shared.CustomerUsersActions>();
+builder.Services.AddScoped<FCommerce.Host.Pages.Company.CompanyContext>();
 builder.Services.AddScoped<FeatureGateFilter>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
@@ -99,6 +101,7 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AuthorizePage("/Catalog/Index", Policies.CatalogRead);
         options.Conventions.AuthorizePage("/Products/Details", Policies.CatalogRead);
         options.Conventions.AuthorizeFolder("/Account", Policies.OwnAccount);
+        options.Conventions.AuthorizeFolder("/Company", Policies.OwnAccount);
         options.Conventions.AuthorizeFolder("/Admin", Policies.BackOffice);
         options.Conventions.AuthorizePage("/Admin/Operators", Policies.OperatorsManage);
         options.Conventions.AuthorizePage("/Admin/Settings", Policies.SettingsManage);

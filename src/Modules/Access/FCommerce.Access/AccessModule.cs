@@ -3,6 +3,7 @@ using FCommerce.Access.Handlers;
 using FCommerce.Access.Persistence;
 using FCommerce.Application.Messaging;
 using FCommerce.Authorization.Core;
+using FCommerce.Customers.Contracts;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Outbox;
 using FCommerce.Infrastructure.Persistence;
@@ -23,10 +24,14 @@ public sealed class AccessOptions
     public string BootstrapAdminName { get; set; } = "Administrator";
 
     public string BootstrapCulture { get; set; } = "pl";
+
+    /// <summary>Language of accounts created without one (ERP contacts).</summary>
+    public string DefaultCulture { get; set; } = "pl";
 }
 
 public static class AccessModule
 {
+    /// <summary>Requires the Customers and Settings modules (customer names, features, default contact template).</summary>
     public static IServiceCollection AddAccessModule(this IServiceCollection services, AccessOptions options)
     {
         services.AddSingleton(options);
@@ -34,9 +39,11 @@ public static class AccessModule
         services.AddOutbox<AccessDbContext>();
         services.AddMessageType<InvitationIssued>("access.invitation-issued.v1");
         services.AddMessageType<PasswordResetRequested>("access.password-reset-requested.v1");
+        services.AddMessageType<MembershipGranted>("access.membership-granted.v1");
 
         services.AddScoped<AccessStore>();
         services.AddScoped<OperatorManagement>();
+        services.AddScoped<MembershipManagement>();
         services.AddScoped<ICommandHandler<SignInCommand, Result<SignedIn, Error>>, SignInHandler>();
         services.AddScoped<IQueryHandler<GetSession, Result<SessionView, Error>>, GetSessionHandler>();
         services.AddScoped<IQueryHandler<GetInvitation, Result<InvitationView, Error>>, GetInvitationHandler>();
@@ -49,6 +56,12 @@ public static class AccessModule
         services.AddScoped<ICommandHandler<ChangeOperator, Result<Unit, Error>>, ChangeOperatorHandler>();
         services.AddScoped<ICommandHandler<RevokeOperator, Result<Unit, Error>>, RevokeOperatorHandler>();
         services.AddScoped<IQueryHandler<GetOperators, IReadOnlyList<OperatorSummary>>, GetOperatorsHandler>();
+        services.AddScoped<ICommandHandler<InviteCustomerUser, Result<Guid, Error>>, InviteCustomerUserHandler>();
+        services.AddScoped<ICommandHandler<ChangeMembership, Result<Unit, Error>>, ChangeMembershipHandler>();
+        services.AddScoped<ICommandHandler<RevokeMembership, Result<Unit, Error>>, RevokeMembershipHandler>();
+        services.AddScoped<IQueryHandler<GetCustomerUsers, IReadOnlyList<CustomerUserSummary>>, GetCustomerUsersHandler>();
+        services.AddScoped<IQueryHandler<GetAuditLog, IReadOnlyList<AuditEntryView>>, GetAuditLogHandler>();
+        services.AddIntegrationEventHandler<PortalContactsChanged, ErpContactInvitations>();
         services.AddHostedService<OperatorBootstrap>();
         return services;
     }

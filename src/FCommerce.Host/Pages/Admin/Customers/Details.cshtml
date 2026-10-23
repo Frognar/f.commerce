@@ -18,7 +18,7 @@
     @customer.Code
     @if (customer.TaxId is not null)
     {
-        <text> · @T["TaxId"] @customer.TaxId</text>
+        <text>· @T["TaxId"] @customer.TaxId</text>
     }
     @if (!customer.Active)
     {
@@ -29,59 +29,13 @@
         <span class="badge">@T["CustomerBlocked"]</span>
     }
 </p>
-
-<div class="customer-cards">
-    <section class="card">
-        <h2>@T["BillingAddress"]</h2>
-        <address>@customer.BillingAddress.Street<br />@customer.BillingAddress.PostalCode @customer.BillingAddress.City<br />@customer.BillingAddress.Country</address>
-    </section>
-
-    <section class="card">
-        <h2>@T["CommercialTerms"]</h2>
-        <dl class="terms">
-            <dt>@T["PriceList"]</dt><dd>@(customer.PriceListCode ?? T["PlatformDefault"])</dd>
-            <dt>@T["PaymentTerms"]</dt><dd>@(customer.PaymentTermDays is { } days ? T["Days", days] : "—")</dd>
-            <dt>@T["Currency"]</dt><dd>@customer.Currency</dd>
-        </dl>
-    </section>
-
-    <section class="card">
-        <h2>@T["Salesperson"]</h2>
-        @if (customer.Salesperson is { } salesperson)
-        {
-            <p>@salesperson.Name<br />
-                @if (salesperson.Email is not null) { <a href="mailto:@salesperson.Email">@salesperson.Email</a><br /> }
-                @salesperson.Phone</p>
-        }
-        else
-        {
-            <p class="muted">@T["NoSalesperson"]</p>
-        }
-    </section>
-</div>
-
-<h2>@T["DeliveryAddresses"]</h2>
-@if (customer.DeliveryAddresses.Count == 0)
+@if (Model.Saved is not null)
 {
-    <p class="muted">@T["NoDeliveryAddresses"]</p>
+    <p class="notice" role="status">@Model.Saved</p>
 }
-else
-{
-    <table class="data">
-        <thead><tr><th>@T["AddressCode"]</th><th>@T["AddressName"]</th><th>@T["Address"]</th><th></th></tr></thead>
-        <tbody>
-            @foreach (var address in customer.DeliveryAddresses)
-            {
-                <tr>
-                    <td>@address.Code</td>
-                    <td>@address.Name</td>
-                    <td>@address.Address.Street, @address.Address.PostalCode @address.Address.City, @address.Address.Country</td>
-                    <td>@if (address.IsDefault) { <span class="badge">@T["DefaultAddress"]</span> }</td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+
+<partial name="_CustomerProfile" model="customer" />
 
 <h2>@T["Contacts"]</h2>
 @if (customer.Contacts.Count == 0)
@@ -100,6 +54,31 @@ else
                     <td>@contact.Email</td>
                     <td>@contact.Phone</td>
                     <td>@(contact.PortalAccess ? T[$"Template.{contact.AttributeTemplate ?? "default"}"] : "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (Model.Users is { } users)
+{
+    <h2>@T["PlatformUsers"]</h2>
+    <partial name="_CustomerUsers" model="users" />
+}
+
+@if (Model.Audit.Count > 0)
+{
+    <h2>@T["AuditLog"]</h2>
+    <table class="data">
+        <thead><tr><th>@T["When"]</th><th>@T["Who"]</th><th>@T["WhatHappened"]</th><th>@T["Email"]</th></tr></thead>
+        <tbody>
+            @foreach (var entry in Model.Audit)
+            {
+                <tr>
+                    <td>@entry.At.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
+                    <td>@(entry.Actor ?? T["SystemActor"])</td>
+                    <td>@T[$"Audit.{entry.Action}"]</td>
+                    <td>@entry.Email</td>
                 </tr>
             }
         </tbody>

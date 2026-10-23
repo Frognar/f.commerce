@@ -56,6 +56,36 @@ internal sealed class AccessStore(AccessDbContext db, Outbox<AccessDbContext> ou
 
     public Result<Unit, Error> Enqueue(SharedKernel.Messaging.IIntegrationEvent integrationEvent) => outbox.Enqueue(integrationEvent);
 
+    /// <summary>The accounts' memberships, by account id.</summary>
+    public async Task<ILookup<Guid, Membership>> MembershipsOfAsync(IReadOnlyCollection<Guid> accountIds, CancellationToken cancellationToken) =>
+        (await db.Memberships.Where(m => accountIds.Contains(m.UserId)).ToListAsync(cancellationToken))
+            .Select(m => m.ToDomain())
+            .ToLookup(m => m.UserId);
+
+    public static MembershipView ToView(Membership membership) =>
+        new(
+            membership.CustomerCode,
+            membership.Attributes.CanOrder,
+            ToView(membership.Attributes.OrderScope),
+            membership.Attributes.OrderLimit?.Amount,
+            membership.Attributes.OrderLimit?.Currency.Code,
+            membership.Attributes.CanViewDocuments,
+            membership.Attributes.CanManageUsers,
+            membership.Attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null);
+
+    public static MembershipRightsView ToView(MembershipRights rights) =>
+        new(rights.CanOrder, ToView(rights.OrderScope), rights.CanViewDocuments, rights.CanManageUsers);
+
+    public static Result<MembershipRights, Error> FromView(MembershipRightsView view) =>
+        view.OrderScope switch
+        {
+            "own" => new MembershipRights(view.CanOrder, OrderScope.Own, view.CanViewDocuments, view.CanManageUsers),
+            "company" => new MembershipRights(view.CanOrder, OrderScope.Company, view.CanViewDocuments, view.CanManageUsers),
+            _ => Error.Validation("membership.order-scope-invalid", "Order scope must be 'own' or 'company'.") with { Field = "orderScope" },
+        };
+
+    private static string ToView(OrderScope scope) => scope == OrderScope.Company ? "company" : "own";
+
     public static Subject.Operator? AsOperator(Account account) =>
         account is { Status: AccountStatus.Active, Operator: { } attributes } ? new Subject.Operator(account.Id, account.Email, attributes) : null;
 

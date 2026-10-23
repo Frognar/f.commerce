@@ -272,3 +272,5 @@ input[type="color"] { width: 4rem; height: 2.4rem; padding: .2rem; border: 1px s
 .terms { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: 0; }
 .terms dt { color: var(--color-muted); }
 .terms dd { margin: 0; }
+.company-switcher { margin: 0; }
+.company-switcher select { font: inherit; font-size: .875rem; padding: .2rem .4rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text); max-width: 16rem; }

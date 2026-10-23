@@ -192,4 +192,43 @@
   <data name="PortalAccess" xml:space="preserve"><value>Platform access</value></data>
   <data name="Template.default" xml:space="preserve"><value>Default (platform settings)</value></data>
   <data name="UpdatedFromErp" xml:space="preserve"><value>Last change from the ERP: {0}</value></data>
+  <data name="MembershipSource" xml:space="preserve"><value>Source</value></data>
+  <data name="MembershipSource.Erp" xml:space="preserve"><value>ERP</value></data>
+  <data name="MembershipSource.Operator" xml:space="preserve"><value>Seller</value></data>
+  <data name="MembershipSource.CustomerAdmin" xml:space="preserve"><value>Company administrator</value></data>
+  <data name="MembershipSource.Registration" xml:space="preserve"><value>Registration</value></data>
+  <data name="CanOrder" xml:space="preserve"><value>Places orders</value></data>
+  <data name="OrderScope" xml:space="preserve"><value>Sees orders</value></data>
+  <data name="OrderScope.own" xml:space="preserve"><value>own</value></data>
+  <data name="OrderScope.company" xml:space="preserve"><value>whole company</value></data>
+  <data name="CanViewDocuments" xml:space="preserve"><value>Sees documents</value></data>
+  <data name="CanManageUsers" xml:space="preserve"><value>Manages users</value></data>
+  <data name="You" xml:space="preserve"><value>you</value></data>
+  <data name="RevokeAccess" xml:space="preserve"><value>Revoke access</value></data>
+  <data name="NoCustomerUsers" xml:space="preserve"><value>Nobody from the company has access to the platform yet.</value></data>
+  <data name="InviteUser" xml:space="preserve"><value>Invite a person</value></data>
+  <data name="RightsTemplate" xml:space="preserve"><value>Rights</value></data>
+  <data name="UserInvited" xml:space="preserve"><value>Invitation sent.</value></data>
+  <data name="AccessRevoked" xml:space="preserve"><value>Access revoked.</value></data>
+  <data name="PlatformUsers" xml:space="preserve"><value>Platform users</value></data>
+  <data name="AuditLog" xml:space="preserve"><value>Access change log</value></data>
+  <data name="WhatHappened" xml:space="preserve"><value>Event</value></data>
+  <data name="SystemActor" xml:space="preserve"><value>system (ERP)</value></data>
+  <data name="Audit.membership.granted" xml:space="preserve"><value>Access granted</value></data>
+  <data name="Audit.membership.changed" xml:space="preserve"><value>Rights changed</value></data>
+  <data name="Audit.membership.revoked" xml:space="preserve"><value>Access revoked</value></data>
+  <data name="Audit.membership.erp-skipped" xml:space="preserve"><value>ERP contact skipped</value></data>
+  <data name="MyCompany" xml:space="preserve"><value>My company</value></data>
+  <data name="NoCompany" xml:space="preserve"><value>Your account is not linked to any company.</value></data>
+  <data name="CompanyBlocked" xml:space="preserve"><value>The company account is blocked by the seller — please contact your salesperson.</value></data>
+  <data name="CompanyUsers" xml:space="preserve"><value>Company users</value></data>
+  <data name="SwitchCompany" xml:space="preserve"><value>Switch company</value></data>
+  <data name="Error.membership.operator-account" xml:space="preserve"><value>A seller staff account cannot act for a company.</value></data>
+  <data name="Error.membership.account-disabled" xml:space="preserve"><value>This account is disabled.</value></data>
+  <data name="Error.membership.exists" xml:space="preserve"><value>This person already has access to the company.</value></data>
+  <data name="Error.membership.single-customer" xml:space="preserve"><value>This person already acts for another company.</value></data>
+  <data name="Error.membership.not-found" xml:space="preserve"><value>This person has no access to the company.</value></data>
+  <data name="Error.membership.order-scope-invalid" xml:space="preserve"><value>Choose which orders are visible.</value></data>
+  <data name="Error.grant.last-administrator" xml:space="preserve"><value>The company needs at least one person who manages users.</value></data>
+  <data name="Error.customer.not-found" xml:space="preserve"><value>Customer not found.</value></data>
 </root>

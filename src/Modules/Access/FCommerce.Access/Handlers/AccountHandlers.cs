@@ -51,9 +51,19 @@ internal sealed class GetSessionHandler(AccessStore store) : IQueryHandler<GetSe
     public async Task<Result<SessionView, Error>> HandleAsync(GetSession query, CancellationToken cancellationToken = default)
     {
         var account = (await store.Db.Accounts.AsNoTracking().SingleOrDefaultAsync(a => a.Id == query.UserId, cancellationToken))?.ToDomain();
-        return account is { Status: AccountStatus.Active } && account.SecurityStamp == query.SecurityStamp
-            ? new SessionView(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, account.Operator is null ? null : AccessStore.ToView(account.Operator))
-            : Error.NotFound("access.session-ended", "The session has ended.");
+        if (account is not { Status: AccountStatus.Active } || account.SecurityStamp != query.SecurityStamp)
+        {
+            return Error.NotFound("access.session-ended", "The session has ended.");
+        }
+
+        var memberships = await store.Db.Memberships.AsNoTracking().Where(m => m.UserId == account.Id).OrderBy(m => m.CustomerCode).ToListAsync(cancellationToken);
+        return new SessionView(
+            account.Id,
+            account.Email.Value,
+            account.Name.Value,
+            account.Culture.Value,
+            account.Operator is null ? null : AccessStore.ToView(account.Operator),
+            [.. memberships.Select(m => AccessStore.ToView(m.ToDomain()))]);
     }
 }
 

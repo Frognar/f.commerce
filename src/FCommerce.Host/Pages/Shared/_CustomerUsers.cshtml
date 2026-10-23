@@ -1,0 +1,75 @@
+@model FCommerce.Host.Pages.Shared.CustomerUsersPanel
+@inject SupportedCultures Cultures
+<table class="data">
+    <thead>
+        <tr>
+            <th>@T["FullName"]</th><th>@T["Email"]</th><th>@T["Status"]</th><th>@T["MembershipSource"]</th>
+            <th>@T["CanOrder"]</th><th>@T["OrderScope"]</th><th>@T["CanViewDocuments"]</th><th>@T["CanManageUsers"]</th>
+            @if (Model.CanManage) { <th></th> }
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model.Users)
+        {
+            var formId = $"member-{user.UserId:N}";
+            var disabled = !Model.CanManage;
+            <tr>
+                <td>@user.Name @if (user.UserId == Model.CurrentUserId) { <span class="badge">@T["You"]</span> }</td>
+                <td>@user.Email</td>
+                <td>@T[$"Status.{user.Status}"]</td>
+                <td>@T[$"MembershipSource.{user.Source}"]</td>
+                <td><input form="@formId" type="checkbox" name="UserForm.CanOrder" value="true" checked="@user.Rights.CanOrder" disabled="@disabled" aria-label="@T["CanOrder"]" /></td>
+                <td>
+                    <select form="@formId" name="UserForm.OrderScope" disabled="@disabled" aria-label="@T["OrderScope"]">
+                        <option value="own" selected="@(user.Rights.OrderScope == "own")">@T["OrderScope.own"]</option>
+                        <option value="company" selected="@(user.Rights.OrderScope == "company")">@T["OrderScope.company"]</option>
+                    </select>
+                </td>
+                <td><input form="@formId" type="checkbox" name="UserForm.CanViewDocuments" value="true" checked="@user.Rights.CanViewDocuments" disabled="@disabled" aria-label="@T["CanViewDocuments"]" /></td>
+                <td><input form="@formId" type="checkbox" name="UserForm.CanManageUsers" value="true" checked="@user.Rights.CanManageUsers" disabled="@disabled" aria-label="@T["CanManageUsers"]" /></td>
+                @if (Model.CanManage)
+                {
+                    <td class="actions">
+                        <form id="@formId" method="post" asp-page-handler="Change" asp-all-route-data="Model.RouteValues" asp-route-id="@user.UserId">
+                            <button class="button small" type="submit">@T["Save"]</button>
+                        </form>
+                        <form method="post" asp-page-handler="Revoke" asp-all-route-data="Model.RouteValues" asp-route-id="@user.UserId">
+                            <button class="button small secondary" type="submit">@T["RevokeAccess"]</button>
+                        </form>
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>
+@if (Model.Users.Count == 0)
+{
+    <p class="muted">@T["NoCustomerUsers"]</p>
+}
+
+@if (Model.CanManage)
+{
+    <section class="card">
+        <h3>@T["InviteUser"]</h3>
+        <form method="post" asp-page-handler="Invite" asp-all-route-data="Model.RouteValues" class="stack">
+            <label>@T["Email"] <input name="UserForm.Email" type="email" required /></label>
+            <label>@T["FullName"] <input name="UserForm.Name" required /></label>
+            <label>@T["Language"]
+                <select name="UserForm.Culture">
+                    @foreach (var culture in Cultures.All)
+                    {
+                        <option value="@culture.Value">@culture.Value.ToUpperInvariant()</option>
+                    }
+                </select>
+            </label>
+            <label>@T["RightsTemplate"]
+                <select name="UserForm.Template">
+                    <option value="buyer">@T["Template.buyer"]</option>
+                    <option value="accounting">@T["Template.accounting"]</option>
+                    <option value="administrator">@T["Template.administrator"]</option>
+                </select>
+            </label>
+            <button class="button" type="submit">@T["SendInvitation"]</button>
+        </form>
+    </section>
+}
