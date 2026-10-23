@@ -75,7 +75,7 @@ public sealed class ResultTests
 
         Assert.Equal([1, 2], ok.Sequence().ShouldSucceed());
         Assert.Equal("missing", failed.Sequence().ShouldFail().Code);
-        Assert.Equal([2, 4], ok.Select(r => r.ValueOr(_ => 0)).Traverse(v => Ok(v * 2)).ShouldSucceed());
+        Assert.Equal([2, 4], new[] { 1, 2 }.Traverse(v => Ok(v * 2)).ShouldSucceed());
         Assert.Empty(Array.Empty<Result<int, Error>>().Sequence().ShouldSucceed());
     }
 

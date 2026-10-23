@@ -1,9 +1,10 @@
+using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.SharedKernel.Localization;
 
 /// <summary>A normalized BCP 47 culture tag, e.g. "pl", "en", "en-GB". Created only through <see cref="Parse"/>.</summary>
-public sealed record CultureCode
+public sealed record CultureCode : IPersistedValue<CultureCode, string>
 {
     private CultureCode(string language, string? region)
     {
@@ -39,6 +40,14 @@ public sealed record CultureCode
             ? new CultureCode(parts[0].ToLowerInvariant(), parts.Length == 2 ? parts[1].ToUpperInvariant() : null)
             : Error.Validation("culture.invalid", $"'{value}' is not a valid culture code.");
     }
+
+    static CultureCode IPersistedValue<CultureCode, string>.Rehydrate(string raw)
+    {
+        var separator = raw.IndexOf('-', StringComparison.Ordinal);
+        return separator < 0 ? new CultureCode(raw, null) : new CultureCode(raw[..separator], raw[(separator + 1)..]);
+    }
+
+    string IPersistedValue<CultureCode, string>.Dehydrate() => Value;
 
     public override string ToString() => Value;
 }

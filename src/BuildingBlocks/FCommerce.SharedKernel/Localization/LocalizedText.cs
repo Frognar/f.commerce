@@ -1,9 +1,10 @@
 using System.Collections.Immutable;
+using FCommerce.SharedKernel.Persistence;
 
 namespace FCommerce.SharedKernel.Localization;
 
 /// <summary>Text with translations per culture. Immutable, compared by value.</summary>
-public sealed class LocalizedText : IEquatable<LocalizedText>
+public sealed class LocalizedText : IEquatable<LocalizedText>, IPersistedValue<LocalizedText, IReadOnlyDictionary<string, string>>
 {
     private LocalizedText(ImmutableSortedDictionary<CultureCode, string> translations) => Translations = translations;
 
@@ -81,6 +82,16 @@ public sealed class LocalizedText : IEquatable<LocalizedText>
 
         return hash.ToHashCode();
     }
+
+    static LocalizedText IPersistedValue<LocalizedText, IReadOnlyDictionary<string, string>>.Rehydrate(IReadOnlyDictionary<string, string> raw) =>
+        new(raw.ToImmutableSortedDictionary(pair => Rehydrate<CultureCode, string>(pair.Key), pair => pair.Value, CultureCodeComparer.Instance));
+
+    IReadOnlyDictionary<string, string> IPersistedValue<LocalizedText, IReadOnlyDictionary<string, string>>.Dehydrate() =>
+        Translations.ToDictionary(pair => pair.Key.Value, pair => pair.Value);
+
+    private static T Rehydrate<T, TRaw>(TRaw raw)
+        where T : IPersistedValue<T, TRaw> =>
+        T.Rehydrate(raw);
 
     public override string ToString() => string.Join(", ", Translations.Select(t => $"{t.Key}: {t.Value}"));
 

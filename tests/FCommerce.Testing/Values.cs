@@ -11,7 +11,7 @@ public static class Values
 
     public static Currency Currency(string code) => SharedKernel.Monetary.Currency.Parse(code).ShouldSucceed();
 
-    public static StreamId Stream(string category, string id) => StreamId.Create(category, id).ShouldSucceed();
+    public static StreamId Stream(string category, string id) => StreamId.Parse($"{category}-{id}").ShouldSucceed();
 
-    public static StreamId NewStream(string category) => StreamId.Create(category, Guid.CreateVersion7()).ShouldSucceed();
+    public static StreamId NewStream(string category) => Stream(category, Guid.CreateVersion7().ToString("N"));
 }

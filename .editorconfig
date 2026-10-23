@@ -402,3 +402,5 @@ dotnet_diagnostic.CA2007.severity = none
 [tests/**.cs]
 # Test method names use underscores for readability.
 dotnet_diagnostic.CA1707.severity = none
+# Inline array literals keep test data next to the assertion.
+dotnet_diagnostic.CA1861.severity = none

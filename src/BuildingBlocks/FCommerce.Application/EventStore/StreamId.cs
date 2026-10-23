@@ -3,11 +3,22 @@ using FCommerce.SharedKernel.Results;
 namespace FCommerce.Application.EventStore;
 
 /// <summary>
-/// Stream identifier in the form "{category}-{id}", e.g. "cart-0193…".
-/// The category names the aggregate type and is owned by exactly one module.
+/// An event-sourced aggregate type. Its <see cref="Category"/> is a constant checked by the architecture tests
+/// (format and uniqueness), so building a <see cref="StreamId"/> from it needs no validation at runtime.
 /// </summary>
+public interface IStreamType
+{
+    /// <summary>Lowercase ASCII letters and digits, starting with a letter, e.g. "cart", "order".</summary>
+    static abstract string Category { get; }
+}
+
+/// <summary>Stream identifier in the form "{category}-{id}", e.g. "cart-0193…".</summary>
 public sealed record StreamId
 {
+    public const string ForeignCategory = "$foreign";
+
+    private const int MaxCategoryLength = 50;
+
     private StreamId(string category, string id)
     {
         Category = category;
@@ -20,37 +31,36 @@ public sealed record StreamId
 
     public string Value => $"{Category}-{Id}";
 
-    public static Result<StreamId, Error> Create(string category, string id)
-    {
-        if (string.IsNullOrWhiteSpace(category) || category.Contains('-', StringComparison.Ordinal))
-        {
-            return Error.Validation("stream-id.invalid-category", $"'{category}' is not a valid stream category (non-empty, without '-').");
-        }
+    public static StreamId For<TStream>(Guid id)
+        where TStream : IStreamType =>
+        new(TStream.Category, id.ToString("N"));
 
-        return string.IsNullOrWhiteSpace(id)
-            ? Error.Validation("stream-id.empty-id", "Stream id must not be empty.")
-            : new StreamId(category, id);
-    }
-
-    public static Result<StreamId, Error> Create(string category, Guid id) => Create(category, id.ToString("N"));
-
-    /// <summary>Splits "{category}-{id}" at the first '-'.</summary>
+    /// <summary>Parses a stored key "{category}-{id}", splitting at the first '-'.</summary>
     public static Result<StreamId, Error> Parse(string? value)
     {
         var separator = value?.IndexOf('-', StringComparison.Ordinal) ?? -1;
-        return separator > 0
-            ? Create(value![..separator], value[(separator + 1)..])
-            : Error.Validation("stream-id.invalid", $"'{value}' is not a valid stream id.");
+        if (separator <= 0 || separator == value!.Length - 1)
+        {
+            return Error.Validation("stream-id.invalid", $"'{value}' is not a valid stream id.");
+        }
+
+        var category = value[..separator];
+        return ValidateCategory(category).Map(_ => new StreamId(category, value[(separator + 1)..]));
     }
+
+    public static Result<string, Error> ValidateCategory(string? category) =>
+        category is { Length: > 0 and <= MaxCategoryLength }
+        && char.IsAsciiLetterLower(category[0])
+        && category.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c))
+            ? category
+            : Error.Validation("stream-id.invalid-category", $"'{category}' is not a valid stream category (lowercase letters and digits, starting with a letter).");
 
     /// <summary>
     /// Wraps a stream key that does not follow our naming (e.g. an adapter's own bookkeeping streams) so it can
-    /// still be passed through the global log. Subscriptions never accept the <see cref="ForeignCategory"/>.
+    /// still be passed through the global log. No <see cref="IStreamType"/> can have the <see cref="ForeignCategory"/>.
     /// </summary>
     public static StreamId Foreign(string? rawKey) =>
         new(ForeignCategory, string.IsNullOrWhiteSpace(rawKey) ? "unknown" : rawKey);
-
-    public const string ForeignCategory = "$foreign";
 
     public override string ToString() => Value;
 }

@@ -32,7 +32,7 @@ public static class PostgresServiceCollectionExtensions
             options.Events.MetadataConfig.CausationIdEnabled = true;
             options.Events.MetadataConfig.HeadersEnabled = true;
             options.UseSystemTextJsonForSerialization(
-                JsonDefaults.Configure(new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
+                PersistenceJson.Configure(new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web)),
                 EnumStorage.AsString,
                 Casing.CamelCase);
             options.AutoCreateSchemaObjects = applySchemaChanges ? AutoCreate.CreateOrUpdate : AutoCreate.None;
