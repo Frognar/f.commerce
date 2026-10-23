@@ -13,6 +13,8 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
 
     public DbSet<MembershipRow> Memberships => Set<MembershipRow>();
 
+    public DbSet<RegistrationRow> Registrations => Set<RegistrationRow>();
+
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -63,6 +65,24 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
             membership.Property(m => m.CreatedAt).HasColumnName("created_at");
             membership.HasIndex(m => m.CustomerCode).HasDatabaseName("ix_memberships_customer_code");
             membership.HasOne<AccountRow>().WithMany().HasForeignKey(m => m.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RegistrationRow>(registration =>
+        {
+            registration.ToTable("registration_requests");
+            registration.HasKey(r => r.Id);
+            registration.Property(r => r.Id).HasColumnName("id");
+            registration.Property(r => r.Status).HasColumnName("status").HasMaxLength(16);
+            registration.Property(r => r.CompanyName).HasColumnName("company_name").HasMaxLength(300);
+            registration.Property(r => r.TaxId).HasColumnName("tax_id").HasMaxLength(14);
+            registration.Property(r => r.Email).HasColumnName("email").HasMaxLength(254);
+            registration.Property(r => r.Form).HasColumnName("form");
+            registration.Property(r => r.SubmittedAt).HasColumnName("submitted_at");
+            registration.Property(r => r.DecidedAt).HasColumnName("decided_at");
+            registration.Property(r => r.DecidedBy).HasColumnName("decided_by");
+            registration.Property(r => r.CustomerCode).HasColumnName("customer_code").HasMaxLength(64);
+            registration.Property(r => r.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(1000);
+            registration.HasIndex(r => new { r.Status, r.SubmittedAt }).HasDatabaseName("ix_registration_requests_status");
         });
 
         modelBuilder.Entity<AuditEntry>(entry =>

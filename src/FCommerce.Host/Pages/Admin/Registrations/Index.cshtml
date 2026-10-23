@@ -1,0 +1,35 @@
+@page "/admin/registrations"
+@model FCommerce.Host.Pages.Admin.Registrations.IndexModel
+@{
+    ViewData["Title"] = T["Registrations"];
+}
+<nav class="breadcrumb"><a asp-page="/Admin/Index">@T["BackOffice"]</a></nav>
+<h1>@T["Registrations"]</h1>
+<nav class="tabs" aria-label="@T["Status"]">
+    @foreach (var status in FCommerce.Host.Pages.Admin.Registrations.IndexModel.Statuses)
+    {
+        <a asp-page="/Admin/Registrations/Index" asp-route-status="@status" aria-current="@(status == Model.Status ? "page" : null)">@T[$"Registration.{status}"]</a>
+    }
+</nav>
+@if (Model.Requests.Count == 0)
+{
+    <p class="muted">@T["NoRegistrations"]</p>
+}
+else
+{
+    <table class="data">
+        <thead><tr><th>@T["SubmittedAt"]</th><th>@T["CustomerName"]</th><th>@T["TaxId"]</th><th>@T["ContactPerson"]</th><th>@T["Email"]</th></tr></thead>
+        <tbody>
+            @foreach (var request in Model.Requests)
+            {
+                <tr>
+                    <td>@request.SubmittedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
+                    <td><a asp-page="/Admin/Registrations/Details" asp-route-id="@request.Id">@request.CompanyName</a></td>
+                    <td>@request.TaxId</td>
+                    <td>@request.PersonName</td>
+                    <td>@request.Email</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

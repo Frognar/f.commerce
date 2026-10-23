@@ -1,7 +1,5 @@
 using FCommerce.Application.Messaging;
 using FCommerce.Settings.Contracts;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Filters;
 
 namespace FCommerce.Host.Security;
 
@@ -12,38 +10,32 @@ public sealed class RequiresFeatureAttribute(string featureId) : Attribute
     public string FeatureId { get; } = featureId;
 }
 
-/// <summary>Applied to every Razor Page: answers 404 for pages of switched-off features.</summary>
-internal sealed class FeatureGateFilter(IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings) : IAsyncPageFilter
+public static class FeatureGate
 {
-    public Task OnPageHandlerSelectionAsync(PageHandlerSelectedContext context) => Task.CompletedTask;
-
-    public async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
-    {
-        var required = context.ActionDescriptor.EndpointMetadata.OfType<RequiresFeatureAttribute>().Select(a => a.FeatureId).ToList();
-        if (required.Count > 0)
+    /// <summary>
+    /// Answers 404 for endpoints of switched-off features. Runs right after routing, before authentication and
+    /// authorization, so a switched-off feature looks the same to everybody (no sign-in or access-denied redirect).
+    /// </summary>
+    public static IApplicationBuilder UseFeatureGate(this IApplicationBuilder app) =>
+        app.Use(async (context, next) =>
         {
-            var current = await settings.HandleAsync(new GetPlatformSettings(), context.HttpContext.RequestAborted);
-            if (!required.All(current.IsOn))
+            var required = context.GetEndpoint()?.Metadata.GetOrderedMetadata<RequiresFeatureAttribute>() ?? [];
+            if (required.Count > 0)
             {
-                context.Result = new NotFoundResult();
-                return;
+                var settings = context.RequestServices.GetRequiredService<IQueryHandler<GetPlatformSettings, PlatformSettingsView>>();
+                var current = await settings.HandleAsync(new GetPlatformSettings(), context.RequestAborted);
+                if (!required.All(r => current.IsOn(r.FeatureId)))
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    return;
+                }
             }
-        }
 
-        await next();
-    }
-}
+            await next(context);
+        });
 
-public static class FeatureGateEndpoints
-{
     /// <summary>The minimal API counterpart of <see cref="RequiresFeatureAttribute"/>.</summary>
     public static TBuilder RequireFeature<TBuilder>(this TBuilder builder, string featureId)
         where TBuilder : IEndpointConventionBuilder =>
-        builder.AddEndpointFilter(async (context, next) =>
-        {
-            var settings = context.HttpContext.RequestServices.GetRequiredService<IQueryHandler<GetPlatformSettings, PlatformSettingsView>>();
-            return (await settings.HandleAsync(new GetPlatformSettings(), context.HttpContext.RequestAborted)).IsOn(featureId)
-                ? await next(context)
-                : Results.NotFound();
-        });
+        builder.WithMetadata(new RequiresFeatureAttribute(featureId));
 }

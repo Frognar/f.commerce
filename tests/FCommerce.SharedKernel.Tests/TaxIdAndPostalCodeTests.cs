@@ -1,10 +1,10 @@
-using FCommerce.Customers.Domain;
+
 using FCommerce.SharedKernel.Contact;
 using FCommerce.Testing;
 
-namespace FCommerce.Customers.Tests;
+namespace FCommerce.SharedKernel.Tests;
 
-public sealed class IdentifierTests
+public sealed class TaxIdAndPostalCodeTests
 {
     private static CountryCode Country(string code) => CountryCode.Parse(code).ShouldSucceed();
 

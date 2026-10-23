@@ -13,6 +13,9 @@ public sealed class NotificationsOptions
 {
     /// <summary>Public address of the storefront, used to build links in e-mails, e.g. "https://b2b.example.com".</summary>
     public required Uri PublicUrl { get; init; }
+
+    /// <summary>Language of e-mails to the seller's own mailboxes (e.g. new registration requests).</summary>
+    public string SellerCulture { get; init; } = "pl";
 }
 
 public static class NotificationsModule
@@ -24,6 +27,8 @@ public static class NotificationsModule
         services.AddIntegrationEventHandler<InvitationIssued, SendInvitation>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordReset>();
         services.AddIntegrationEventHandler<MembershipGranted, SendMembershipGranted>();
+        services.AddIntegrationEventHandler<RegistrationSubmitted, NotifyOperatorsOfRegistration>();
+        services.AddIntegrationEventHandler<RegistrationRejected, SendRegistrationRejected>();
         return services;
     }
 }
@@ -93,5 +98,48 @@ internal sealed class SendMembershipGranted(IEmailSender sender, NotificationsOp
             Links.To(options, culture, "sign-in"),
             EmailRenderer.Text("MembershipGrantedNote", culture));
         await sender.SendAsync(EmailRenderer.Render(Links.Address(granted.Email), granted.Name, culture, storeName, email), cancellationToken);
+    }
+}
+
+/// <summary>Tells the seller's operator mailbox (settings: operator notifications) about a new request; nothing when unset.</summary>
+internal sealed class NotifyOperatorsOfRegistration(IEmailSender sender, NotificationsOptions options, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IIntegrationEventHandler<RegistrationSubmitted>
+{
+    public async Task HandleAsync(RegistrationSubmitted submitted, CancellationToken cancellationToken = default)
+    {
+        var current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
+        if (current.Contact.OperatorNotifications is not { } mailbox)
+        {
+            return;
+        }
+
+        var storeName = current.Branding.StoreName;
+        var culture = options.SellerCulture;
+        var email = new ActionEmail(
+            EmailRenderer.Text("RegistrationSubmittedSubject", culture, submitted.CompanyName),
+            EmailRenderer.Text("GreetingTeam", culture),
+            EmailRenderer.Text("RegistrationSubmittedBody", culture, submitted.CompanyName, submitted.TaxId, storeName, submitted.PersonName, submitted.Email),
+            EmailRenderer.Text("RegistrationSubmittedAction", culture),
+            Links.To(options, culture, $"admin/registrations/{submitted.RequestId}"),
+            EmailRenderer.Text("RegistrationSubmittedNote", culture));
+        await sender.SendAsync(EmailRenderer.Render(Links.Address(mailbox), storeName, culture, storeName, email), cancellationToken);
+    }
+}
+
+internal sealed class SendRegistrationRejected(IEmailSender sender, NotificationsOptions options, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IIntegrationEventHandler<RegistrationRejected>
+{
+    public async Task HandleAsync(RegistrationRejected rejected, CancellationToken cancellationToken = default)
+    {
+        var storeName = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).Branding.StoreName;
+        var culture = rejected.Culture;
+        var email = new ActionEmail(
+            EmailRenderer.Text("RegistrationRejectedSubject", culture, storeName),
+            EmailRenderer.Text("Greeting", culture, rejected.Name),
+            EmailRenderer.Text("RegistrationRejectedBody", culture, rejected.CompanyName, rejected.Reason),
+            EmailRenderer.Text("RegistrationRejectedAction", culture),
+            Links.To(options, culture, string.Empty),
+            EmailRenderer.Text("RegistrationRejectedNote", culture));
+        await sender.SendAsync(EmailRenderer.Render(Links.Address(rejected.Email), rejected.Name, culture, storeName, email), cancellationToken);
     }
 }

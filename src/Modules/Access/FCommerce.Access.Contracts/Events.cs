@@ -18,3 +18,9 @@ public sealed record PasswordResetRequested(Guid UserId, string Email, string Na
 /// Published as "access.membership-granted.v1".
 /// </summary>
 public sealed record MembershipGranted(Guid UserId, string Email, string Name, string Culture, string CustomerName) : IIntegrationEvent;
+
+/// <summary>A company applied for access; operators are notified. Published as "access.registration-submitted.v1".</summary>
+public sealed record RegistrationSubmitted(Guid RequestId, string CompanyName, string TaxId, string PersonName, string Email) : IIntegrationEvent;
+
+/// <summary>A registration request was rejected. Published as "access.registration-rejected.v1".</summary>
+public sealed record RegistrationRejected(Guid RequestId, string Email, string Name, string Culture, string CompanyName, string Reason) : IIntegrationEvent;

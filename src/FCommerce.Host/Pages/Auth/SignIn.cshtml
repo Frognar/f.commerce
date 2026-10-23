@@ -1,7 +1,9 @@
 @page "/sign-in"
 @model FCommerce.Host.Pages.Auth.SignInModel
+@inject FCommerce.Application.Messaging.IQueryHandler<FCommerce.Settings.Contracts.GetPlatformSettings, FCommerce.Settings.Contracts.PlatformSettingsView> Settings
 @{
     ViewData["Title"] = T["SignIn"];
+    var platform = await Settings.HandleAsync(new FCommerce.Settings.Contracts.GetPlatformSettings());
 }
 <section class="narrow card">
     <h1>@T["SignIn"]</h1>
@@ -17,4 +19,8 @@
         <button class="button" type="submit">@T["SignIn"]</button>
     </form>
     <p><a asp-page="/Auth/ForgotPassword">@T["ForgotPassword"]</a></p>
+    @if (platform.IsOn("self-registration"))
+    {
+        <p>@T["NoAccountYet"] <a asp-page="/Auth/Register">@T["RegisterCompany"]</a></p>
+    }
 </section>

@@ -170,6 +170,72 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Access
                     b.ToTable("memberships", "access");
                 });
 
+            modelBuilder.Entity("FCommerce.Access.Persistence.RegistrationRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CompanyName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)")
+                        .HasColumnName("company_name");
+
+                    b.Property<string>("CustomerCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("customer_code");
+
+                    b.Property<DateTimeOffset?>("DecidedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("decided_at");
+
+                    b.Property<Guid?>("DecidedBy")
+                        .HasColumnType("uuid")
+                        .HasColumnName("decided_by");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(254)
+                        .HasColumnType("character varying(254)")
+                        .HasColumnName("email");
+
+                    b.Property<string>("Form")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("form");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)")
+                        .HasColumnName("rejection_reason");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("submitted_at");
+
+                    b.Property<string>("TaxId")
+                        .IsRequired()
+                        .HasMaxLength(14)
+                        .HasColumnType("character varying(14)")
+                        .HasColumnName("tax_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status", "SubmittedAt")
+                        .HasDatabaseName("ix_registration_requests_status");
+
+                    b.ToTable("registration_requests", "access");
+                });
+
             modelBuilder.Entity("FCommerce.Access.Persistence.TokenRow", b =>
                 {
                     b.Property<long>("Id")

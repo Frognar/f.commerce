@@ -16,20 +16,21 @@ using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Access.Handlers;
 
+/// <summary>A person to give access to a customer.</summary>
+internal sealed record CustomerInvitee(EmailAddress Email, PersonName Name, CultureCode Culture, MembershipRights Rights);
+
 /// <summary>Granting, changing and revoking customer memberships under the ABAC grant rules.</summary>
 internal sealed class MembershipManagement(
     AccessStore store,
     IQueryHandler<GetCustomer, Result<CustomerDetails, Error>> customers,
     IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
 {
-    private sealed record Invitee(EmailAddress Email, PersonName Name, CultureCode Culture, MembershipRights Rights);
-
     /// <summary>Attributes of a revoked membership: the grant rules see revoking as taking every right away.</summary>
     private static readonly MembershipAttributes NoRights = new(false, OrderScope.Own, null, false, false, DeliveryAddressScope.All);
 
     public async Task<Result<Guid, Error>> InviteAsync(Guid actorId, string customerCode, string email, string name, string culture, MembershipRightsView rights, CancellationToken cancellationToken)
     {
-        var input = ((Func<EmailAddress, PersonName, CultureCode, MembershipRights, Invitee>)((e, n, c, r) => new Invitee(e, n, c, r)))
+        var input = ((Func<EmailAddress, PersonName, CultureCode, MembershipRights, CustomerInvitee>)((e, n, c, r) => new CustomerInvitee(e, n, c, r)))
             .Apply(EmailAddress.Parse(email).ToValidated("email"))
             .Apply(PersonName.Parse(name).ToValidated("name"))
             .Apply(CultureCode.Parse(culture).ToValidated("culture"))
@@ -38,36 +39,46 @@ internal sealed class MembershipManagement(
 
         return await input.BindAsync(async invitee =>
             await (await customers.HandleAsync(new GetCustomer(customerCode), cancellationToken)).BindAsync(async customer =>
-            {
-                var actor = await SubjectAsync(actorId, customer.Code, cancellationToken);
-                var row = await store.FindAsync(invitee.Email, cancellationToken);
-                var existing = row?.ToDomain();
-                var memberships = existing is null ? [] : (await store.MembershipsOfAsync([existing.Id], cancellationToken))[existing.Id].ToList();
-                var multiCustomer = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.MultiCustomerAccounts.Value);
-                var account = existing
-                    ?? new Account(Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, AccountStatus.Invited, null, Tokens.NewSecurityStamp(), 0, null, null);
-
-                var admitted =
-                    from grantor in actor
-                    from attributes in Grants.Membership(grantor, customer.Code, null, invitee.Rights.ApplyTo(MembershipAttributes.Buyer), 0)
-                    from membership in MembershipRules.Admit(existing, memberships, multiCustomer, new Membership(account.Id, customer.Code, attributes, SourceOf(grantor), null))
-                    select membership;
-
-                return await admitted.BindAsync(async membership =>
+                await (await StageAsync(actorId, customer, invitee, source: null, cancellationToken)).MapAsync(async id =>
                 {
-                    if (row is null)
-                    {
-                        store.Db.Accounts.Add(AccountRow.From(account, store.Now));
-                    }
+                    await store.Db.SaveChangesAsync(cancellationToken);
+                    return id;
+                })));
+    }
 
-                    return await Grant(account, membership, customer.Name).MapAsync(async _ =>
-                    {
-                        store.Audit(actorId, "membership.granted", Subject(customer.Code), Details(account.Email, membership));
-                        await store.Db.SaveChangesAsync(cancellationToken);
-                        return account.Id;
-                    });
-                });
-            }));
+    /// <summary>
+    /// Stages (without saving) access for a person to a customer: the account if it is new, the membership, the audit
+    /// entry and the e-mail event. <paramref name="source"/> overrides the source derived from the actor.
+    /// </summary>
+    public async Task<Result<Guid, Error>> StageAsync(Guid actorId, CustomerDetails customer, CustomerInvitee invitee, MembershipSource? source, CancellationToken cancellationToken)
+    {
+        var actor = await SubjectAsync(actorId, customer.Code, cancellationToken);
+        var row = await store.FindAsync(invitee.Email, cancellationToken);
+        var existing = row?.ToDomain();
+        var memberships = existing is null ? [] : (await store.MembershipsOfAsync([existing.Id], cancellationToken))[existing.Id].ToList();
+        var multiCustomer = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.MultiCustomerAccounts.Value);
+        var account = existing
+            ?? new Account(Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, AccountStatus.Invited, null, Tokens.NewSecurityStamp(), 0, null, null);
+
+        var admitted =
+            from grantor in actor
+            from attributes in Grants.Membership(grantor, customer.Code, null, invitee.Rights.ApplyTo(MembershipAttributes.Buyer), 0)
+            from membership in MembershipRules.Admit(existing, memberships, multiCustomer, new Membership(account.Id, customer.Code, attributes, source ?? SourceOf(grantor), null))
+            select membership;
+
+        return admitted.Bind(membership =>
+        {
+            if (row is null)
+            {
+                store.Db.Accounts.Add(AccountRow.From(account, store.Now));
+            }
+
+            return Grant(account, membership, customer.Name).Map(_ =>
+            {
+                store.Audit(actorId, "membership.granted", Subject(customer.Code), Details(account.Email, membership));
+                return account.Id;
+            });
+        });
     }
 
     /// <summary>Changes a member's rights; null <paramref name="rights"/> revokes the membership.</summary>

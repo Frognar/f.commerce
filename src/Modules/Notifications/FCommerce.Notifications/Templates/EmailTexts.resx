@@ -20,4 +20,13 @@
   <data name="MembershipGrantedBody" xml:space="preserve"><value>You can now order at {0} on behalf of {1}. Sign in with your existing password and choose the company in the menu at the top of the page.</value></data>
   <data name="MembershipGrantedAction" xml:space="preserve"><value>Sign in</value></data>
   <data name="MembershipGrantedNote" xml:space="preserve"><value>If you did not expect this message, please contact the seller.</value></data>
+  <data name="GreetingTeam" xml:space="preserve"><value>Hello,</value></data>
+  <data name="RegistrationSubmittedSubject" xml:space="preserve"><value>New account request: {0}</value></data>
+  <data name="RegistrationSubmittedBody" xml:space="preserve"><value>{0} (tax id {1}) asks for access to {2}. Contact person: {3}, {4}.</value></data>
+  <data name="RegistrationSubmittedAction" xml:space="preserve"><value>Open the request</value></data>
+  <data name="RegistrationSubmittedNote" xml:space="preserve"><value>The request waits for a decision in the back-office.</value></data>
+  <data name="RegistrationRejectedSubject" xml:space="preserve"><value>Your account request at {0}</value></data>
+  <data name="RegistrationRejectedBody" xml:space="preserve"><value>We cannot open an account for {0} at this time. Reason: {1}</value></data>
+  <data name="RegistrationRejectedAction" xml:space="preserve"><value>Go to the store</value></data>
+  <data name="RegistrationRejectedNote" xml:space="preserve"><value>If you have questions, please contact the seller.</value></data>
 </root>

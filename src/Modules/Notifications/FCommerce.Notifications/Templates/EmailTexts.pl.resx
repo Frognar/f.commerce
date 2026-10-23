@@ -20,4 +20,13 @@
   <data name="MembershipGrantedBody" xml:space="preserve"><value>Otrzymujesz dostęp do składania zamówień w {0} w imieniu firmy {1}. Zaloguj się swoim dotychczasowym hasłem — firmę wybierzesz w menu u góry strony.</value></data>
   <data name="MembershipGrantedAction" xml:space="preserve"><value>Zaloguj się</value></data>
   <data name="MembershipGrantedNote" xml:space="preserve"><value>Jeśli nie spodziewasz się tej wiadomości, skontaktuj się ze sprzedawcą.</value></data>
+  <data name="GreetingTeam" xml:space="preserve"><value>Dzień dobry,</value></data>
+  <data name="RegistrationSubmittedSubject" xml:space="preserve"><value>Nowy wniosek o konto: {0}</value></data>
+  <data name="RegistrationSubmittedBody" xml:space="preserve"><value>Firma {0} (NIP {1}) prosi o dostęp do {2}. Osoba kontaktowa: {3}, {4}.</value></data>
+  <data name="RegistrationSubmittedAction" xml:space="preserve"><value>Otwórz wniosek</value></data>
+  <data name="RegistrationSubmittedNote" xml:space="preserve"><value>Wniosek czeka na decyzję w panelu sprzedawcy.</value></data>
+  <data name="RegistrationRejectedSubject" xml:space="preserve"><value>Wniosek o konto w {0}</value></data>
+  <data name="RegistrationRejectedBody" xml:space="preserve"><value>Nie możemy teraz założyć konta dla firmy {0}. Powód: {1}</value></data>
+  <data name="RegistrationRejectedAction" xml:space="preserve"><value>Przejdź do sklepu</value></data>
+  <data name="RegistrationRejectedNote" xml:space="preserve"><value>W razie pytań skontaktuj się ze sprzedawcą.</value></data>
 </root>

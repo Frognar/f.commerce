@@ -21,10 +21,10 @@ public sealed class EmailTests
     private static readonly NotificationsOptions Options = new() { PublicUrl = new Uri("https://b2b.example.com") };
 
     /// <summary>Settings with a store name that needs HTML encoding.</summary>
-    private sealed class Settings : IQueryHandler<GetPlatformSettings, PlatformSettingsView>
+    private sealed class Settings(string? operatorMailbox = null) : IQueryHandler<GetPlatformSettings, PlatformSettingsView>
     {
         public Task<PlatformSettingsView> HandleAsync(GetPlatformSettings query, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, null), null, "buyer"));
+            Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, operatorMailbox), null, "buyer"));
     }
 
     private static async Task<EmailMessage> SendInvitationAsync(string culture, string name, string audience)
@@ -83,5 +83,34 @@ public sealed class EmailTests
         var email = Assert.Single(recorder.Sent);
         Assert.Equal("Dostęp do firmy Druga Firma sp. z o.o. w Hurtownia <Śruba>", email.Subject);
         Assert.Contains("https://b2b.example.com/pl/sign-in", email.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Operators_hear_about_registration_requests_only_when_a_mailbox_is_set()
+    {
+        var recorder = new Recorder();
+        var id = Guid.NewGuid();
+        var submitted = new RegistrationSubmitted(id, "Nowa Firma", "PL5261040828", "Jan Kowalski", "jan@firma.pl");
+
+        await new NotifyOperatorsOfRegistration(recorder, Options, new Settings()).HandleAsync(submitted, TestContext.Current.CancellationToken);
+        await new NotifyOperatorsOfRegistration(recorder, Options, new Settings("biuro@sprzedawca.pl")).HandleAsync(submitted, TestContext.Current.CancellationToken);
+
+        var email = Assert.Single(recorder.Sent);
+        Assert.Equal("biuro@sprzedawca.pl", email.To.Value);
+        Assert.Contains($"https://b2b.example.com/pl/admin/registrations/{id}", email.Text, StringComparison.Ordinal);
+        Assert.Contains("Nowa Firma (NIP PL5261040828)", email.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_rejection_gives_the_reason_in_the_applicants_language()
+    {
+        var recorder = new Recorder();
+
+        await new SendRegistrationRejected(recorder, Options, new Settings()).HandleAsync(
+            new RegistrationRejected(Guid.NewGuid(), "jan@firma.pl", "Jan", "en", "Nowa Firma", "We sell to registered businesses only."),
+            TestContext.Current.CancellationToken);
+
+        var email = Assert.Single(recorder.Sent);
+        Assert.Contains("Reason: We sell to registered businesses only.", email.Text, StringComparison.Ordinal);
     }
 }

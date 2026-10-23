@@ -42,7 +42,6 @@ builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AccessControl>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Shared.CustomerUsersActions>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Company.CompanyContext>();
-builder.Services.AddScoped<FeatureGateFilter>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
 builder.Services.AddAbacAuthorization();
@@ -55,10 +54,13 @@ var availableFeatures = (builder.Configuration.GetSection("Features:Available").
     .ToImmutableHashSet();
 builder.Services.AddSettingsModule(new SettingsOptions(availableFeatures));
 var localization = builder.Configuration.GetSection(LocalizationSettings.Section).Get<LocalizationSettings>() ?? new LocalizationSettings();
-builder.Services.AddAccessModule(builder.Configuration.GetSection("Access").Get<AccessOptions>() ?? new AccessOptions());
+var accessOptions = builder.Configuration.GetSection("Access").Get<AccessOptions>() ?? new AccessOptions();
+accessOptions.DefaultCulture = builder.Configuration["Access:DefaultCulture"] ?? localization.DefaultCulture;
+builder.Services.AddAccessModule(accessOptions);
 builder.Services.AddNotificationsModule(new NotificationsOptions
 {
     PublicUrl = new Uri(builder.Configuration["Platform:PublicUrl"] ?? throw new InvalidOperationException("Platform:PublicUrl is not configured.")),
+    SellerCulture = localization.DefaultCulture,
 });
 builder.Services.AddMediaModule();
 builder.Services.AddCustomersModule();
@@ -105,7 +107,7 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AuthorizeFolder("/Admin", Policies.BackOffice);
         options.Conventions.AuthorizePage("/Admin/Operators", Policies.OperatorsManage);
         options.Conventions.AuthorizePage("/Admin/Settings", Policies.SettingsManage);
-        options.Conventions.ConfigureFilter(new Microsoft.AspNetCore.Mvc.ServiceFilterAttribute(typeof(FeatureGateFilter)));
+        options.Conventions.AuthorizeFolder("/Admin/Registrations", Policies.RegistrationsDecide);
     })
     .AddViewLocalization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
@@ -129,6 +131,7 @@ if (!app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseRequestLocalization();
+app.UseFeatureGate();
 app.UseAuthentication();
 app.UseRateLimiter();
 app.UseAuthorization();

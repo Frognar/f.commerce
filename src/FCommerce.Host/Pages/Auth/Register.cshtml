@@ -1,0 +1,35 @@
+@page "/register"
+@model FCommerce.Host.Pages.Auth.RegisterModel
+@{
+    ViewData["Title"] = T["RegisterCompany"];
+}
+<section class="narrow card">
+    <h1>@T["RegisterCompany"]</h1>
+    @if (Model.Submitted)
+    {
+        <p class="notice" role="status">@T["RegistrationReceived"]</p>
+        return;
+    }
+    <p class="muted">@T["RegisterCompanyLead"]</p>
+    <div asp-validation-summary="All" class="alert" role="alert"></div>
+    <form method="post" class="stack">
+        <fieldset class="stack">
+            <legend>@T["CompanyData"]</legend>
+            <label>@T["CustomerName"] <input asp-for="Form.CompanyName" autocomplete="organization" required /></label>
+            <label>@T["TaxId"] <input asp-for="Form.TaxId" required /></label>
+            <label>@T["Street"] <input asp-for="Form.Street" autocomplete="street-address" required /></label>
+            <label>@T["PostalCode"] <input asp-for="Form.PostalCode" autocomplete="postal-code" required /></label>
+            <label>@T["City"] <input asp-for="Form.City" autocomplete="address-level2" required /></label>
+            <label>@T["Country"] <input asp-for="Form.Country" autocomplete="country" maxlength="2" required /></label>
+        </fieldset>
+        <fieldset class="stack">
+            <legend>@T["ContactPerson"]</legend>
+            <label>@T["FullName"] <input asp-for="Form.PersonName" autocomplete="name" required /></label>
+            <label>@T["Email"] <input asp-for="Form.Email" type="email" autocomplete="email" required /></label>
+            <label>@T["Phone"] <input asp-for="Form.Phone" type="tel" autocomplete="tel" /></label>
+        </fieldset>
+        <label class="hp" aria-hidden="true">Website <input asp-for="Form.Website" tabindex="-1" autocomplete="off" /></label>
+        <label class="inline"><input asp-for="Form.AcceptedTerms" /> @T["AcceptTerms"]</label>
+        <button class="button" type="submit">@T["SubmitRegistration"]</button>
+    </form>
+</section>

@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.Http.Json;
+using FCommerce.Customers.Contracts;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Hosting;
 using SkiaSharp;
@@ -135,6 +137,47 @@ public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixt
 
             Assert.Matches("<td>Administrator</td>\\s*<td>[^<]*widoczność katalogu[^<]*wyłączono: Jedno konto dla wielu firm", page);
         });
+
+    [Fact]
+    public Task Erp_contact_invitations_follow_the_switch_without_a_restart() =>
+        WithSettingsAsync(async admin =>
+        {
+            var code = $"K-{Guid.NewGuid():N}"[..24];
+            var first = $"off-{Guid.NewGuid():N}"[..20] + "@test.example.pl";
+            var second = $"on-{Guid.NewGuid():N}"[..20] + "@test.example.pl";
+            CustomerData Customer(long version, params string[] emails) =>
+                new(code, version, "Firma", null, new AddressData("ul. Długa 1", "00-950", "Warszawa", "PL"), null,
+                    [.. emails.Select((e, i) => new ContactData($"C{i}", "Jan Kowalski", e, null, PortalAccess: true))], null);
+
+            await admin.SubmitAsync("/pl/admin/settings", Form(await VersionAsync(admin), features: ["customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "documents"]));
+            await ImportAsync(Customer(1, first));
+            await WaitForPortalContactsAsync(code, 1); // Access handles the event before the test recorder sees it
+            var whileOff = (await admin.GetAsync($"/pl/admin/customers/{code}")).Html;
+            await admin.SubmitAsync("/pl/admin/settings", Form(await VersionAsync(admin)));
+            await ImportAsync(Customer(2, first, second));
+            await host.Mail.WaitForAsync(first);
+            await host.Mail.WaitForAsync(second);
+
+            Assert.Contains("Nikt z firmy nie ma jeszcze dostępu", whileOff, StringComparison.Ordinal);
+            Assert.Equal(1, host.Mail.CountTo(first));
+        });
+
+    private async Task ImportAsync(CustomerData customer)
+    {
+        using var client = host.CreateIntegrationClient();
+        using var response = await client.PutAsJsonAsync("/integration/v1/customers", new ImportCustomers([customer]), TestContext.Current.CancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    private async Task WaitForPortalContactsAsync(string code, int count)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (host.Events.PortalContactChanges.Count(e => e.CustomerCode == code) < count)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The portal contacts event was not delivered.");
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+    }
 
     [Fact]
     public async Task Settings_are_only_for_operators_who_manage_them()

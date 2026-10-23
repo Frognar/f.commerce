@@ -274,3 +274,11 @@ input[type="color"] { width: 4rem; height: 2.4rem; padding: .2rem; border: 1px s
 .terms dd { margin: 0; }
 .company-switcher { margin: 0; }
 .company-switcher select { font: inherit; font-size: .875rem; padding: .2rem .4rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text); max-width: 16rem; }
+
+/* Registration */
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+fieldset.stack { border: 0; padding: 0; margin: 0; }
+fieldset.stack legend { font-weight: 600; margin-bottom: .5rem; }
+.tabs { display: flex; gap: 1rem; margin-bottom: var(--space); border-bottom: 1px solid var(--color-border); }
+.tabs a { padding: .4rem 0; text-decoration: none; color: var(--color-muted); }
+.tabs a[aria-current="page"] { color: var(--color-text); border-bottom: 2px solid var(--color-accent); font-weight: 600; }

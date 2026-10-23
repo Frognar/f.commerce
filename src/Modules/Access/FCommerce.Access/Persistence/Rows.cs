@@ -138,6 +138,76 @@ internal sealed class MembershipRow
     }
 }
 
+internal sealed class RegistrationRow
+{
+    public Guid Id { get; init; }
+
+    /// <summary>"Pending", "Approved" or "Rejected".</summary>
+    public required string Status { get; set; }
+
+    public required string CompanyName { get; init; }
+
+    public required string TaxId { get; init; }
+
+    public required string Email { get; init; }
+
+    /// <summary>The submitted form as JSON (<see cref="FormDocument"/>).</summary>
+    public required string Form { get; init; }
+
+    public DateTimeOffset SubmittedAt { get; init; }
+
+    public DateTimeOffset? DecidedAt { get; set; }
+
+    public Guid? DecidedBy { get; set; }
+
+    public string? CustomerCode { get; set; }
+
+    public string? RejectionReason { get; set; }
+
+    public static RegistrationRow From(RegistrationRequest request)
+    {
+        var row = new RegistrationRow
+        {
+            Id = request.Id,
+            Status = string.Empty,
+            CompanyName = request.Company.Name,
+            TaxId = request.Company.TaxId.Value,
+            Email = request.Applicant.Email.Value,
+            Form = JsonSerializer.Serialize(FormDocument.Of(request), PersistenceJson.Options),
+            SubmittedAt = request.SubmittedAt,
+        };
+        row.Apply(request);
+        return row;
+    }
+
+    public void Apply(RegistrationRequest request)
+    {
+        (Status, DecidedAt, DecidedBy, CustomerCode, RejectionReason) = request.Status switch
+        {
+            RegistrationStatus.Approved a => ("Approved", (DateTimeOffset?)a.At, (Guid?)a.DecidedBy, a.CustomerCode, (string?)null),
+            RegistrationStatus.Rejected r => ("Rejected", r.At, r.DecidedBy, null, r.Reason),
+            _ => ("Pending", null, null, null, null),
+        };
+    }
+
+    public RegistrationRequest ToDomain()
+    {
+        var form = JsonSerializer.Deserialize<FormDocument>(Form, PersistenceJson.Options) ?? throw new JsonException("Stored registration form is null.");
+        RegistrationStatus status = Status switch
+        {
+            "Approved" => new RegistrationStatus.Approved(DecidedBy!.Value, DecidedAt!.Value, CustomerCode!),
+            "Rejected" => new RegistrationStatus.Rejected(DecidedBy!.Value, DecidedAt!.Value, RejectionReason!),
+            _ => RegistrationStatus.Pending,
+        };
+        return new RegistrationRequest(Id, form.Company, form.Applicant, SubmittedAt, status);
+    }
+
+    private sealed record FormDocument(ApplicantCompany Company, Applicant Applicant)
+    {
+        public static FormDocument Of(RegistrationRequest request) => new(request.Company, request.Applicant);
+    }
+}
+
 internal sealed class TokenRow
 {
     public long Id { get; init; }

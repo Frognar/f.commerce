@@ -1,0 +1,91 @@
+@page "/admin/registrations/{id:guid}"
+@model FCommerce.Host.Pages.Admin.Registrations.DetailsModel
+@{
+    var request = Model.Registration;
+    ViewData["Title"] = request?.CompanyName ?? T["RegistrationNotFound"];
+}
+<nav class="breadcrumb">
+    <a asp-page="/Admin/Index">@T["BackOffice"]</a>
+    <a asp-page="/Admin/Registrations/Index">@T["Registrations"]</a>
+</nav>
+@if (request is null)
+{
+    <h1>@T["RegistrationNotFound"]</h1>
+    return;
+}
+<h1>@request.CompanyName</h1>
+<p class="muted">@T[$"Registration.{request.Status}"] · @T["SubmittedAt"] @request.SubmittedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</p>
+@if (Model.Saved is not null)
+{
+    <p class="notice" role="status">@Model.Saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+
+<div class="customer-cards">
+    <section class="card">
+        <h2>@T["CompanyData"]</h2>
+        <p>@request.CompanyName<br />@T["TaxId"] @request.TaxId</p>
+        <address>@request.Street<br />@request.PostalCode @request.City<br />@request.Country</address>
+    </section>
+    <section class="card">
+        <h2>@T["ContactPerson"]</h2>
+        <p>
+            @request.PersonName<br />
+            <a href="mailto:@request.Email">@request.Email</a><br />
+            @request.Phone
+        </p>
+    </section>
+    @if (request.Status != "pending")
+    {
+        <section class="card">
+            <h2>@T["Decision"]</h2>
+            <p>
+                @request.DecidedBy · @request.DecidedAt?.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)<br />
+                @if (request.CustomerCode is not null)
+                {
+                    <a asp-page="/Admin/Customers/Details" asp-route-code="@request.CustomerCode">@request.CustomerCode</a>
+                }
+                @request.RejectionReason
+            </p>
+        </section>
+    }
+</div>
+
+@if (request.Status == "pending")
+{
+    <section class="card">
+        <h2>@T["ApproveRegistration"]</h2>
+        @if (Model.Matches.Count == 0)
+        {
+            <p class="muted">@T["NoTaxIdMatch"]</p>
+        }
+        else
+        {
+            <p>@T["TaxIdMatches"]</p>
+            <ul>
+                @foreach (var match in Model.Matches)
+                {
+                    <li><a asp-page="/Admin/Customers/Details" asp-route-code="@match.Code">@match.Code</a> — @match.Name, @match.City</li>
+                }
+            </ul>
+        }
+        <form method="post" asp-page-handler="Approve" asp-route-id="@request.Id" class="stack">
+            <label>@T["CustomerCode"] <input asp-for="CustomerCode" required /></label>
+            <label>@T["RightsTemplate"]
+                <select asp-for="Template">
+                    <option value="administrator">@T["Template.administrator"]</option>
+                    <option value="buyer">@T["Template.buyer"]</option>
+                    <option value="accounting">@T["Template.accounting"]</option>
+                </select>
+            </label>
+            <button class="button" type="submit">@T["Approve"]</button>
+        </form>
+    </section>
+    <section class="card">
+        <h2>@T["RejectRegistration"]</h2>
+        <form method="post" asp-page-handler="Reject" asp-route-id="@request.Id" class="stack">
+            <label>@T["RejectionReason"] <textarea asp-for="Reason" rows="3" required></textarea></label>
+            <button class="button secondary" type="submit">@T["Reject"]</button>
+        </form>
+    </section>
+}

@@ -40,6 +40,8 @@ public static class AccessModule
         services.AddMessageType<InvitationIssued>("access.invitation-issued.v1");
         services.AddMessageType<PasswordResetRequested>("access.password-reset-requested.v1");
         services.AddMessageType<MembershipGranted>("access.membership-granted.v1");
+        services.AddMessageType<RegistrationSubmitted>("access.registration-submitted.v1");
+        services.AddMessageType<RegistrationRejected>("access.registration-rejected.v1");
 
         services.AddScoped<AccessStore>();
         services.AddScoped<OperatorManagement>();
@@ -62,6 +64,11 @@ public static class AccessModule
         services.AddScoped<IQueryHandler<GetCustomerUsers, IReadOnlyList<CustomerUserSummary>>, GetCustomerUsersHandler>();
         services.AddScoped<IQueryHandler<GetAuditLog, IReadOnlyList<AuditEntryView>>, GetAuditLogHandler>();
         services.AddIntegrationEventHandler<PortalContactsChanged, ErpContactInvitations>();
+        services.AddScoped<ICommandHandler<SubmitRegistration, Result<Guid, Error>>, SubmitRegistrationHandler>();
+        services.AddScoped<ICommandHandler<ApproveRegistration, Result<Unit, Error>>, ApproveRegistrationHandler>();
+        services.AddScoped<ICommandHandler<RejectRegistration, Result<Unit, Error>>, RejectRegistrationHandler>();
+        services.AddScoped<IQueryHandler<GetRegistrationRequests, IReadOnlyList<RegistrationSummary>>, GetRegistrationRequestsHandler>();
+        services.AddScoped<IQueryHandler<GetRegistrationRequest, Result<RegistrationDetails, Error>>, GetRegistrationRequestHandler>();
         services.AddHostedService<OperatorBootstrap>();
         return services;
     }
