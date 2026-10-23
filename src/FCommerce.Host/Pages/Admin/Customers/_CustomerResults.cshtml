@@ -1,0 +1,56 @@
+@model FCommerce.Host.Pages.Admin.Customers.IndexModel
+@{
+    var results = Model.Results;
+}
+<p class="muted">@T["CustomersFound", results.TotalCount]</p>
+@if (results.Items.Count > 0)
+{
+    <table class="data">
+        <thead>
+            <tr><th>@T["CustomerCode"]</th><th>@T["CustomerName"]</th><th>@T["TaxId"]</th><th>@T["City"]</th><th>@T["Salesperson"]</th><th>@T["Status"]</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var customer in results.Items)
+            {
+                <tr>
+                    <td><a asp-page="/Admin/Customers/Details" asp-route-code="@customer.Code">@customer.Code</a></td>
+                    <td>@customer.Name</td>
+                    <td>@customer.TaxId</td>
+                    <td>@customer.City</td>
+                    <td>@customer.SalespersonName</td>
+                    <td>
+                        @if (!customer.Active)
+                        {
+                            <span class="badge">@T["CustomerInactive"]</span>
+                        }
+                        else if (customer.Blocked)
+                        {
+                            <span class="badge">@T["CustomerBlocked"]</span>
+                        }
+                        else
+                        {
+                            @T["CustomerActive"]
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (results.PageCount > 1)
+{
+    <nav class="pagination" aria-label="@T["Pages"]">
+        @if (results.Page > 1)
+        {
+            <a href="@Model.Href(page: results.Page - 1)" hx-get="@Model.Href(page: results.Page - 1)"
+               hx-target="#@FCommerce.Host.Pages.Admin.Customers.IndexModel.ResultsId" hx-push-url="true">@T["PreviousPage"]</a>
+        }
+        <span>@T["PageOf", results.Page, results.PageCount]</span>
+        @if (results.Page < results.PageCount)
+        {
+            <a href="@Model.Href(page: results.Page + 1)" hx-get="@Model.Href(page: results.Page + 1)"
+               hx-target="#@FCommerce.Host.Pages.Admin.Customers.IndexModel.ResultsId" hx-push-url="true">@T["NextPage"]</a>
+        }
+    </nav>
+}

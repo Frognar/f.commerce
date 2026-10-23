@@ -1,5 +1,6 @@
 using FCommerce.Access;
 using FCommerce.Catalog;
+using FCommerce.Customers;
 using FCommerce.Host.Security;
 using FCommerce.Notifications;
 using FCommerce.Settings;
@@ -58,6 +59,7 @@ builder.Services.AddNotificationsModule(new NotificationsOptions
     PublicUrl = new Uri(builder.Configuration["Platform:PublicUrl"] ?? throw new InvalidOperationException("Platform:PublicUrl is not configured.")),
 });
 builder.Services.AddMediaModule();
+builder.Services.AddCustomersModule();
 builder.Services.AddCatalogModule(options =>
 {
     options.DefaultCulture = localization.DefaultCulture;

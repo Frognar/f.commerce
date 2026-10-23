@@ -1,0 +1,25 @@
+@page "/admin/customers"
+@model FCommerce.Host.Pages.Admin.Customers.IndexModel
+@{
+    ViewData["Title"] = T["Customers"];
+}
+<nav class="breadcrumb"><a asp-page="/Admin/Index">@T["BackOffice"]</a></nav>
+<h1>@T["Customers"]</h1>
+@if (Model.OwnCustomersOnly)
+{
+    <p class="muted">@T["OwnCustomersOnly"]</p>
+}
+
+<form role="search" method="get" action="@Url.CulturePage("/Admin/Customers/Index")"
+      hx-get="@Url.CulturePage("/Admin/Customers/Index")" hx-target="#@IndexModel.ResultsId" hx-push-url="true"
+      hx-trigger="input changed delay:300ms from:find input[name=q], submit">
+    <div class="search">
+        <input type="search" name="q" value="@Model.Query" placeholder="@T["CustomerSearchPlaceholder"]"
+               aria-label="@T["CustomerSearchPlaceholder"]" autocomplete="off" />
+        <button class="button" type="submit">@T["SearchButton"]</button>
+    </div>
+</form>
+
+<div id="@IndexModel.ResultsId" aria-live="polite">
+    <partial name="_CustomerResults" model="Model" />
+</div>

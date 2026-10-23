@@ -10,6 +10,7 @@
     <ProjectReference Include="..\BuildingBlocks\FCommerce.Authorization.Core\FCommerce.Authorization.Core.csproj" />
     <ProjectReference Include="..\Modules\Access\FCommerce.Access\FCommerce.Access.csproj" />
     <ProjectReference Include="..\Modules\Catalog\FCommerce.Catalog\FCommerce.Catalog.csproj" />
+    <ProjectReference Include="..\Modules\Customers\FCommerce.Customers\FCommerce.Customers.csproj" />
     <ProjectReference Include="..\Modules\Notifications\FCommerce.Notifications\FCommerce.Notifications.csproj" />
     <ProjectReference Include="..\Modules\Settings\FCommerce.Settings\FCommerce.Settings.csproj" />
     <ProjectReference Include="..\Modules\Media\FCommerce.Media\FCommerce.Media.csproj" />

@@ -264,3 +264,11 @@ button.link { font: inherit; background: none; border: 0; padding: 0; color: var
 .brand-logo { height: 2rem; width: auto; }
 .footer-row { display: flex; flex-wrap: wrap; gap: var(--space); }
 input[type="color"] { width: 4rem; height: 2.4rem; padding: .2rem; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+
+/* Customers */
+.customer-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: var(--space); margin-bottom: var(--space); }
+.customer-cards .card { margin-top: 0; }
+.customer-cards address { font-style: normal; }
+.terms { display: grid; grid-template-columns: auto 1fr; gap: .25rem 1rem; margin: 0; }
+.terms dt { color: var(--color-muted); }
+.terms dd { margin: 0; }

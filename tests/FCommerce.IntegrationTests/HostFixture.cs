@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using FCommerce.Application.Email;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
+using FCommerce.Customers.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -59,6 +60,8 @@ public partial class HostFixture : IAsyncLifetime
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<CustomerChanged>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<PortalContactsChanged>>(Events);
                 services.AddSingleton<IEmailSender>(Mail);
             })));
         _ = Factory.Server; // start now, so failures surface in the fixture
@@ -138,15 +141,34 @@ public partial class HostFixture : IAsyncLifetime
         public int CountTo(string to) => sent.Count(m => m.To.Value == to);
     }
 
-    public sealed class EventRecorder : IIntegrationEventHandler<ProductChanged>
+    public sealed class EventRecorder
+        : IIntegrationEventHandler<ProductChanged>, IIntegrationEventHandler<CustomerChanged>, IIntegrationEventHandler<PortalContactsChanged>
     {
         private readonly ConcurrentQueue<ProductChanged> productChanges = new();
+        private readonly ConcurrentQueue<CustomerChanged> customerChanges = new();
+        private readonly ConcurrentQueue<PortalContactsChanged> portalContactChanges = new();
 
         public IReadOnlyCollection<ProductChanged> ProductChanges => productChanges;
+
+        public IReadOnlyCollection<CustomerChanged> CustomerChanges => customerChanges;
+
+        public IReadOnlyCollection<PortalContactsChanged> PortalContactChanges => portalContactChanges;
 
         public Task HandleAsync(ProductChanged integrationEvent, CancellationToken cancellationToken = default)
         {
             productChanges.Enqueue(integrationEvent);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(CustomerChanged integrationEvent, CancellationToken cancellationToken = default)
+        {
+            customerChanges.Enqueue(integrationEvent);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(PortalContactsChanged integrationEvent, CancellationToken cancellationToken = default)
+        {
+            portalContactChanges.Enqueue(integrationEvent);
             return Task.CompletedTask;
         }
     }

@@ -158,4 +158,38 @@
   <data name="Error.store-name.empty" xml:space="preserve"><value>Enter the store name.</value></data>
   <data name="Error.image.too-large" xml:space="preserve"><value>The file is too large.</value></data>
   <data name="Error.image.unsupported-format" xml:space="preserve"><value>Supported formats are JPEG, PNG and WebP.</value></data>
+  <data name="Customers" xml:space="preserve"><value>Customers</value></data>
+  <data name="CustomersLead" xml:space="preserve"><value>Companies from the ERP: details, addresses, contacts and salespeople.</value></data>
+  <data name="OwnCustomersOnly" xml:space="preserve"><value>You see only the customers you are the salesperson of.</value></data>
+  <data name="CustomerSearchPlaceholder" xml:space="preserve"><value>Code, name, tax id or city</value></data>
+  <data name="CustomersFound" xml:space="preserve"><value>Found: {0}</value></data>
+  <data name="CustomerCode" xml:space="preserve"><value>Code</value></data>
+  <data name="CustomerName" xml:space="preserve"><value>Name</value></data>
+  <data name="TaxId" xml:space="preserve"><value>Tax id</value></data>
+  <data name="City" xml:space="preserve"><value>City</value></data>
+  <data name="Salesperson" xml:space="preserve"><value>Salesperson</value></data>
+  <data name="CustomerInactive" xml:space="preserve"><value>Inactive</value></data>
+  <data name="CustomerBlocked" xml:space="preserve"><value>Blocked</value></data>
+  <data name="CustomerActive" xml:space="preserve"><value>Active</value></data>
+  <data name="CustomerNotFound" xml:space="preserve"><value>Customer not found</value></data>
+  <data name="BillingAddress" xml:space="preserve"><value>Billing address</value></data>
+  <data name="CommercialTerms" xml:space="preserve"><value>Commercial terms</value></data>
+  <data name="PriceList" xml:space="preserve"><value>Price list</value></data>
+  <data name="PlatformDefault" xml:space="preserve"><value>platform default</value></data>
+  <data name="PaymentTerms" xml:space="preserve"><value>Payment terms</value></data>
+  <data name="Days" xml:space="preserve"><value>{0} days</value></data>
+  <data name="Currency" xml:space="preserve"><value>Currency</value></data>
+  <data name="NoSalesperson" xml:space="preserve"><value>No salesperson assigned.</value></data>
+  <data name="DeliveryAddresses" xml:space="preserve"><value>Delivery addresses</value></data>
+  <data name="NoDeliveryAddresses" xml:space="preserve"><value>No delivery addresses.</value></data>
+  <data name="AddressCode" xml:space="preserve"><value>Code</value></data>
+  <data name="AddressName" xml:space="preserve"><value>Name</value></data>
+  <data name="Address" xml:space="preserve"><value>Address</value></data>
+  <data name="DefaultAddress" xml:space="preserve"><value>default</value></data>
+  <data name="Contacts" xml:space="preserve"><value>Contacts</value></data>
+  <data name="NoContacts" xml:space="preserve"><value>No contacts.</value></data>
+  <data name="Phone" xml:space="preserve"><value>Phone</value></data>
+  <data name="PortalAccess" xml:space="preserve"><value>Platform access</value></data>
+  <data name="Template.default" xml:space="preserve"><value>Default (platform settings)</value></data>
+  <data name="UpdatedFromErp" xml:space="preserve"><value>Last change from the ERP: {0}</value></data>
 </root>

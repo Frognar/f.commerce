@@ -158,4 +158,38 @@
   <data name="Error.store-name.empty" xml:space="preserve"><value>Podaj nazwę sklepu.</value></data>
   <data name="Error.image.too-large" xml:space="preserve"><value>Plik jest za duży.</value></data>
   <data name="Error.image.unsupported-format" xml:space="preserve"><value>Obsługiwane formaty to JPEG, PNG i WebP.</value></data>
+  <data name="Customers" xml:space="preserve"><value>Kontrahenci</value></data>
+  <data name="CustomersLead" xml:space="preserve"><value>Firmy z ERP: dane, adresy, kontakty i opiekunowie.</value></data>
+  <data name="OwnCustomersOnly" xml:space="preserve"><value>Widzisz tylko kontrahentów, których jesteś opiekunem.</value></data>
+  <data name="CustomerSearchPlaceholder" xml:space="preserve"><value>Kod, nazwa, NIP lub miasto</value></data>
+  <data name="CustomersFound" xml:space="preserve"><value>Znaleziono: {0}</value></data>
+  <data name="CustomerCode" xml:space="preserve"><value>Kod</value></data>
+  <data name="CustomerName" xml:space="preserve"><value>Nazwa</value></data>
+  <data name="TaxId" xml:space="preserve"><value>NIP</value></data>
+  <data name="City" xml:space="preserve"><value>Miasto</value></data>
+  <data name="Salesperson" xml:space="preserve"><value>Opiekun</value></data>
+  <data name="CustomerInactive" xml:space="preserve"><value>Nieaktywny</value></data>
+  <data name="CustomerBlocked" xml:space="preserve"><value>Zablokowany</value></data>
+  <data name="CustomerActive" xml:space="preserve"><value>Aktywny</value></data>
+  <data name="CustomerNotFound" xml:space="preserve"><value>Nie znaleziono kontrahenta</value></data>
+  <data name="BillingAddress" xml:space="preserve"><value>Adres do faktury</value></data>
+  <data name="CommercialTerms" xml:space="preserve"><value>Warunki handlowe</value></data>
+  <data name="PriceList" xml:space="preserve"><value>Cennik</value></data>
+  <data name="PlatformDefault" xml:space="preserve"><value>domyślny platformy</value></data>
+  <data name="PaymentTerms" xml:space="preserve"><value>Termin płatności</value></data>
+  <data name="Days" xml:space="preserve"><value>{0} dni</value></data>
+  <data name="Currency" xml:space="preserve"><value>Waluta</value></data>
+  <data name="NoSalesperson" xml:space="preserve"><value>Brak przypisanego opiekuna.</value></data>
+  <data name="DeliveryAddresses" xml:space="preserve"><value>Adresy dostaw</value></data>
+  <data name="NoDeliveryAddresses" xml:space="preserve"><value>Brak adresów dostaw.</value></data>
+  <data name="AddressCode" xml:space="preserve"><value>Kod</value></data>
+  <data name="AddressName" xml:space="preserve"><value>Nazwa</value></data>
+  <data name="Address" xml:space="preserve"><value>Adres</value></data>
+  <data name="DefaultAddress" xml:space="preserve"><value>domyślny</value></data>
+  <data name="Contacts" xml:space="preserve"><value>Osoby kontaktowe</value></data>
+  <data name="NoContacts" xml:space="preserve"><value>Brak osób kontaktowych.</value></data>
+  <data name="Phone" xml:space="preserve"><value>Telefon</value></data>
+  <data name="PortalAccess" xml:space="preserve"><value>Dostęp do platformy</value></data>
+  <data name="Template.default" xml:space="preserve"><value>Domyślne (ustawienia platformy)</value></data>
+  <data name="UpdatedFromErp" xml:space="preserve"><value>Ostatnia zmiana z ERP: {0}</value></data>
 </root>

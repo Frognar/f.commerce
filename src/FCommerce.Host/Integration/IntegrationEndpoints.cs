@@ -1,6 +1,7 @@
 using FCommerce.SharedKernel.Imports;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
+using FCommerce.Customers.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.SharedKernel.Results;
 
@@ -24,6 +25,10 @@ internal static class IntegrationEndpoints
         integration.MapPut("/catalog/categories", async (ImportCategories? command, ICommandHandler<ImportCategories, Result<ImportReport, Error>> handler, CancellationToken ct) =>
                 await Batch(command?.Categories, () => handler.HandleAsync(command!, ct)))
             .WithSummary("Upserts categories; a parent may arrive after its children.");
+
+        integration.MapPut("/customers", async (ImportCustomers? command, ICommandHandler<ImportCustomers, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                await Batch(command?.Customers, () => handler.HandleAsync(command!, ct)))
+            .WithSummary("Upserts customers with their addresses, contacts and salesperson; items are validated independently and reported.");
 
         return app;
     }
