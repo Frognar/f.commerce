@@ -1,7 +1,7 @@
 using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 
-namespace FCommerce.Catalog.Domain;
+namespace FCommerce.SharedKernel.Imports;
 
 /// <summary>
 /// Monotonic version of a record in the source system (ERP row version, change timestamp as ticks, …).

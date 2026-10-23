@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Catalog.Domain;
 using FCommerce.Testing;
 using static FCommerce.Catalog.Tests.TestProducts;

@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Domain;
@@ -15,7 +16,7 @@ internal sealed class ImportCategoriesHandler(CatalogDbContext db, Outbox<Catalo
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportCategories command, CancellationToken cancellationToken = default)
     {
-        var batch = Reconciliation.ValidateBatch(
+        var batch = ImportBatch.Validate(
             command.Categories,
             c => c.Code,
             c => Category.Validate(new UnvalidatedCategory(c.Code, c.ParentCode, c.Name, c.SortOrder, c.Version, c.Active)));
@@ -49,7 +50,7 @@ internal sealed class ImportCategoriesHandler(CatalogDbContext db, Outbox<Catalo
             .MapAsync(async _ =>
             {
                 await db.SaveChangesAsync(cancellationToken);
-                return ImportReports.Create(command.Categories.Count, changes, batch.Rejected);
+                return ImportReport.From(command.Categories.Count, changes, batch.Rejected);
             });
     }
 }

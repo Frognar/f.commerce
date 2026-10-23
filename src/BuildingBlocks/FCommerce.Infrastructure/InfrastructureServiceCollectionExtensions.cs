@@ -34,6 +34,10 @@ public static class InfrastructureServiceCollectionExtensions
     public static IServiceCollection AddFileSystemBlobStore(this IServiceCollection services, string rootPath) =>
         services.AddSingleton<Application.Storage.IBlobStore>(new Storage.FileSystemBlobStore(rootPath));
 
+    /// <summary>E-mail over SMTP (Mailpit in development).</summary>
+    public static IServiceCollection AddSmtpEmail(this IServiceCollection services, Email.SmtpOptions options) =>
+        services.AddSingleton<Application.Email.IEmailSender>(new Email.SmtpEmailSender(options));
+
     /// <summary>Registers a persisted name for an event or message type.</summary>
     public static IServiceCollection AddMessageType<T>(this IServiceCollection services, string name) =>
         services.AddSingleton(new MessageTypeRegistration(typeof(T), name));

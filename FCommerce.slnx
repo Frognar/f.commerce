@@ -16,6 +16,7 @@
   </Folder>
   <Folder Name="/src/BuildingBlocks/">
     <Project Path="src/BuildingBlocks/FCommerce.Application/FCommerce.Application.csproj" />
+    <Project Path="src/BuildingBlocks/FCommerce.Authorization.Core/FCommerce.Authorization.Core.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure.Postgres/FCommerce.Infrastructure.Postgres.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure.Search/FCommerce.Infrastructure.Search.csproj" />
     <Project Path="src/BuildingBlocks/FCommerce.Infrastructure/FCommerce.Infrastructure.csproj" />
@@ -36,6 +37,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/FCommerce.Application.Tests/FCommerce.Application.Tests.csproj" />
     <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
+    <Project Path="tests/FCommerce.Authorization.Core.Tests/FCommerce.Authorization.Core.Tests.csproj" />
     <Project Path="tests/FCommerce.Catalog.Tests/FCommerce.Catalog.Tests.csproj" />
     <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
     <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />

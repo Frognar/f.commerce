@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Catalog.Domain;
 using FCommerce.Testing;
 using static FCommerce.Catalog.Tests.TestProducts;
@@ -56,7 +57,7 @@ public sealed class ReconciliationTests
     {
         UnvalidatedProduct[] inputs = [Input("A"), Input("B") with { Unit = "" }, Input("C")];
 
-        var batch = Reconciliation.ValidateBatch(inputs, i => i.Sku, Product.Validate);
+        var batch = ImportBatch.Validate(inputs, i => i.Sku, Product.Validate);
 
         Assert.Equal([0, 2], batch.Valid.Select(v => v.Index));
         var rejected = Assert.Single(batch.Rejected);
@@ -68,7 +69,7 @@ public sealed class ReconciliationTests
     public void Products_referencing_images_that_are_not_stored_are_rejected()
     {
         UnvalidatedProduct[] inputs = [Input("A"), Input("B") with { ImageIds = [ImageB] }];
-        var batch = Reconciliation.ValidateBatch(inputs, i => i.Sku, Product.Validate);
+        var batch = ImportBatch.Validate(inputs, i => i.Sku, Product.Validate);
 
         var checkedBatch = Reconciliation.RequireStoredImages(batch, new HashSet<string> { ImageB });
 
@@ -83,7 +84,7 @@ public sealed class ReconciliationTests
     {
         UnvalidatedProduct[] inputs = [Input("A"), Input(" A "), Input("B")];
 
-        var batch = Reconciliation.ValidateBatch(inputs, i => i.Sku, Product.Validate);
+        var batch = ImportBatch.Validate(inputs, i => i.Sku, Product.Validate);
 
         Assert.Equal([2], batch.Valid.Select(v => v.Index));
         Assert.Equal([0, 1], batch.Rejected.Select(r => r.Index));

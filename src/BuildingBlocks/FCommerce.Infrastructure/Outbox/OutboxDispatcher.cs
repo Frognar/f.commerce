@@ -16,6 +16,11 @@ public sealed class OutboxOptions
     public int BatchSize { get; set; } = 100;
 
     public TimeSpan ErrorBackoff { get; set; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>Published messages are deleted after this time (they may carry links with one-time tokens).</summary>
+    public TimeSpan Retention { get; set; } = TimeSpan.FromDays(7);
+
+    public TimeSpan CleanupInterval { get; set; } = TimeSpan.FromHours(1);
 }
 
 /// <summary>
@@ -73,6 +78,16 @@ internal sealed partial class OutboxDispatcher<TContext>(
         return published;
     }
 
+    /// <summary>Deletes published messages older than <see cref="OutboxOptions.Retention"/>; returns how many.</summary>
+    public async Task<int> DeleteExpiredAsync(CancellationToken cancellationToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var cutoff = time.GetUtcNow() - options.Retention;
+        return await scope.ServiceProvider.GetRequiredService<TContext>().Set<OutboxMessage>()
+            .Where(m => m.ProcessedAt != null && m.ProcessedAt < cutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (!await WaitForStartAsync(stoppingToken))
@@ -80,10 +95,17 @@ internal sealed partial class OutboxDispatcher<TContext>(
             return;
         }
 
+        var nextCleanup = time.GetUtcNow();
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
+                if (time.GetUtcNow() >= nextCleanup)
+                {
+                    await DeleteExpiredAsync(stoppingToken);
+                    nextCleanup = time.GetUtcNow() + options.CleanupInterval;
+                }
+
                 if (await DispatchBatchAsync(stoppingToken) < options.BatchSize)
                 {
                     await Task.Delay(options.PollInterval, time, stoppingToken);

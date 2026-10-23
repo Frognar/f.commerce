@@ -22,6 +22,7 @@ internal static class Solution
         "FCommerce.Infrastructure.Postgres",
         "FCommerce.Infrastructure.Search",
         "FCommerce.Search.Core",
+        "FCommerce.Authorization.Core",
         "FCommerce.Host",
     ];
 

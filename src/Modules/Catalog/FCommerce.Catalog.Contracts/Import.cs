@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Messaging;
 using FCommerce.SharedKernel.Results;
 
@@ -38,17 +39,3 @@ public sealed record CategoryData(
     long Version,
     int SortOrder = 0,
     bool Active = true);
-
-public sealed record ImportReport(
-    int Received,
-    int Created,
-    int Updated,
-    int Unchanged,
-    int Stale,
-    IReadOnlyList<RejectedItem> Rejected);
-
-/// <param name="Index">Position of the item in the request.</param>
-public sealed record RejectedItem(int Index, string? Key, IReadOnlyList<FieldError> Errors);
-
-/// <param name="Field">Path of the offending input, e.g. "name.pl" or "attributes[2].code".</param>
-public sealed record FieldError(string? Field, string Code, string Message);

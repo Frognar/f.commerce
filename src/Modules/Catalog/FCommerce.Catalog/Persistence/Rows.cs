@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using System.Text.Json;
 using FCommerce.Catalog.Domain;
 using FCommerce.Infrastructure.Serialization;

@@ -7,6 +7,7 @@ using FCommerce.Host.Localization;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Postgres;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +20,11 @@ var applyDatabaseChanges = builder.Configuration.GetValue<bool>("Database:ApplyC
 builder.Services.AddFCommerceInfrastructure();
 builder.Services.AddPostgres(connectionString, applySchemaChanges: applyDatabaseChanges);
 
+// Cookies and antiforgery tokens must survive restarts: keys are persisted.
+builder.Services.AddDataProtection()
+    .SetApplicationName("fcommerce")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["DataProtection:KeysPath"] ?? "data/keys")));
+builder.Services.AddSmtpEmail(builder.Configuration.GetSection(FCommerce.Infrastructure.Email.SmtpOptions.Section).Get<FCommerce.Infrastructure.Email.SmtpOptions>() ?? new());
 builder.Services.AddFileSystemBlobStore(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Media:StoragePath"] ?? "data/media"));
 builder.Services.AddEmbeddedSearch(Path.Combine(builder.Environment.ContentRootPath, builder.Configuration["Search:StoragePath"] ?? "data/search"));
 

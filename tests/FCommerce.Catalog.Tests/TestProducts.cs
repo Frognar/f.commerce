@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Catalog.Domain;
 using FCommerce.SharedKernel.Validation;
 using FCommerce.Testing;

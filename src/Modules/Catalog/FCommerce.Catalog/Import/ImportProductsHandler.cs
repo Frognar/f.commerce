@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Domain;
@@ -21,7 +22,7 @@ internal sealed class ImportProductsHandler(
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportProducts command, CancellationToken cancellationToken = default)
     {
-        var validated = Reconciliation.ValidateBatch(command.Products, p => p.Sku, p => Product.Validate(ToUnvalidated(p)));
+        var validated = ImportBatch.Validate(command.Products, p => p.Sku, p => Product.Validate(ToUnvalidated(p)));
         var referenced = validated.Valid.SelectMany(v => v.Item.Content.Images.Select(i => i.Value)).Distinct().ToList();
         var stored = referenced.Count == 0
             ? new HashSet<string>()
@@ -45,7 +46,7 @@ internal sealed class ImportProductsHandler(
             .MapAsync(async _ =>
             {
                 await db.SaveChangesAsync(cancellationToken);
-                return ImportReports.Create(command.Products.Count, changes, batch.Rejected);
+                return ImportReport.From(command.Products.Count, changes, batch.Rejected);
             });
     }
 

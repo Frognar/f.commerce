@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Imports;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Import;
