@@ -11,6 +11,8 @@ public sealed class IndexModel(CompanyContext company) : PageModel
 
     public bool CanSeeUsers { get; private set; }
 
+    public bool CanSeeDocuments { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         var customer = await company.ActiveCustomerAsync(cancellationToken);
@@ -26,6 +28,7 @@ public sealed class IndexModel(CompanyContext company) : PageModel
 
         Customer = customer;
         CanSeeUsers = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerUsers(code, salesperson), customer, cancellationToken);
+        CanSeeDocuments = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerDocuments(code, salesperson), customer, cancellationToken);
         return Page();
     }
 }

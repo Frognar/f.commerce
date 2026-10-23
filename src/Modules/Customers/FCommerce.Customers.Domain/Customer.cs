@@ -143,12 +143,6 @@ public static class Customers
                 : Error.Validation("payment-terms.invalid", "Payment terms must be between 0 and 365 days.")).ToValidated("paymentTermDays"))
             .Apply(Currency.Parse(input.Currency ?? "PLN").ToValidated("currency"));
 
-    /// <summary>Checks every rule and reports all that fail (unlike chained Ensure, which stops at the first).</summary>
-    private static Validated<T> EnsureAll<T>(this Validated<T> validated, params (Func<T, bool> Holds, Error Error)[] rules) =>
-        validated.Bind(value => rules.Where(rule => !rule.Holds(value)).Select(rule => rule.Error).ToList() is [var first, .. var rest]
-            ? Validated.Invalid<T>(first, [.. rest])
-            : Validated.Valid(value));
-
     private static Result<T?, Error> Optional<T>(string? raw, Func<string, Result<T, Error>> parse)
         where T : class =>
         string.IsNullOrWhiteSpace(raw) ? Result.Ok<T?, Error>(null) : parse(raw).Map(value => (T?)value);

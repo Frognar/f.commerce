@@ -22,8 +22,17 @@
 {
     <p class="alert" role="status">@T["CompanyBlocked"]</p>
 }
-@if (Model.CanSeeUsers)
+@if (Model.CanSeeDocuments || Model.CanSeeUsers)
 {
-    <p><a class="button secondary" asp-page="/Company/Users">@T["CompanyUsers"]</a></p>
+    <p class="actions">
+        @if (Model.CanSeeDocuments)
+        {
+            <a class="button secondary" asp-page="/Company/Documents">@T["Documents"]</a>
+        }
+        @if (Model.CanSeeUsers)
+        {
+            <a class="button secondary" asp-page="/Company/Users">@T["CompanyUsers"]</a>
+        }
+    </p>
 }
 <partial name="_CustomerProfile" model="customer" />

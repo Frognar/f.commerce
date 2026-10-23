@@ -240,7 +240,7 @@ input[readonly] { background: var(--color-bg); }
 table.data { width: 100%; border-collapse: collapse; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); }
 table.data th, table.data td { text-align: left; padding: .5rem .75rem; border-bottom: 1px solid var(--color-border); font-size: .9rem; vertical-align: middle; }
 table.data th { color: var(--color-muted); font-weight: 500; }
-table.data .actions { display: flex; gap: .5rem; }
+table.data .actions, p.actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .button.small { padding: .3rem .7rem; font-size: .85rem; }
 .button.secondary { background: var(--color-bg); color: var(--color-text); border: 1px solid var(--color-border); }
 button.link { font: inherit; background: none; border: 0; padding: 0; color: var(--color-accent); cursor: pointer; }
@@ -282,3 +282,17 @@ fieldset.stack legend { font-weight: 600; margin-bottom: .5rem; }
 .tabs { display: flex; gap: 1rem; margin-bottom: var(--space); border-bottom: 1px solid var(--color-border); }
 .tabs a { padding: .4rem 0; text-decoration: none; color: var(--color-muted); }
 .tabs a[aria-current="page"] { color: var(--color-text); border-bottom: 2px solid var(--color-accent); font-weight: 600; }
+
+/* Documents */
+.receivables { display: flex; flex-wrap: wrap; gap: var(--space); margin-bottom: var(--space); }
+.receivable { display: grid; gap: .2rem; margin-top: 0; min-width: 14rem; }
+.receivable strong { font-size: 1.25rem; }
+.overdue, .status-overdue { color: #a11b1b; }
+.status-paid { color: #0f6a3a; }
+.filters { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: var(--space); }
+.filters label { display: grid; gap: .3rem; font-size: .9rem; color: var(--color-muted); }
+table.data .number { text-align: right; white-space: nowrap; }
+@media (prefers-color-scheme: dark) {
+    .overdue, .status-overdue { color: #f19a9a; }
+    .status-paid { color: #8fd9ad; }
+}

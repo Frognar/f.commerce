@@ -1,0 +1,60 @@
+@model FCommerce.Host.Pages.Company.DocumentsModel
+@using FCommerce.Host.Pages.Company
+@{
+    var results = Model.Results;
+}
+<p class="muted">@T["DocumentsFound", results.TotalCount]</p>
+@if (results.Items.Count > 0)
+{
+    <table class="data">
+        <thead>
+            <tr>
+                <th>@T["DocumentNumber"]</th><th>@T["DocumentType"]</th><th>@T["IssueDate"]</th><th>@T["DueDate"]</th>
+                <th class="number">@T["GrossAmount"]</th><th class="number">@T["AmountDue"]</th><th>@T["PaymentStatus"]</th><th>@T["OrderNumber"]</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var document in results.Items)
+            {
+                <tr>
+                    <td>@document.Number</td>
+                    <td>@T[$"DocumentType.{document.Type}"]</td>
+                    <td>@DocumentsModel.Date(document.IssueDate)</td>
+                    <td>@DocumentsModel.Date(document.DueDate)</td>
+                    <td class="number">@(document.Gross is { } gross ? DocumentsModel.Amount(gross, document.Currency) : "")</td>
+                    <td class="number">@(document.Outstanding > 0 ? DocumentsModel.Amount(document.Outstanding, document.Currency) : "")</td>
+                    <td>
+                        @if (document.Status != FCommerce.Documents.Contracts.DocumentStatuses.None)
+                        {
+                            <span class="status status-@document.Status">@T[$"PaymentStatus.{document.Status}"]</span>
+                        }
+                    </td>
+                    <td>@document.OrderNumber</td>
+                    <td>
+                        @if (document.HasFile)
+                        {
+                            <a href="@Model.FileHref(document.Id)" download>PDF</a>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (results.PageCount > 1)
+{
+    <nav class="pagination" aria-label="@T["Pages"]">
+        @if (results.Page > 1)
+        {
+            <a href="@Model.Href(page: results.Page - 1)" hx-get="@Model.Href(page: results.Page - 1)"
+               hx-target="#@DocumentsModel.ResultsId" hx-push-url="true">@T["PreviousPage"]</a>
+        }
+        <span>@T["PageOf", results.Page, results.PageCount]</span>
+        @if (results.Page < results.PageCount)
+        {
+            <a href="@Model.Href(page: results.Page + 1)" hx-get="@Model.Href(page: results.Page + 1)"
+               hx-target="#@DocumentsModel.ResultsId" hx-push-url="true">@T["NextPage"]</a>
+        }
+    </nav>
+}

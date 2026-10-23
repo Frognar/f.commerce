@@ -39,6 +39,11 @@
     <Project Path="src/Modules/Customers/FCommerce.Customers.Domain/FCommerce.Customers.Domain.csproj" />
     <Project Path="src/Modules/Customers/FCommerce.Customers/FCommerce.Customers.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Documents/">
+    <Project Path="src/Modules/Documents/FCommerce.Documents.Contracts/FCommerce.Documents.Contracts.csproj" />
+    <Project Path="src/Modules/Documents/FCommerce.Documents.Domain/FCommerce.Documents.Domain.csproj" />
+    <Project Path="src/Modules/Documents/FCommerce.Documents/FCommerce.Documents.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Media/">
     <Project Path="src/Modules/Media/FCommerce.Media.Contracts/FCommerce.Media.Contracts.csproj" />
     <Project Path="src/Modules/Media/FCommerce.Media.Domain/FCommerce.Media.Domain.csproj" />
@@ -59,6 +64,7 @@
     <Project Path="tests/FCommerce.Authorization.Core.Tests/FCommerce.Authorization.Core.Tests.csproj" />
     <Project Path="tests/FCommerce.Catalog.Tests/FCommerce.Catalog.Tests.csproj" />
     <Project Path="tests/FCommerce.Customers.Tests/FCommerce.Customers.Tests.csproj" />
+    <Project Path="tests/FCommerce.Documents.Tests/FCommerce.Documents.Tests.csproj" />
     <Project Path="tests/FCommerce.Infrastructure.Tests/FCommerce.Infrastructure.Tests.csproj" />
     <Project Path="tests/FCommerce.IntegrationTests/FCommerce.IntegrationTests.csproj" />
     <Project Path="tests/FCommerce.Media.Tests/FCommerce.Media.Tests.csproj" />

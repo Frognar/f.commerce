@@ -272,4 +272,29 @@
   <data name="Error.tax-id.checksum" xml:space="preserve"><value>Nieprawidłowy NIP — sprawdź cyfry.</value></data>
   <data name="Error.postal-code.invalid" xml:space="preserve"><value>Nieprawidłowy kod pocztowy.</value></data>
   <data name="Error.country.invalid" xml:space="preserve"><value>Podaj dwuliterowy kod kraju, np. PL.</value></data>
+  <data name="Documents" xml:space="preserve"><value>Dokumenty</value></data>
+  <data name="Receivables" xml:space="preserve"><value>Należności</value></data>
+  <data name="NothingDue" xml:space="preserve"><value>Nie masz żadnych należności do zapłaty.</value></data>
+  <data name="AmountDue" xml:space="preserve"><value>Do zapłaty</value></data>
+  <data name="OverdueAmount" xml:space="preserve"><value>w tym po terminie: {0} ({1} dok.)</value></data>
+  <data name="DocumentType" xml:space="preserve"><value>Rodzaj</value></data>
+  <data name="AllDocuments" xml:space="preserve"><value>Wszystkie</value></data>
+  <data name="DocumentType.invoice" xml:space="preserve"><value>Faktura</value></data>
+  <data name="DocumentType.correction-invoice" xml:space="preserve"><value>Faktura korygująca</value></data>
+  <data name="DocumentType.delivery-note" xml:space="preserve"><value>WZ</value></data>
+  <data name="DocumentType.proforma" xml:space="preserve"><value>Proforma</value></data>
+  <data name="PaymentStatus" xml:space="preserve"><value>Płatność</value></data>
+  <data name="AnyStatus" xml:space="preserve"><value>Dowolna</value></data>
+  <data name="PaymentStatus.paid" xml:space="preserve"><value>Zapłacona</value></data>
+  <data name="PaymentStatus.unpaid" xml:space="preserve"><value>Do zapłaty</value></data>
+  <data name="PaymentStatus.overdue" xml:space="preserve"><value>Po terminie</value></data>
+  <data name="IssuedFrom" xml:space="preserve"><value>Wystawione od</value></data>
+  <data name="IssuedTo" xml:space="preserve"><value>Wystawione do</value></data>
+  <data name="Filter" xml:space="preserve"><value>Filtruj</value></data>
+  <data name="DocumentsFound" xml:space="preserve"><value>Dokumentów: {0}</value></data>
+  <data name="DocumentNumber" xml:space="preserve"><value>Numer</value></data>
+  <data name="IssueDate" xml:space="preserve"><value>Data wystawienia</value></data>
+  <data name="DueDate" xml:space="preserve"><value>Termin płatności</value></data>
+  <data name="GrossAmount" xml:space="preserve"><value>Brutto</value></data>
+  <data name="OrderNumber" xml:space="preserve"><value>Zamówienie</value></data>
 </root>

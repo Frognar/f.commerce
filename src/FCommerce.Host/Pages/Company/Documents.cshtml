@@ -1,0 +1,56 @@
+@page "/company/documents"
+@model FCommerce.Host.Pages.Company.DocumentsModel
+@using FCommerce.Host.Pages.Company
+@{
+    ViewData["Title"] = T["Documents"];
+}
+<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer!.Name</a></nav>
+<h1>@T["Documents"]</h1>
+
+<section class="receivables" aria-label="@T["Receivables"]">
+    @if (Model.Receivables.Count == 0)
+    {
+        <p class="muted">@T["NothingDue"]</p>
+    }
+    @foreach (var receivable in Model.Receivables)
+    {
+        <div class="card receivable">
+            <span class="muted">@T["AmountDue"]</span>
+            <strong>@DocumentsModel.Amount(receivable.Outstanding, receivable.Currency)</strong>
+            @if (receivable.OverdueCount > 0)
+            {
+                <span class="overdue">@T["OverdueAmount", DocumentsModel.Amount(receivable.Overdue, receivable.Currency), receivable.OverdueCount]</span>
+            }
+        </div>
+    }
+</section>
+
+<form class="filters" method="get" action="@Url.CulturePage("/Company/Documents")"
+      hx-get="@Url.CulturePage("/Company/Documents")" hx-target="#@DocumentsModel.ResultsId" hx-push-url="true"
+      hx-trigger="change, submit">
+    <label>@T["DocumentType"]
+        <select name="type">
+            <option value="">@T["AllDocuments"]</option>
+            @foreach (var type in DocumentsModel.Types)
+            {
+                <option value="@type" selected="@(type == Model.Type)">@T[$"DocumentType.{type}"]</option>
+            }
+        </select>
+    </label>
+    <label>@T["PaymentStatus"]
+        <select name="status">
+            <option value="">@T["AnyStatus"]</option>
+            @foreach (var status in DocumentsModel.Statuses)
+            {
+                <option value="@status" selected="@(status == Model.Status)">@T[$"PaymentStatus.{status}"]</option>
+            }
+        </select>
+    </label>
+    <label>@T["IssuedFrom"] <input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <label>@T["IssuedTo"] <input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <noscript><button class="button" type="submit">@T["Filter"]</button></noscript>
+</form>
+
+<div id="@DocumentsModel.ResultsId" aria-live="polite">
+    <partial name="_DocumentResults" model="Model" />
+</div>

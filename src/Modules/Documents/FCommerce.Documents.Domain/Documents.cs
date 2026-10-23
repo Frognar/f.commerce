@@ -1,0 +1,201 @@
+using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Persistence;
+using FCommerce.SharedKernel.Results;
+using FCommerce.SharedKernel.Validation;
+
+namespace FCommerce.Documents.Domain;
+
+public enum DocumentType
+{
+    Invoice,
+    CorrectionInvoice,
+    DeliveryNote,
+    Proforma,
+}
+
+public enum PaymentStatus
+{
+    /// <summary>Not a document the customer pays (delivery note, proforma).</summary>
+    NotApplicable,
+    Paid,
+    Unpaid,
+    Overdue,
+}
+
+/// <summary>Document identifier from the ERP.</summary>
+public sealed record DocumentId : IPersistedValue<DocumentId, string>
+{
+    public const int MaxLength = 64;
+
+    private DocumentId(string value) => Value = value;
+
+    public string Value { get; }
+
+    public static Result<DocumentId, Error> Parse(string? raw) =>
+        SourceCodes.Parse(raw, MaxLength, "document-id", "Document id").Map(value => new DocumentId(value));
+
+    static DocumentId IPersistedValue<DocumentId, string>.Rehydrate(string raw) => new(raw);
+
+    string IPersistedValue<DocumentId, string>.Dehydrate() => Value;
+
+    public override string ToString() => Value;
+}
+
+public sealed record DocumentDates(DateOnly Issued, DateOnly? Sold, DateOnly? Due);
+
+/// <param name="Paid">What the customer has paid so far, as the ERP knows it.</param>
+public sealed record DocumentAmounts(Currency Currency, decimal Net, decimal Gross, decimal Paid);
+
+/// <param name="Amounts">Required for invoices and corrections; optional for other documents.</param>
+/// <param name="OrderNumber">The order the document belongs to, if any.</param>
+public sealed record DocumentContent(
+    string CustomerCode,
+    DocumentType Type,
+    string Number,
+    DocumentDates Dates,
+    DocumentAmounts? Amounts,
+    string? OrderNumber);
+
+/// <summary>A customer's document (invoice, correction, delivery note, proforma) as replicated from the ERP.</summary>
+public sealed record Document(DocumentId Id, SourceVersion Version, DocumentContent Content);
+
+public sealed record UnvalidatedDocument(
+    string? Id,
+    long Version,
+    string? CustomerCode,
+    string? Type,
+    string? Number,
+    DateOnly? IssueDate,
+    DateOnly? SaleDate,
+    DateOnly? DueDate,
+    string? Currency,
+    decimal? Net,
+    decimal? Gross,
+    decimal? Paid,
+    string? OrderNumber);
+
+/// <summary>Money still due on one document (see <see cref="Documents.Outstanding"/>).</summary>
+public sealed record OpenItem(Currency Currency, decimal Outstanding, DateOnly? Due);
+
+/// <summary>What a customer owes in one currency, and how much of it is past its due date.</summary>
+public sealed record Receivable(Currency Currency, decimal Outstanding, decimal Overdue, int OverdueCount);
+
+public static class Documents
+{
+    public const int MaxNumber = 64;
+    public const int MaxCustomerCode = 64;
+    public const int MaxOrderNumber = 64;
+    public const int MaxFileBytes = 20 * 1024 * 1024;
+
+    /// <summary>Amounts are bounded well below what the storage column holds.</summary>
+    public const decimal MaxAmount = 1_000_000_000_000m;
+
+    /// <summary>Names used in the integration API and in filters.</summary>
+    public static IReadOnlyDictionary<string, DocumentType> TypeNames { get; } = new Dictionary<string, DocumentType>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["invoice"] = DocumentType.Invoice,
+        ["correction-invoice"] = DocumentType.CorrectionInvoice,
+        ["delivery-note"] = DocumentType.DeliveryNote,
+        ["proforma"] = DocumentType.Proforma,
+    };
+
+    private static readonly Func<DocumentId, SourceVersion, DocumentContent, Document> Create =
+        (id, version, content) => new Document(id, version, content);
+
+    private static readonly Func<string, DocumentType, string, DocumentDates, DocumentAmounts?, string?, DocumentContent> CreateContent =
+        (customer, type, number, dates, amounts, order) => new DocumentContent(customer, type, number, dates, amounts, order);
+
+    /// <summary>Validates a document from the ERP, reporting every problem with its field path.</summary>
+    public static Validated<Document> Validate(UnvalidatedDocument input) =>
+        Create
+            .Apply(DocumentId.Parse(input.Id).ToValidated("id"))
+            .Apply(SourceVersion.Parse(input.Version).ToValidated("version"))
+            .Apply(CreateContent
+                .Apply(SourceCodes.Parse(input.CustomerCode, MaxCustomerCode, "customer-code", "Customer code").ToValidated("customerCode"))
+                .Apply(ParseType(input.Type).ToValidated("type"))
+                .Apply(SourceCodes.Parse(input.Number, MaxNumber, "number", "Document number").ToValidated("number"))
+                .Apply(ValidateDates(input))
+                .Apply(ValidateAmounts(input))
+                .Apply(SourceCodes.ParseOptional(input.OrderNumber, MaxOrderNumber, "order-number", "Order number").ToValidated("orderNumber"))
+                .EnsureAll(
+                    (content => content.Amounts is not null || !IsPayable(content.Type), Error.Validation("amounts.missing", "Invoices and corrections need their amounts.") with { Field = "gross" }),
+                    (content => content.Type == DocumentType.CorrectionInvoice || content.Amounts is null || (content.Amounts.Net >= 0 && content.Amounts.Gross >= 0), Error.Validation("amount.negative", "Only a correction may have negative amounts.") with { Field = "gross" })));
+
+    public static Change<Document> Reconcile(Document? stored, Document incoming) =>
+        ImportBatch.Reconcile(stored, incoming, d => d.Version, (a, b) => a.Content == b.Content);
+
+    /// <summary>Invoices and corrections are paid; other documents only inform.</summary>
+    public static bool IsPayable(DocumentType type) => type is DocumentType.Invoice or DocumentType.CorrectionInvoice;
+
+    /// <summary>
+    /// What the customer still has to pay: gross less paid, never below zero. A correction that lowers the amount
+    /// owes the customer money, so nothing is due on it.
+    /// </summary>
+    public static decimal Outstanding(DocumentContent content) =>
+        IsPayable(content.Type) && content.Amounts is { } amounts ? Math.Max(amounts.Gross - amounts.Paid, 0m) : 0m;
+
+    /// <summary>The due date itself is still on time; the day after, an unpaid document is overdue.</summary>
+    public static bool IsOverdue(DateOnly? due, DateOnly today) => due < today;
+
+    public static PaymentStatus StatusOn(DocumentContent content, DateOnly today) =>
+        (IsPayable(content.Type), Outstanding(content)) switch
+        {
+            (false, _) => PaymentStatus.NotApplicable,
+            (true, 0m) => PaymentStatus.Paid,
+            _ when IsOverdue(content.Dates.Due, today) => PaymentStatus.Overdue,
+            _ => PaymentStatus.Unpaid,
+        };
+
+    /// <summary>Sums what is due per currency (currencies in alphabetical order).</summary>
+    public static IReadOnlyList<Receivable> Receivables(IEnumerable<OpenItem> items, DateOnly today) =>
+        [.. items
+            .Where(item => item.Outstanding > 0)
+            .GroupBy(item => item.Currency)
+            .OrderBy(group => group.Key.Code, StringComparer.Ordinal)
+            .Select(group => new Receivable(
+                group.Key,
+                group.Sum(item => item.Outstanding),
+                group.Where(item => IsOverdue(item.Due, today)).Sum(item => item.Outstanding),
+                group.Count(item => IsOverdue(item.Due, today))))];
+
+    /// <summary>A document file is a non-empty PDF of bounded size.</summary>
+    public static Result<Unit, Error> CheckFile(ReadOnlySpan<byte> content) =>
+        content.Length switch
+        {
+            0 => Error.Validation("file.empty", "The file is empty."),
+            > MaxFileBytes => Error.Validation("file.too-large", $"The file must not exceed {MaxFileBytes / (1024 * 1024)} MB."),
+            _ when !content.StartsWith("%PDF-"u8) => Error.Validation("file.not-pdf", "The file is not a PDF document."),
+            _ => Unit.Value,
+        };
+
+    private static Result<DocumentType, Error> ParseType(string? raw) =>
+        raw is not null && TypeNames.TryGetValue(raw.Trim(), out var type)
+            ? type
+            : Error.Validation("type.unknown", $"Unknown document type '{raw}'; expected one of: {string.Join(", ", TypeNames.Keys)}.");
+
+    private static Validated<DocumentDates> ValidateDates(UnvalidatedDocument input) =>
+        (input.IssueDate is { } issued
+                ? Validated.Valid(new DocumentDates(issued, input.SaleDate, input.DueDate))
+                : Validated.Invalid<DocumentDates>(Error.Validation("issue-date.missing", "The issue date is required.") with { Field = "issueDate" }))
+            .Ensure(dates => dates.Due is null || dates.Due >= dates.Issued, _ => Error.Validation("due-date.before-issue", "The due date must not be before the issue date.") with { Field = "dueDate" });
+
+    /// <summary>No amount given at all means "no amounts"; otherwise currency, net and gross are required (paid defaults to zero).</summary>
+    private static Validated<DocumentAmounts?> ValidateAmounts(UnvalidatedDocument input) =>
+        input is { Currency: null, Net: null, Gross: null, Paid: null }
+            ? Validated.Valid<DocumentAmounts?>(null)
+            : ((Func<Currency, decimal, decimal, decimal, DocumentAmounts?>)((currency, net, gross, paid) => new DocumentAmounts(currency, net, gross, paid)))
+                .Apply(Currency.Parse(input.Currency).ToValidated("currency"))
+                .Apply(Amount(input.Net).ToValidated("net"))
+                .Apply(Amount(input.Gross).ToValidated("gross"))
+                .Apply(Amount(input.Paid ?? 0m).ToValidated("paid"));
+
+    private static Result<decimal, Error> Amount(decimal? raw) =>
+        raw switch
+        {
+            null => Error.Validation("amount.missing", "The amount is required."),
+            { } value when Math.Abs(value) >= MaxAmount => Error.Validation("amount.too-large", "The amount is too large."),
+            { } value when Math.Round(value, 2) != value => Error.Validation("amount.precision", "Amounts have at most two decimal places."),
+            { } value => value,
+        };
+}

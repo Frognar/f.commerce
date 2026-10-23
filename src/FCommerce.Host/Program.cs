@@ -1,6 +1,7 @@
 using FCommerce.Access;
 using FCommerce.Catalog;
 using FCommerce.Customers;
+using FCommerce.Documents;
 using FCommerce.Host.Security;
 using FCommerce.Notifications;
 using FCommerce.Settings;
@@ -64,6 +65,7 @@ builder.Services.AddNotificationsModule(new NotificationsOptions
 });
 builder.Services.AddMediaModule();
 builder.Services.AddCustomersModule();
+builder.Services.AddDocumentsModule(new DocumentsOptions { TimeZone = builder.Configuration["Platform:TimeZone"] ?? "Europe/Warsaw" });
 builder.Services.AddCatalogModule(options =>
 {
     options.DefaultCulture = localization.DefaultCulture;

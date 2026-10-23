@@ -35,6 +35,15 @@ public abstract record Validated<T>
     public Validated<T> Ensure(Func<T, bool> predicate, Func<T, Error> error) =>
         Bind(value => predicate(value) ? Succeed(value) : Fail(EquatableArray.Create(error(value))));
 
+    /// <summary>
+    /// Like <see cref="Ensure"/> for several rules of a valid value, but reports every rule that fails
+    /// (chained Ensure stops at the first).
+    /// </summary>
+    public Validated<T> EnsureAll(params (Func<T, bool> Holds, Error Error)[] rules) =>
+        Bind(value => rules.Where(rule => !rule.Holds(value)).Select(rule => rule.Error).ToEquatableArray() is { IsEmpty: false } errors
+            ? Fail(errors)
+            : Succeed(value));
+
     /// <summary>Places all errors under a field (see <see cref="Error.AtField"/>).</summary>
     public Validated<T> AtField(string field) =>
         Match(Succeed, errors => Fail(errors.Select(e => e.AtField(field)).ToEquatableArray()));
