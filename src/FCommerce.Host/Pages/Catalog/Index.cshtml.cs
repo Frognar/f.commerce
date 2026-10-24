@@ -13,6 +13,7 @@ namespace FCommerce.Host.Pages.Catalog;
 public sealed class IndexModel(
     IQueryHandler<SearchProducts, Result<ProductPage, Error>> search,
     IQueryHandler<GetCategoryTree, Result<IReadOnlyList<CategoryView>, Error>> categories,
+    CatalogOffers offers,
     SupportedCultures cultures) : PageModel
 {
     public const string ResultsId = "results";
@@ -34,6 +35,9 @@ public sealed class IndexModel(
 
     public IReadOnlyList<CategoryView> Categories { get; private set; } = [];
 
+    /// <summary>Prices and stock of the products on the page, for the signed-in user (or the visitor).</summary>
+    public ListingOffers Offers { get; private set; } = ListingOffers.None;
+
     /// <summary>URL token of a filter: the escaped code cannot contain '=', so the first '=' separates code and value.</summary>
     public static string FilterValue(string code, string value) => $"{Uri.EscapeDataString(code)}={value}";
 
@@ -43,14 +47,18 @@ public sealed class IndexModel(
         var page = await search.HandleAsync(new SearchProducts(requestCultures, Query, Category, ParseFilters(), PageNumber), cancellationToken);
         var tree = await categories.HandleAsync(new GetCategoryTree(requestCultures), cancellationToken);
 
-        return (from results in page from categoryTree in tree select (results, categoryTree)).Match<IActionResult>(
-            loaded =>
+        return await (from results in page from categoryTree in tree select (results, categoryTree)).Match<Task<IActionResult>>(
+            async loaded =>
             {
                 (Results, Categories) = loaded;
+                Offers = await offers.ListAsync([.. Results.Items.Select(product => product.Sku)], cancellationToken);
                 return Request.IsHtmxFor(ResultsId) ? Partial("_ProductResults", this) : Page();
             },
-            error => BadRequest(error.Message));
+            error => Task.FromResult<IActionResult>(BadRequest(error.Message)));
     }
+
+    /// <summary>Sign-in that returns to this page of results (also from an htmx response, which has its own URL).</summary>
+    public string SignInHref => Url.CulturePage("/Auth/SignIn") + QueryString.Create("returnUrl", Href(page: Results.Page));
 
     /// <summary>Link to the catalogue with the current search, optionally changing the category or the page.</summary>
     public string Href(Maybe<string> category = default, Maybe<int> page = default, bool keepCategory = true, bool keepFilters = true)

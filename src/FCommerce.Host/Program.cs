@@ -45,6 +45,7 @@ builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AccessControl>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Shared.CustomerUsersActions>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Company.CompanyContext>();
+builder.Services.AddScoped<FCommerce.Host.Pages.Catalog.CatalogOffers>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
 builder.Services.AddAbacAuthorization();

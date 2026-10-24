@@ -1,5 +1,6 @@
 @using FCommerce.Host.Media
 @using FCommerce.Media.Contracts
+@using FCommerce.Host.Pages.Catalog
 @model FCommerce.Host.Pages.Catalog.IndexModel
 @{
     var results = Model.Results;
@@ -42,6 +43,14 @@ else
                     <span class="product-name">@product.Name</span>
                 </a>
                 <span class="muted">@T["Sku"]: @product.Sku · @product.Unit</span>
+                @foreach (var price in Model.Offers.PriceOf(product.Sku).AsEnumerable())
+                {
+                    <partial name="_PriceTag" model="new PriceTag(price, product.Unit, Model.SignInHref, Detailed: false)" />
+                }
+                @foreach (var stock in Model.Offers.StockOf(product.Sku, product.Unit).AsEnumerable())
+                {
+                    <partial name="_StockBadge" model="stock" />
+                }
             </li>
         }
     </ul>

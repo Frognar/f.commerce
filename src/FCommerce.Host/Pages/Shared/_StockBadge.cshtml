@@ -1,0 +1,17 @@
+@model FCommerce.Host.Pages.Catalog.StockBadge
+<span class="stock stock-@Model.Status">
+    @foreach (var quantity in Model.Quantity.AsEnumerable())
+    {
+        @T[$"StockQuantity.{Model.Status}", Formats.Quantity(quantity), Model.Unit]
+    }
+    @if (!Model.Quantity.Exists(_ => true))
+    {
+        @T[$"Stock.{Model.Status}"]
+    }
+</span>
+@foreach (var delivery in Model.NextDelivery.AsEnumerable())
+{
+    <span class="stock-delivery">@(delivery.Quantity is { } amount
+        ? T["NextDeliveryWithQuantity", Formats.Date(delivery.Date), Formats.Quantity(amount), Model.Unit]
+        : T["NextDeliveryOn", Formats.Date(delivery.Date)])</span>
+}

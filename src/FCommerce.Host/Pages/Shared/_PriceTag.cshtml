@@ -1,0 +1,41 @@
+@using FCommerce.Pricing.Contracts
+@model FCommerce.Host.Pages.Catalog.PriceTag
+@{
+    var price = Model.Price;
+}
+@switch (price.Status)
+{
+    case PriceStatuses.Priced when price.Offer is { } offer:
+        <div class="price">
+            <span class="price-net">@Formats.Money(offer.Unit.Net, offer.Currency) <small>@T["NetPerUnit", Model.Unit]</small></span>
+            <span class="price-gross">@T["GrossPrice", Formats.Money(offer.Unit.Gross, offer.Currency)]@(Model.Detailed ? $" ({T["VatRate", Formats.Percent(offer.VatRate)].Value})" : "")</span>
+            @if (!Model.Detailed && offer.Tiers.Count > 1)
+            {
+                <span class="price-break">@T["CheaperFrom", Formats.Quantity(offer.Tiers[1].FromQuantity), Model.Unit]</span>
+            }
+        </div>
+        @if (Model.Detailed && offer.Tiers.Count > 1)
+        {
+            <table class="tiers">
+                <caption>@T["QuantityPrices"]</caption>
+                <thead><tr><th scope="col">@T["FromQuantity"]</th><th scope="col" class="number">@T["NetPrice"]</th><th scope="col" class="number">@T["GrossPriceHeader"]</th></tr></thead>
+                <tbody>
+                    @foreach (var tier in offer.Tiers)
+                    {
+                        <tr>
+                            <td>@Formats.Quantity(tier.FromQuantity) @Model.Unit</td>
+                            <td class="number">@Formats.Money(tier.Net, offer.Currency)</td>
+                            <td class="number">@Formats.Money(tier.Gross, offer.Currency)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        break;
+    case PriceStatuses.SignInRequired:
+        <a class="price-sign-in" href="@Model.SignInHref">@T["SignInForPrices"]</a>
+        break;
+    default:
+        <span class="price-on-request">@T["PriceOnRequest"]</span>
+        break;
+}

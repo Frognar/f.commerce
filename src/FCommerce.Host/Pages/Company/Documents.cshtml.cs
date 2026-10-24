@@ -110,7 +110,7 @@ public sealed class DocumentsModel(
 
     /// <summary>An amount of a document (its currency may be unknown: shown without it).</summary>
     public static string Amount(decimal amount, Maybe<string> currency) =>
-        $"{amount.ToString("N2", CultureInfo.CurrentCulture)} {currency.ValueOr(string.Empty)}".TrimEnd();
+        $"{Formats.Amount(amount)} {currency.ValueOr(string.Empty)}".TrimEnd();
 
     /// <summary>A date of a document; empty when it has none.</summary>
     public static string Date(Maybe<DateOnly> date) =>

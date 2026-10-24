@@ -1,6 +1,8 @@
 @page "/products/{**sku}"
 @using FCommerce.Host.Media
 @using FCommerce.Media.Contracts
+@using FCommerce.Host.Pages.Catalog
+@using FCommerce.Inventory.Contracts
 @model FCommerce.Host.Pages.Products.DetailsModel
 @{
     ViewData["Title"] = Model.Found ? Model.Product.Name : T["ProductNotFound"].Value;
@@ -78,6 +80,32 @@ else
                     <dt>@T["Gtin"]</dt><dd>@product.Gtin</dd>
                 }
             </dl>
+            @foreach (var offer in Model.Offer.AsEnumerable())
+            {
+                <section class="offer" aria-label="@T["PriceAndAvailability"]">
+                    <partial name="_PriceTag" model="new PriceTag(offer.Price, product.Unit, Model.SignInHref, Detailed: true)" />
+                    @if (offer.Stock.Display != StockDisplays.Hidden && offer.Stock.Total is { } total)
+                    {
+                        <p class="availability">@T["Availability"]: <partial name="_StockBadge" model="StockBadge.From(offer.Stock.Display, total, product.Unit)" /></p>
+                        @if (offer.Stock.Warehouses.Count > 0)
+                        {
+                            <table class="data warehouses">
+                                <caption>@T["Warehouses"]</caption>
+                                <thead><tr><th scope="col">@T["Warehouse"]</th><th scope="col">@T["Availability"]</th></tr></thead>
+                                <tbody>
+                                    @foreach (var warehouse in offer.Stock.Warehouses)
+                                    {
+                                        <tr>
+                                            <th scope="row">@warehouse.Name</th>
+                                            <td><partial name="_StockBadge" model="StockBadge.From(offer.Stock.Display, warehouse, product.Unit)" /></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+                </section>
+            }
             @if (product.Description is not null)
             {
                 <h2>@T["Description"]</h2>

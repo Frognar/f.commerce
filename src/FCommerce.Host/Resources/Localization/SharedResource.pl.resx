@@ -313,4 +313,26 @@
   <data name="DueDate" xml:space="preserve"><value>Termin płatności</value></data>
   <data name="GrossAmount" xml:space="preserve"><value>Brutto</value></data>
   <data name="OrderNumber" xml:space="preserve"><value>Zamówienie</value></data>
+  <data name="PriceAndAvailability" xml:space="preserve"><value>Cena i dostępność</value></data>
+  <data name="NetPerUnit" xml:space="preserve"><value>netto / {0}</value></data>
+  <data name="GrossPrice" xml:space="preserve"><value>{0} brutto</value></data>
+  <data name="VatRate" xml:space="preserve"><value>VAT {0}</value></data>
+  <data name="CheaperFrom" xml:space="preserve"><value>taniej od {0} {1}</value></data>
+  <data name="QuantityPrices" xml:space="preserve"><value>Ceny od ilości</value></data>
+  <data name="FromQuantity" xml:space="preserve"><value>Od ilości</value></data>
+  <data name="NetPrice" xml:space="preserve"><value>Cena netto</value></data>
+  <data name="GrossPriceHeader" xml:space="preserve"><value>Cena brutto</value></data>
+  <data name="SignInForPrices" xml:space="preserve"><value>Zaloguj się, aby zobaczyć ceny</value></data>
+  <data name="PriceOnRequest" xml:space="preserve"><value>Cena na zapytanie</value></data>
+  <data name="Availability" xml:space="preserve"><value>Dostępność</value></data>
+  <data name="Warehouses" xml:space="preserve"><value>Magazyny</value></data>
+  <data name="Warehouse" xml:space="preserve"><value>Magazyn</value></data>
+  <data name="Stock.available" xml:space="preserve"><value>Dostępny</value></data>
+  <data name="Stock.low" xml:space="preserve"><value>Mało</value></data>
+  <data name="Stock.none" xml:space="preserve"><value>Brak</value></data>
+  <data name="StockQuantity.available" xml:space="preserve"><value>{0} {1}</value></data>
+  <data name="StockQuantity.low" xml:space="preserve"><value>{0} {1} (mało)</value></data>
+  <data name="StockQuantity.none" xml:space="preserve"><value>Brak</value></data>
+  <data name="NextDeliveryOn" xml:space="preserve"><value>Dostawa {0}</value></data>
+  <data name="NextDeliveryWithQuantity" xml:space="preserve"><value>Dostawa {0}: {1} {2}</value></data>
 </root>

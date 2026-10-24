@@ -296,3 +296,32 @@ table.data .number { text-align: right; white-space: nowrap; }
     .overdue, .status-overdue { color: #f19a9a; }
     .status-paid { color: #8fd9ad; }
 }
+
+/* Prices and stock */
+.price { display: grid; gap: .1rem; }
+.price-net { font-size: 1.15rem; font-weight: 700; }
+.price-net small { font-size: .8rem; font-weight: 400; color: var(--color-muted); }
+.price-gross, .price-break, .stock-delivery { font-size: .85rem; color: var(--color-muted); }
+.price-break { color: var(--color-ok); }
+.price-sign-in, .price-on-request { font-size: .9rem; }
+.price-on-request { color: var(--color-muted); }
+.stock { font-size: .85rem; font-weight: 600; }
+.stock::before { content: ""; display: inline-block; width: .55rem; height: .55rem; border-radius: 50%; margin-right: .35rem; background: currentColor; }
+.stock-available { color: var(--color-ok); }
+.stock-low { color: #9a6200; }
+.stock-none { color: #a11b1b; }
+.product-card .stock-delivery, .warehouses .stock-delivery { display: block; }
+.offer { display: grid; gap: .75rem; margin: var(--space) 0; padding: var(--space); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); }
+.offer .price-net { font-size: 1.5rem; }
+.availability { margin: 0; }
+.tiers { border-collapse: collapse; width: 100%; font-size: .9rem; }
+.tiers caption { text-align: left; font-weight: 600; padding-bottom: .25rem; }
+.tiers th, .tiers td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--color-border); }
+.tiers th { color: var(--color-muted); font-weight: 500; }
+.tiers .number { text-align: right; white-space: nowrap; }
+.warehouses caption { text-align: left; font-weight: 600; padding: .5rem .75rem; }
+.warehouses tbody th { font-weight: 500; }
+@media (prefers-color-scheme: dark) {
+    .stock-low { color: #f0c36a; }
+    .stock-none { color: #f19a9a; }
+}

@@ -3,6 +3,7 @@ using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
 using FCommerce.Authorization.Core;
 using FCommerce.Customers.Contracts;
+using FCommerce.Pricing.Contracts;
 using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Features;
@@ -68,6 +69,15 @@ public sealed class CurrentUser(
             },
             () => Task.FromResult(Maybe<MembershipView>.None));
     }
+
+    /// <summary>
+    /// Who looks at prices, only from the session: anonymous, signed in without a customer (operators, users without
+    /// memberships) or acting for the active customer (the chosen one is checked against the memberships).
+    /// </summary>
+    public async Task<PriceViewer> PriceViewerAsync(CancellationToken cancellationToken = default) =>
+        await (await SessionAsync(cancellationToken)).Match(
+            async _ => new PriceViewer(true, (await ActiveMembershipAsync(cancellationToken)).Map(m => m.CustomerCode).OrNull()),
+            () => Task.FromResult(PriceViewer.Anonymous));
 
     /// <summary>The customers of the user's memberships (names for the company switcher, active flags for ABAC).</summary>
     public async Task<IReadOnlyList<CustomerSummary>> CompaniesAsync(CancellationToken cancellationToken = default)
