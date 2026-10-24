@@ -124,7 +124,13 @@
   <data name="OperatorNotifications" xml:space="preserve"><value>Notification e-mail for operators</value></data>
   <data name="CommerceDefaults" xml:space="preserve"><value>Commerce defaults</value></data>
   <data name="DefaultPriceList" xml:space="preserve"><value>Default price list (ERP code)</value></data>
-  <data name="DefaultPriceListHint" xml:space="preserve"><value>Visitors and customers without their own price list see these prices. Empty — prices hidden until sign-in.</value></data>
+  <data name="DefaultPriceListHint" xml:space="preserve"><value>Customers without their own price list see these prices; visitors who are not signed in see them when “Prices for visitors” is on. Empty — only customers with their own price list see prices.</value></data>
+  <data name="PricesAndStock" xml:space="preserve"><value>Prices and stock</value></data>
+  <data name="StockDisplay" xml:space="preserve"><value>How stock is shown</value></data>
+  <data name="StockDisplay.Levels" xml:space="preserve"><value>Levels (available / low / out of stock)</value></data>
+  <data name="StockDisplay.Exact" xml:space="preserve"><value>Exact quantity</value></data>
+  <data name="LowStockThreshold" xml:space="preserve"><value>“Low” threshold</value></data>
+  <data name="LowStockThresholdHint" xml:space="preserve"><value>In levels, a quantity not above the threshold is shown as “low”.</value></data>
   <data name="DefaultContactTemplate" xml:space="preserve"><value>Rights of ERP contacts</value></data>
   <data name="Template.administrator" xml:space="preserve"><value>Company administrator</value></data>
   <data name="Template.buyer" xml:space="preserve"><value>Buyer</value></data>
@@ -139,19 +145,26 @@
   <data name="Change.branding" xml:space="preserve"><value>branding</value></data>
   <data name="Change.contact" xml:space="preserve"><value>contact</value></data>
   <data name="Change.commerce" xml:space="preserve"><value>commerce defaults</value></data>
+  <data name="Change.stock" xml:space="preserve"><value>stock display</value></data>
   <data name="Feature.customer-accounts" xml:space="preserve"><value>Customer accounts</value></data>
   <data name="Feature.multi-customer-accounts" xml:space="preserve"><value>One account for several companies</value></data>
   <data name="Feature.customer-admin-invitations" xml:space="preserve"><value>Invitations by company administrators</value></data>
   <data name="Feature.erp-contact-invitations" xml:space="preserve"><value>Invitations for ERP contacts</value></data>
   <data name="Feature.self-registration" xml:space="preserve"><value>Company self-registration</value></data>
   <data name="Feature.documents" xml:space="preserve"><value>Documents (invoices, delivery notes)</value></data>
+  <data name="Feature.public-prices" xml:space="preserve"><value>Prices for visitors</value></data>
+  <data name="Feature.stock-levels" xml:space="preserve"><value>Stock levels</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Customers sign in to the customer area.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>A user can act for several companies.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Company administrators invite their colleagues.</value></data>
   <data name="FeatureHint.erp-contact-invitations" xml:space="preserve"><value>People with access in the ERP are invited automatically.</value></data>
   <data name="FeatureHint.self-registration" xml:space="preserve"><value>Companies apply for an account; an operator decides.</value></data>
   <data name="FeatureHint.documents" xml:space="preserve"><value>Customers see invoices and other ERP documents.</value></data>
+  <data name="FeatureHint.public-prices" xml:space="preserve"><value>Visitors who are not signed in see the default price list.</value></data>
+  <data name="FeatureHint.stock-levels" xml:space="preserve"><value>The storefront shows product availability and upcoming deliveries.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Someone changed the settings in the meantime. Reload the page and try again.</value></data>
+  <data name="Error.settings.stock-display" xml:space="preserve"><value>Choose how stock is shown.</value></data>
+  <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>The threshold must be a number of zero or more, with at most 3 decimal places.</value></data>
   <data name="Error.feature.missing-requirement" xml:space="preserve"><value>An enabled feature requires another feature that is off.</value></data>
   <data name="Error.feature.unavailable" xml:space="preserve"><value>This feature is not available in this installation.</value></data>
   <data name="Error.color.invalid" xml:space="preserve"><value>The colour must be in the form #rrggbb.</value></data>

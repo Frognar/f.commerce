@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="FCommerce.Infrastructure.Postgres" />
+    <InternalsVisibleTo Include="FCommerce.Settings.Tests" />
   </ItemGroup>
 
 </Project>

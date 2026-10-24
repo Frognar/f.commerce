@@ -18,7 +18,9 @@ public sealed class IsolatedHostFixture : HostFixture
             .UseSetting("Features:Available:1", "multi-customer-accounts")
             .UseSetting("Features:Available:2", "customer-admin-invitations")
             .UseSetting("Features:Available:3", "erp-contact-invitations")
-            .UseSetting("Features:Available:4", "documents");
+            .UseSetting("Features:Available:4", "documents")
+            .UseSetting("Features:Available:5", "public-prices")
+            .UseSetting("Features:Available:6", "stock-levels");
 }
 
 public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixture<IsolatedHostFixture>
@@ -28,7 +30,12 @@ public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixt
     private static async Task<long> VersionAsync(Browser admin) =>
         long.Parse(VersionField().Match((await admin.GetAsync("/pl/admin/settings")).Html).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
 
-    private static List<KeyValuePair<string, string>> Form(long version, string visibility = "Public", string storeName = "f.commerce", string accent = "#1f5eff", params string[] features)
+    private static readonly string[] AllFeatures =
+        ["customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "erp-contact-invitations", "documents", "public-prices", "stock-levels"];
+
+    private static List<KeyValuePair<string, string>> Form(
+        long version, string visibility = "Public", string storeName = "f.commerce", string accent = "#1f5eff", string priceList = "",
+        string stockDisplay = "Levels", string lowStockThreshold = "10", params string[] features)
     {
         List<KeyValuePair<string, string>> fields =
         [
@@ -37,8 +44,11 @@ public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixt
             new("Form.StoreName", storeName),
             new("Form.AccentColor", accent),
             new("Form.DefaultContactTemplate", "buyer"),
+            new("Form.DefaultPriceListCode", priceList),
+            new("Form.StockDisplay", stockDisplay),
+            new("Form.LowStockThreshold", lowStockThreshold),
         ];
-        fields.AddRange((features.Length > 0 ? features : ["customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "erp-contact-invitations", "documents"])
+        fields.AddRange((features.Length > 0 ? features : AllFeatures)
             .Select(f => new KeyValuePair<string, string>("Form.EnabledFeatures", f)));
         return fields;
     }
@@ -98,6 +108,27 @@ public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixt
             Assert.DoesNotContain("value=\"self-registration\"", page, StringComparison.Ordinal);
             Assert.Contains("Ta funkcja nie jest dostępna w tej instalacji.", unavailable.Html, StringComparison.Ordinal);
             Assert.Contains("Włączona funkcja wymaga innej, wyłączonej funkcji.", missingRequirement.Html, StringComparison.Ordinal);
+        });
+
+    [Fact]
+    public Task Prices_and_stock_display_are_saved_and_a_wrong_threshold_is_explained() =>
+        WithSettingsAsync(async admin =>
+        {
+            var page = (await admin.GetAsync("/pl/admin/settings")).Html;
+            var saved = await admin.SubmitAsync("/pl/admin/settings", Form(await VersionAsync(admin), priceList: "DETAL", stockDisplay: "Exact", lowStockThreshold: "2,5"));
+            var wrong = await admin.SubmitAsync("/pl/admin/settings", Form(await VersionAsync(admin), lowStockThreshold: "dużo"));
+            var tooPrecise = await admin.SubmitAsync("/pl/admin/settings", Form(await VersionAsync(admin), lowStockThreshold: "0.0001"));
+            var reloaded = (await admin.GetAsync("/pl/admin/settings")).Html;
+
+            Assert.Contains("value=\"public-prices\" checked=\"checked\"", page, StringComparison.Ordinal);
+            Assert.Contains("value=\"stock-levels\" checked=\"checked\"", page, StringComparison.Ordinal);
+            Assert.Contains("Zapisano zmiany.", saved.Html, StringComparison.Ordinal);
+            Assert.Contains("Próg musi być liczbą", wrong.Html, StringComparison.Ordinal);
+            Assert.Contains("Próg musi być liczbą", tooPrecise.Html, StringComparison.Ordinal);
+            Assert.Contains("value=\"DETAL\"", reloaded, StringComparison.Ordinal);
+            Assert.Matches("value=\"Exact\" checked=\"checked\"|checked=\"checked\"[^>]*value=\"Exact\"", reloaded);
+            Assert.Contains("value=\"2,5\"", reloaded, StringComparison.Ordinal);
+            Assert.Contains("prezentacja stanów", reloaded, StringComparison.Ordinal);
         });
 
     [Fact]

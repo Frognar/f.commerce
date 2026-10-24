@@ -90,7 +90,9 @@ internal sealed class GetPlatformSettingsHandler(SettingsSnapshot snapshot) : IQ
                 settings.Contact.SupportPhone.OrNull(),
                 settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull()),
             settings.Commerce.DefaultPriceListCode.OrNull(),
-            settings.Commerce.DefaultContactTemplate);
+            settings.Commerce.DefaultContactTemplate,
+            settings.Stock.Mode.ToString(),
+            settings.Stock.LowThreshold);
     }
 }
 
@@ -117,7 +119,9 @@ internal sealed class UpdatePlatformSettingsHandler(SettingsDbContext db, Outbox
                 command.SupportPhone.ToMaybe(),
                 command.OperatorNotifications.ToMaybe(),
                 command.DefaultPriceListCode.ToMaybe(),
-                command.DefaultContactTemplate.OrEmpty()),
+                command.DefaultContactTemplate.OrEmpty(),
+                command.StockDisplay.OrEmpty(),
+                command.LowStockThreshold),
             snapshot.Available,
             row.Version).ToResult();
 

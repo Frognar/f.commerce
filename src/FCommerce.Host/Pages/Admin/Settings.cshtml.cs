@@ -1,3 +1,4 @@
+using System.Globalization;
 using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
 using FCommerce.Application.Results;
@@ -52,6 +53,11 @@ public sealed class SettingsModel(
         public string? DefaultPriceListCode { get; set; }
 
         public string DefaultContactTemplate { get; set; } = "buyer";
+
+        public string StockDisplay { get; set; } = "Levels";
+
+        /// <summary>Text, so that both "2,5" and "2.5" are accepted whatever the page culture.</summary>
+        public string LowStockThreshold { get; set; } = "10";
     }
 
     [BindProperty]
@@ -87,16 +93,20 @@ public sealed class SettingsModel(
             OperatorNotifications = Current.Contact.OperatorNotifications,
             DefaultPriceListCode = Current.DefaultPriceListCode,
             DefaultContactTemplate = Current.DefaultContactTemplate,
+            StockDisplay = Current.StockDisplay,
+            LowStockThreshold = Current.LowStockThreshold.ToString("0.###", CultureInfo.CurrentCulture),
         };
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        var threshold = Quantity(Form.LowStockThreshold);
         var logo = await LogoAsync(cancellationToken);
-        var saved = await logo.BindAsync(logoId => update.HandleAsync(
+        var saved = await threshold.Bind(t => logo.Map(l => (Threshold: t, LogoId: l))).BindAsync(form => update.HandleAsync(
             new UpdatePlatformSettings(
-                user.RequiredUserId, Form.Version, Form.CatalogVisibility, Form.EnabledFeatures, Form.StoreName, Form.AccentColor, logoId.OrNull(),
-                Form.SupportEmail, Form.SupportPhone, Form.OperatorNotifications, Form.DefaultPriceListCode, Form.DefaultContactTemplate),
+                user.RequiredUserId, Form.Version, Form.CatalogVisibility, Form.EnabledFeatures, Form.StoreName, Form.AccentColor, form.LogoId.OrNull(),
+                Form.SupportEmail, Form.SupportPhone, Form.OperatorNotifications, Form.DefaultPriceListCode, Form.DefaultContactTemplate,
+                Form.StockDisplay, form.Threshold),
             cancellationToken));
 
         if (saved.Match(_ => true, error => { ModelState.AddErrors(error, texts); return false; }))
@@ -135,6 +145,16 @@ public sealed class SettingsModel(
             return (await uploadImage.HandleAsync(new UploadImage(buffer.ToArray()), cancellationToken)).Map(image => Maybe.Some(image.Id));
         }
     }
+
+    /// <summary>A quantity typed with a decimal comma or point; its range is checked by the settings rules.</summary>
+    private static Result<decimal, Error> Quantity(string raw) =>
+        decimal.TryParse(
+            raw.Trim().Replace(',', '.'),
+            NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out var quantity)
+            ? quantity
+            : Error.Validation("settings.low-stock-threshold", "The threshold must be a number.") with { Field = "lowStockThreshold" };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {

@@ -24,7 +24,7 @@ public sealed class EmailTests
     private sealed class Settings(string? operatorMailbox = null) : IQueryHandler<GetPlatformSettings, PlatformSettingsView>
     {
         public Task<PlatformSettingsView> HandleAsync(GetPlatformSettings query, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, operatorMailbox), null, "buyer"));
+            Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, operatorMailbox), null, "buyer", "Levels", 10));
     }
 
     private static async Task<EmailMessage> SendInvitationAsync(string culture, string name, string audience)

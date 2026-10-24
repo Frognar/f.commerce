@@ -11,7 +11,7 @@ public sealed class SettingsRulesTests
     private static readonly ImmutableHashSet<FeatureId> Everything = [.. Feature.All.Select(f => f.Id)];
 
     private static UnvalidatedSettings Input(params string[] features) =>
-        new("SignedInOnly", features, "Hurtownia Śruba", "#AA3300", default, "biuro@sruba.pl", "+48 600 000 000", default, "DETAL", "accounting");
+        new("SignedInOnly", features, "Hurtownia Śruba", "#AA3300", default, "biuro@sruba.pl", "+48 600 000 000", default, "DETAL", "accounting", "Exact", 2.5m);
 
     [Fact]
     public void Valid_input_becomes_the_next_version()
@@ -24,16 +24,34 @@ public sealed class SettingsRulesTests
         Assert.Equal("biuro@sruba.pl", settings.Contact.SupportEmail.ShouldBeSome().Value);
         Assert.Equal(("DETAL", "accounting"), (settings.Commerce.DefaultPriceListCode.ShouldBeSome(), settings.Commerce.DefaultContactTemplate));
         Assert.True(settings.Features(Everything).IsOn(Feature.Documents));
+        Assert.Equal(new StockDisplay(StockDisplayMode.Exact, 2.5m), settings.Stock);
     }
 
     [Fact]
     public void Reports_every_invalid_field()
     {
-        var input = Input() with { CatalogVisibility = "Nobody", StoreName = " ", AccentColor = "red", SupportEmail = "biuro", DefaultContactTemplate = "king" };
+        var input = Input() with
+        {
+            CatalogVisibility = "Nobody", StoreName = " ", AccentColor = "red", SupportEmail = "biuro", DefaultContactTemplate = "king",
+            StockDisplay = "Rounded", LowStockThreshold = -1,
+        };
 
         var fields = SettingsRules.Validate(input, Everything, 0).ShouldBeInvalid().Select(e => e.Field);
 
-        Assert.Equal(["catalogVisibility", "storeName", "accentColor", "supportEmail", "defaultContactTemplate"], fields);
+        Assert.Equal(["catalogVisibility", "storeName", "accentColor", "supportEmail", "defaultContactTemplate", "stockDisplay", "lowStockThreshold"], fields);
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(0.125, true)]
+    [InlineData(2.5000, true)]
+    [InlineData(0.0005, false)]
+    [InlineData(-0.001, false)]
+    public void Low_stock_threshold_has_at_most_three_decimal_places_and_is_not_negative(decimal threshold, bool valid)
+    {
+        var result = SettingsRules.Validate(Input() with { LowStockThreshold = threshold }, Everything, 0);
+
+        Assert.Equal(valid, result.Match(_ => true, _ => false));
     }
 
     [Fact]
@@ -59,6 +77,7 @@ public sealed class SettingsRulesTests
         Assert.DoesNotContain(Feature.Documents, defaults.EnabledFeatures);
         Assert.DoesNotContain(Feature.SelfRegistration, defaults.EnabledFeatures); // off by default
         Assert.Contains(Feature.CustomerAccounts, defaults.EnabledFeatures);
+        Assert.Equal(new StockDisplay(StockDisplayMode.Levels, 10), defaults.Stock);
     }
 
     [Fact]
@@ -68,6 +87,26 @@ public sealed class SettingsRulesTests
         var after = SettingsRules.Validate(Input("customer-accounts", "documents") with { CatalogVisibility = "Public", StoreName = "Nowa nazwa" }, Everything, 1).ShouldBeValid();
 
         Assert.Equal(["catalogVisibility", "feature+documents", "branding"], SettingsRules.Changes(before, after));
+        Assert.Equal(["stock"], SettingsRules.Changes(before, before with { Stock = StockDisplay.Default }));
         Assert.Empty(SettingsRules.Changes(before, before));
+    }
+
+    [Fact]
+    public void Features_added_since_saving_get_their_default_state_and_known_ones_keep_the_sellers_choice()
+    {
+        ImmutableHashSet<FeatureId> known = [.. Everything.Except([Feature.PublicPrices, Feature.StockLevels, Feature.SelfRegistration])];
+
+        var enabled = SettingsRules.WithNewFeatures([Feature.CustomerAccounts], known, Everything.Remove(Feature.StockLevels));
+
+        Assert.Equal([Feature.CustomerAccounts, Feature.PublicPrices], Feature.All.Select(f => f.Id).Where(enabled.Contains));
+    }
+
+    [Fact]
+    public void A_new_feature_whose_requirement_is_switched_off_stays_off()
+    {
+        ImmutableHashSet<FeatureId> known = [.. Everything.Remove(Feature.Documents)];
+
+        Assert.DoesNotContain(Feature.Documents, SettingsRules.WithNewFeatures([], known, Everything));
+        Assert.Contains(Feature.Documents, SettingsRules.WithNewFeatures([Feature.CustomerAccounts], known, Everything));
     }
 }

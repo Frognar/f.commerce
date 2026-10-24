@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Modules\Settings\FCommerce.Settings.Domain\FCommerce.Settings.Domain.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Settings\FCommerce.Settings\FCommerce.Settings.csproj" />
     <ProjectReference Include="..\FCommerce.Testing\FCommerce.Testing.csproj" />
   </ItemGroup>
 

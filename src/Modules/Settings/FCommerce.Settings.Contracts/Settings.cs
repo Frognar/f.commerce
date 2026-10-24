@@ -8,6 +8,8 @@ public sealed record GetPlatformSettings : IQuery<PlatformSettingsView>;
 
 /// <param name="CatalogVisibility">"Public" or "SignedInOnly".</param>
 /// <param name="Features">Features available in this installation, with their switch state.</param>
+/// <param name="StockDisplay">"Levels" (available / low / out of stock) or "Exact" (quantities).</param>
+/// <param name="LowStockThreshold">In "Levels", quantities up to this are shown as low.</param>
 public sealed record PlatformSettingsView(
     long Version,
     string CatalogVisibility,
@@ -15,7 +17,9 @@ public sealed record PlatformSettingsView(
     BrandingView Branding,
     ContactView Contact,
     string? DefaultPriceListCode,
-    string DefaultContactTemplate)
+    string DefaultContactTemplate,
+    string StockDisplay,
+    decimal LowStockThreshold)
 {
     public bool IsOn(string featureId) => Features.Any(f => f.Id == featureId && f.On);
 }
@@ -44,7 +48,9 @@ public sealed record UpdatePlatformSettings(
     string? SupportPhone,
     string? OperatorNotifications,
     string? DefaultPriceListCode,
-    string DefaultContactTemplate) : ICommand<Result<long, Error>>;
+    string DefaultContactTemplate,
+    string StockDisplay,
+    decimal LowStockThreshold) : ICommand<Result<long, Error>>;
 
 public sealed record GetSettingsHistory(int Take = 20) : IQuery<IReadOnlyList<SettingsChange>>;
 

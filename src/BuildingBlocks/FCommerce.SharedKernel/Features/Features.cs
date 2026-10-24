@@ -29,6 +29,8 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
     public static readonly FeatureId ErpContactInvitations = FeatureId.Define("erp-contact-invitations");
     public static readonly FeatureId SelfRegistration = FeatureId.Define("self-registration");
     public static readonly FeatureId Documents = FeatureId.Define("documents");
+    public static readonly FeatureId PublicPrices = FeatureId.Define("public-prices");
+    public static readonly FeatureId StockLevels = FeatureId.Define("stock-levels");
 
     /// <summary>The feature catalog. Modules add their features here (one list, so dependencies can be checked).</summary>
     public static ImmutableArray<Feature> All { get; } =
@@ -39,6 +41,8 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
         new(ErpContactInvitations, "ERP contacts with portal access are invited automatically.", true, [CustomerAccounts]),
         new(SelfRegistration, "Companies apply for an account; operators decide.", false, [CustomerAccounts]),
         new(Documents, "Customers see invoices and other documents from the ERP.", true, [CustomerAccounts]),
+        new(PublicPrices, "Visitors who are not signed in see the default price list.", true, []),
+        new(StockLevels, "The storefront shows stock levels and upcoming deliveries.", true, []),
     ];
 }
 

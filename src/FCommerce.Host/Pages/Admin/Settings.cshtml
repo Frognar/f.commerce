@@ -79,10 +79,23 @@
     </section>
 
     <section class="card">
-        <h2>@T["CommerceDefaults"]</h2>
+        <h2>@T["PricesAndStock"]</h2>
         <div class="stack">
             <label>@T["DefaultPriceList"] <input asp-for="Form.DefaultPriceListCode" maxlength="64" /></label>
             <p class="muted">@T["DefaultPriceListHint"]</p>
+            <fieldset class="checks">
+                <legend>@T["StockDisplay"]</legend>
+                <label class="inline"><input type="radio" asp-for="Form.StockDisplay" value="Levels" /> @T["StockDisplay.Levels"]</label>
+                <label class="inline"><input type="radio" asp-for="Form.StockDisplay" value="Exact" /> @T["StockDisplay.Exact"]</label>
+            </fieldset>
+            <label>@T["LowStockThreshold"] <input asp-for="Form.LowStockThreshold" inputmode="decimal" maxlength="20" /></label>
+            <p class="muted">@T["LowStockThresholdHint"]</p>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>@T["CommerceDefaults"]</h2>
+        <div class="stack">
             <label>@T["DefaultContactTemplate"]
                 <select asp-for="Form.DefaultContactTemplate">
                     @foreach (var template in FCommerce.Authorization.Core.MembershipAttributes.Templates.Keys)

@@ -35,8 +35,24 @@ public sealed record Branding(string StoreName, HexColor AccentColor, Maybe<stri
 /// <summary>Who buyers and operators contact.</summary>
 public sealed record SellerContact(Maybe<EmailAddress> SupportEmail, Maybe<string> SupportPhone, Maybe<EmailAddress> OperatorNotifications);
 
-/// <summary>Commercial defaults; the default price list is applied by pricing (prices are hidden without it).</summary>
+/// <summary>
+/// Commercial defaults; pricing applies the default price list to customers without their own and, with the
+/// "public-prices" feature on, to visitors who are not signed in.
+/// </summary>
 public sealed record CommerceDefaults(Maybe<string> DefaultPriceListCode, string DefaultContactTemplate);
+
+/// <summary>How stock is shown: exact quantities, or levels (available / low / out of stock).</summary>
+public enum StockDisplayMode
+{
+    Levels,
+    Exact,
+}
+
+/// <param name="LowThreshold">In <see cref="StockDisplayMode.Levels"/>, quantities up to this are shown as "low".</param>
+public sealed record StockDisplay(StockDisplayMode Mode, decimal LowThreshold)
+{
+    public static StockDisplay Default { get; } = new(StockDisplayMode.Levels, 10);
+}
 
 /// <summary>Settings of one installation, edited by the seller in the back-office.</summary>
 public sealed record PlatformSettings(
@@ -45,11 +61,16 @@ public sealed record PlatformSettings(
     ImmutableHashSet<FeatureId> EnabledFeatures,
     Branding Branding,
     SellerContact Contact,
-    CommerceDefaults Commerce)
+    CommerceDefaults Commerce,
+    StockDisplay Stock)
 {
     public const int MaxStoreName = 100;
     public const int MaxPhone = 40;
     public const int MaxPriceListCode = 64;
+
+    /// <summary>Stock quantities have at most 3 decimal places (kilograms, metres) and fit numeric(15,3).</summary>
+    public const int QuantityDecimals = 3;
+    public const decimal MaxQuantity = 999_999_999_999.999m;
 
     /// <summary>Settings of a new installation: public catalogue, features on by default, neutral branding.</summary>
     public static PlatformSettings Defaults(ImmutableHashSet<FeatureId> available) =>
@@ -59,7 +80,8 @@ public sealed record PlatformSettings(
             [.. Feature.All.Where(f => f.EnabledByDefault && available.Contains(f.Id)).Select(f => f.Id)],
             new Branding("f.commerce", HexColor.DefaultAccent, Maybe<string>.None),
             new SellerContact(Maybe<EmailAddress>.None, Maybe<string>.None, Maybe<EmailAddress>.None),
-            new CommerceDefaults(Maybe<string>.None, "buyer"));
+            new CommerceDefaults(Maybe<string>.None, "buyer"),
+            StockDisplay.Default);
 
     public FeatureSet Features(ImmutableHashSet<FeatureId> available) => new(available, EnabledFeatures);
 }
@@ -75,25 +97,26 @@ public sealed record UnvalidatedSettings(
     Maybe<string> SupportPhone,
     Maybe<string> OperatorNotifications,
     Maybe<string> DefaultPriceListCode,
-    string DefaultContactTemplate);
+    string DefaultContactTemplate,
+    string StockDisplay,
+    decimal LowStockThreshold);
 
 public static class SettingsRules
 {
-    private static readonly Func<CatalogVisibility, ImmutableHashSet<FeatureId>, Branding, SellerContact, CommerceDefaults, (CatalogVisibility, ImmutableHashSet<FeatureId>, Branding, SellerContact, CommerceDefaults)> Combine =
-        (visibility, features, branding, contact, commerce) => (visibility, features, branding, contact, commerce);
-
     /// <summary>
     /// Validates the whole form at once. Features must be available in this installation and have their
     /// requirements enabled; the result gets the next version.
     /// </summary>
     public static Validated<PlatformSettings> Validate(UnvalidatedSettings input, ImmutableHashSet<FeatureId> available, long currentVersion) =>
-        Combine
+        ((Func<CatalogVisibility, ImmutableHashSet<FeatureId>, Branding, SellerContact, CommerceDefaults, StockDisplay, PlatformSettings>)(
+            (visibility, features, branding, contact, commerce, stock) =>
+                new PlatformSettings(currentVersion + 1, visibility, features, branding, contact, commerce, stock)))
             .Apply(ParseVisibility(input.CatalogVisibility).ToValidated("catalogVisibility"))
             .Apply(ParseFeatures(input.EnabledFeatures, available).ToValidated("enabledFeatures"))
             .Apply(ParseBranding(input))
             .Apply(ParseContact(input))
             .Apply(ParseCommerce(input))
-            .Map(parts => new PlatformSettings(currentVersion + 1, parts.Item1, parts.Item2, parts.Item3, parts.Item4, parts.Item5));
+            .Apply(ParseStock(input));
 
     /// <summary>Names of the settings that differ, for the change history.</summary>
     public static ImmutableArray<string> Changes(PlatformSettings before, PlatformSettings after) =>
@@ -104,7 +127,18 @@ public static class SettingsRules
         .. before.Branding != after.Branding ? ["branding"] : Array.Empty<string>(),
         .. before.Contact != after.Contact ? ["contact"] : Array.Empty<string>(),
         .. before.Commerce != after.Commerce ? ["commerce"] : Array.Empty<string>(),
+        .. before.Stock != after.Stock ? ["stock"] : Array.Empty<string>(),
     ];
+
+    /// <summary>
+    /// Features added to the catalogue after the settings were saved: the seller could not have switched them off,
+    /// so those on by default are turned on (if available here and their requirements are enabled, which keeps the
+    /// settings valid for the next save). Features known at saving keep the seller's choice.
+    /// </summary>
+    public static ImmutableHashSet<FeatureId> WithNewFeatures(ImmutableHashSet<FeatureId> enabled, ImmutableHashSet<FeatureId> known, ImmutableHashSet<FeatureId> available) =>
+        Feature.All
+            .Where(f => f.EnabledByDefault && !known.Contains(f.Id) && available.Contains(f.Id))
+            .Aggregate(enabled, (result, feature) => feature.RequiresAll.All(result.Contains) ? result.Add(feature.Id) : result);
 
     private static Result<CatalogVisibility, Error> ParseVisibility(string raw) =>
         Enum.TryParse<CatalogVisibility>(raw, ignoreCase: true, out var visibility) && Enum.IsDefined(visibility)
@@ -134,6 +168,16 @@ public static class SettingsRules
             .Apply((MembershipAttributes.Templates.ContainsKey(input.DefaultContactTemplate)
                 ? Result.Ok<string, Error>(input.DefaultContactTemplate)
                 : Error.Validation("settings.contact-template", "Choose a known attribute template.")).ToValidated("defaultContactTemplate"));
+
+    private static Validated<StockDisplay> ParseStock(UnvalidatedSettings input) =>
+        ((Func<StockDisplayMode, decimal, StockDisplay>)((mode, threshold) => new StockDisplay(mode, threshold)))
+            .Apply((Enum.TryParse<StockDisplayMode>(input.StockDisplay, ignoreCase: true, out var mode) && Enum.IsDefined(mode)
+                ? Result.Ok<StockDisplayMode, Error>(mode)
+                : Error.Validation("settings.stock-display", "Choose how stock is shown.")).ToValidated("stockDisplay"))
+            .Apply((input.LowStockThreshold is >= 0 and <= PlatformSettings.MaxQuantity
+                    && decimal.Round(input.LowStockThreshold, PlatformSettings.QuantityDecimals) == input.LowStockThreshold
+                ? Result.Ok<decimal, Error>(input.LowStockThreshold)
+                : Error.Validation("settings.low-stock-threshold", "The threshold must be zero or more, with at most 3 decimal places.")).ToValidated("lowStockThreshold"));
 
     private static Result<string, Error> RequiredText(string raw, int maxLength, string code)
     {
