@@ -91,7 +91,11 @@ public sealed class CustomersTests(HostFixture host)
         await ImportAsync(Customer(code, version: 2) with { Blocked = true });
         await ImportAsync(Customer(code, version: 3, contacts: [new ContactData("C1", "Jan Kowalski", "jan@sruba.example.pl", null, PortalAccess: true, "buyer")]));
 
-        await EventuallyAsync(() => host.Events.CustomerChanges.Count(e => e.Code == code) >= 3 ? host.Events : null);
+        // Each portal contacts event follows its customer event and reaches the recorder only after Access handled it.
+        await EventuallyAsync(() =>
+            host.Events.CustomerChanges.Count(e => e.Code == code) >= 3 && host.Events.PortalContactChanges.Count(e => e.CustomerCode == code) >= 2
+                ? host.Events
+                : null);
         Assert.Equal(
             [false, true, false],
             host.Events.CustomerChanges.Where(e => e.Code == code).Select(e => e.Blocked));
