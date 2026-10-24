@@ -1,4 +1,5 @@
 using FCommerce.Access;
+using FCommerce.Cart;
 using FCommerce.Catalog;
 using FCommerce.Customers;
 using FCommerce.Documents;
@@ -72,6 +73,7 @@ var sellerTimeZone = builder.Configuration["Platform:TimeZone"] ?? "Europe/Warsa
 builder.Services.AddDocumentsModule(new DocumentsOptions { TimeZone = sellerTimeZone });
 builder.Services.AddPricingModule();
 builder.Services.AddInventoryModule(new InventoryOptions { TimeZone = sellerTimeZone });
+builder.Services.AddCartModule(new CartOptions { DefaultCulture = localization.DefaultCulture });
 builder.Services.AddCatalogModule(options =>
 {
     options.DefaultCulture = localization.DefaultCulture;

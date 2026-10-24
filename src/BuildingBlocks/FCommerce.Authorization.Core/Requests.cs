@@ -44,6 +44,9 @@ public abstract record Resource
 
     public sealed record CustomerDocuments(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
 
+    /// <summary>The cart of the signed-in user for a customer.</summary>
+    public sealed record Cart(string CustomerCode) : Resource;
+
     /// <summary>The back-office list of customers.</summary>
     public sealed record Customers : Resource;
 
@@ -61,6 +64,7 @@ public abstract record Resource
             CustomerProfile r => (r.CustomerCode, r.Salesperson),
             CustomerUsers r => (r.CustomerCode, r.Salesperson),
             CustomerDocuments r => (r.CustomerCode, r.Salesperson),
+            Cart r => (r.CustomerCode, Maybe<EmailAddress>.None),
             _ => Maybe<(string, Maybe<EmailAddress>)>.None,
         };
 }

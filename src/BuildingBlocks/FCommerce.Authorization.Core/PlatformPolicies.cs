@@ -21,6 +21,7 @@ public static class PlatformPolicies
         CustomerProfile,
         CustomerUsers,
         CustomerDocuments,
+        Cart,
         BackOffice,
         Registrations,
     ];
@@ -37,6 +38,7 @@ public static class PlatformPolicies
         (request.Resource, request.Subject) switch
         {
             (Resource.CustomerDocuments, _) => Feature.Documents,
+            (Resource.Cart, _) => Feature.Cart,
             (Resource.Registrations, _) => Feature.SelfRegistration,
             (Resource.CustomerUsers, Subject.CustomerUser) when request.Action == AccessAction.Manage => Feature.CustomerAdminInvitations,
             (Resource.CustomerProfile or Resource.CustomerUsers, Subject.CustomerUser) => Feature.CustomerAccounts,
@@ -95,6 +97,15 @@ public static class PlatformPolicies
             (Resource.CustomerDocuments, AccessAction.Read or AccessAction.Download, Subject.CustomerUser user) =>
                 PolicyResult.PermitIf(user.Attributes.CanViewDocuments, "cannot-view-documents"),
             (Resource.CustomerDocuments, AccessAction.Read or AccessAction.Download, Subject.Operator) => PolicyResult.Permit,
+            _ => PolicyResult.NotApplicable,
+        };
+
+    /// <summary>Only people who may order for the customer have a cart; operators order nothing.</summary>
+    private static PolicyResult Cart(AccessRequest request) =>
+        (request.Resource, request.Action, request.Subject) switch
+        {
+            (Resource.Cart, AccessAction.Read or AccessAction.Manage, Subject.CustomerUser user) =>
+                PolicyResult.PermitIf(user.Attributes.CanOrder, "cannot-order"),
             _ => PolicyResult.NotApplicable,
         };
 

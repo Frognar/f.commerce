@@ -9,6 +9,7 @@
     <ProjectReference Include="..\BuildingBlocks\FCommerce.Infrastructure.Search\FCommerce.Infrastructure.Search.csproj" />
     <ProjectReference Include="..\BuildingBlocks\FCommerce.Authorization.Core\FCommerce.Authorization.Core.csproj" />
     <ProjectReference Include="..\Modules\Access\FCommerce.Access\FCommerce.Access.csproj" />
+    <ProjectReference Include="..\Modules\Cart\FCommerce.Cart\FCommerce.Cart.csproj" />
     <ProjectReference Include="..\Modules\Catalog\FCommerce.Catalog\FCommerce.Catalog.csproj" />
     <ProjectReference Include="..\Modules\Customers\FCommerce.Customers\FCommerce.Customers.csproj" />
     <ProjectReference Include="..\Modules\Documents\FCommerce.Documents\FCommerce.Documents.csproj" />

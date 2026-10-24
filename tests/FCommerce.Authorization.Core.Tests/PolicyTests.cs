@@ -137,6 +137,19 @@ public sealed class PolicyTests
 
         AssertDenied(decision, "cannot-view-documents", "feature-off:documents", "other-customer");
     }
+
+    [Fact]
+    public void Only_people_who_may_order_for_their_active_customer_have_a_cart()
+    {
+        Assert.True(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C1")).IsPermitted);
+        Assert.True(Decide(Admin, AccessAction.Read, new Resource.Cart("C1")).IsPermitted);
+        AssertDenied(Decide(Accountant, AccessAction.Manage, new Resource.Cart("C1")), "cannot-order");
+        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C2")), "other-customer");
+        AssertDenied(Decide(PlatformAdmin, AccessAction.Read, new Resource.Cart("C1")), "no-applicable-policy");
+        AssertDenied(Decide(Subject.Anonymous, AccessAction.Read, new Resource.Cart("C1")), "no-applicable-policy");
+        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C1"), Environment(customerActive: false)), "customer-inactive");
+        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C1"), Environment(off: Feature.Cart)), "feature-off:cart");
+    }
 }
 
 public sealed class GrantTests
