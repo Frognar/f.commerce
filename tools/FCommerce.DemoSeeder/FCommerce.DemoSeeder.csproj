@@ -14,7 +14,9 @@
     <ProjectReference Include="..\..\src\Modules\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Documents\FCommerce.Documents.Contracts\FCommerce.Documents.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Inventory\FCommerce.Inventory.Contracts\FCommerce.Inventory.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Media\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Pricing\FCommerce.Pricing.Contracts\FCommerce.Pricing.Contracts.csproj" />
   </ItemGroup>
 
   <!-- Liberation Sans (SIL OFL 1.1) for the demo PDFs, so they render the same on every system. -->

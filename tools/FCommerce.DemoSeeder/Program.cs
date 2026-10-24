@@ -5,6 +5,8 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.DemoSeeder;
 using FCommerce.Documents.Contracts;
+using FCommerce.Inventory.Contracts;
+using FCommerce.Pricing.Contracts;
 using FCommerce.Media.Contracts;
 using FCommerce.SharedKernel.Contracts;
 
@@ -34,10 +36,23 @@ foreach (var product in DemoCatalog.Products)
 Console.WriteLine();
 await SendAsync("/integration/v1/catalog/products", new ImportProducts(products), products.Count);
 
+// Prices and stock; the version is the day of seeding, so seeding again on a later day refreshes them.
+var today = DateOnly.FromDateTime(DateTime.Now);
+await SendAsync("/integration/v1/pricing/price-lists", new ImportPriceLists(DemoPricing.Lists(today.DayNumber)), 2);
+var retail = DemoPricing.RetailPrices(DemoCatalog.Products, today.DayNumber);
+await SendAsync($"/integration/v1/pricing/price-lists/{DemoPricing.Retail}/prices", new PriceBatch(retail), retail.Count);
+var wholesale = DemoPricing.WholesalePrices(DemoCatalog.Products, today.DayNumber);
+await SendAsync($"/integration/v1/pricing/price-lists/{DemoPricing.Wholesale}/prices", new PriceBatch(wholesale), wholesale.Count);
+await SendAsync("/integration/v1/inventory/warehouses", new ImportWarehouses(DemoInventory.Warehouses(today.DayNumber)), 3);
+foreach (var (warehouse, stock) in DemoInventory.Stock(DemoCatalog.Products, today.DayNumber, today))
+{
+    await SendAsync($"/integration/v1/inventory/warehouses/{warehouse}/stock", new StockBatch(stock), stock.Count);
+}
+
 // Customers: contacts with portal access get invitations (Mailpit), so they choose their passwords there.
 await SendAsync("/integration/v1/customers", new ImportCustomers(DemoCustomers.All), DemoCustomers.All.Count);
 
-var documents = DemoDocuments.For(DemoCustomers.All, DemoCatalog.Products, DateOnly.FromDateTime(DateTime.Now));
+var documents = DemoDocuments.For(DemoCustomers.All, DemoCatalog.Products, today);
 await SendAsync("/integration/v1/documents", new ImportDocuments([.. documents.Select(d => d.Data)]), documents.Count);
 Console.Write("uploading document files ");
 using (var fonts = DemoFonts.Load())
@@ -56,6 +71,8 @@ Console.WriteLine($"""
     Demo data is in. E-mails (invitations, password resets) arrive in Mailpit: http://localhost:8025
       Back-office:  {baseUrl}/pl/admin as the operator from Access:BootstrapAdminEmail (invited on the host's first start).
                     Invite {DemoCustomers.Salesperson} in Operators with the "salesperson" rights to see only her customers.
+      Prices:       choose {DemoPricing.Retail} as the default price list in {baseUrl}/pl/admin/settings (the integration
+                    API does not change settings); until then visitors are asked to sign in. K-1001 buys from {DemoPricing.Wholesale}.
       Customers:    open the invitation e-mails to choose passwords, then sign in at {baseUrl}/pl/sign-in
     """);
 foreach (var customer in DemoCustomers.All)

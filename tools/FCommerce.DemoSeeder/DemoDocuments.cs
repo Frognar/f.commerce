@@ -83,10 +83,10 @@ internal static class DemoDocuments
             customer,
             lines);
 
-    /// <summary>Two to four catalog products in deterministic quantities and prices.</summary>
+    /// <summary>Two to four catalog products in deterministic quantities, at retail prices.</summary>
     private static List<DemoLine> Lines(IReadOnlyList<ProductData> products, string seed)
     {
-        var hash = Hash(seed);
+        var hash = DemoHash.Of(seed);
         return [.. Enumerable.Range(0, 2 + (int)(hash % 3))
             .Select(n => products[(int)(((hash / 7) + ((ulong)n * 37)) % (ulong)products.Count)])
             .DistinctBy(p => p.Sku)
@@ -94,12 +94,8 @@ internal static class DemoDocuments
                 product.Name["pl"],
                 product.Unit,
                 10 * (1 + (decimal)((hash >> (n * 5)) % 20)),
-                Price(product.Sku)))];
+                DemoPricing.Base(product.Sku)))];
     }
-
-    private static decimal Price(string sku) => 0.30m + (Hash(sku) % 2500 / 100m);
-
-    private static ulong Hash(string text) => text.Aggregate(1469598103934665603UL, (h, c) => (h ^ c) * 1099511628211UL);
 
     private static string Year(DateOnly date) => date.Year.ToString(Invariant);
 }
