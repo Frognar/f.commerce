@@ -10,8 +10,8 @@ public sealed record Currency : IPersistedValue<Currency, string>
 
     public string Code { get; }
 
-    public static Result<Currency, Error> Parse(string? code) =>
-        code is { Length: 3 } && code.All(char.IsAsciiLetter)
+    public static Result<Currency, Error> Parse(string code) =>
+        code.Length == 3 && code.All(char.IsAsciiLetter)
             ? new Currency(code.ToUpperInvariant())
             : Error.Validation("currency.invalid", $"'{code}' is not a valid ISO 4217 currency code.");
 

@@ -1,8 +1,10 @@
 using FCommerce.Catalog.Domain;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Catalog.Search;
 
 /// <summary>Storage shape of a <see cref="SearchEntry"/> in the search engine (plain JSON-friendly types).</summary>
+[NullableEdge]
 internal sealed record ProductSearchDocument(
     string Id,
     string Sku,
@@ -20,11 +22,11 @@ internal sealed record ProductSearchDocument(
         new(
             entry.Id,
             entry.Sku,
-            entry.Gtin,
+            entry.Gtin.OrNull(),
             entry.Name,
-            entry.Description,
+            entry.Description.OrNull(),
             entry.Unit,
-            entry.ImageId,
+            entry.ImageId.OrNull(),
             [.. entry.Categories],
             [.. entry.Facets],
             [.. entry.FacetNames],

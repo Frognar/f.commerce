@@ -8,16 +8,16 @@ namespace FCommerce.Catalog.Domain;
 internal static class Translations
 {
     /// <summary>Parses "culture → text" pairs; each invalid culture is reported under its own key.</summary>
-    public static Validated<LocalizedText> Parse(IReadOnlyDictionary<string, string>? raw, int maxLength) =>
-        (raw ?? new Dictionary<string, string>())
+    public static Validated<LocalizedText> Parse(IReadOnlyDictionary<string, string> raw, int maxLength) =>
+        raw
             .Select(pair => ParseEntry(pair.Key, pair.Value, maxLength).AtField(pair.Key))
             .Sequence()
             .Map(entries => LocalizedText.Of(entries.Select(e => new KeyValuePair<CultureCode, string>(e.Culture, e.Text))));
 
-    private static Validated<(CultureCode Culture, string Text)> ParseEntry(string culture, string? text, int maxLength) =>
+    private static Validated<(CultureCode Culture, string Text)> ParseEntry(string culture, string text, int maxLength) =>
         CultureCode.Parse(culture)
-            .Bind(code => (text?.Trim().Length ?? 0) <= maxLength
-                ? Result.Ok<(CultureCode, string), Error>((code, text ?? string.Empty))
+            .Bind(code => text.Trim().Length <= maxLength
+                ? Result.Ok<(CultureCode, string), Error>((code, text))
                 : Error.Validation("text.too-long", $"Text must not exceed {maxLength} characters."))
             .ToValidated();
 }
@@ -31,7 +31,7 @@ public sealed record ProductName : IPersistedValue<ProductName, LocalizedText>
 
     public LocalizedText Text { get; }
 
-    public static Validated<ProductName> Parse(IReadOnlyDictionary<string, string>? raw) =>
+    public static Validated<ProductName> Parse(IReadOnlyDictionary<string, string> raw) =>
         NonEmpty(Translations.Parse(raw, MaxLength), "product-name.empty", "Product name needs at least one translation.")
             .Map(text => new ProductName(text));
 
@@ -56,7 +56,7 @@ public sealed record CategoryName : IPersistedValue<CategoryName, LocalizedText>
 
     public LocalizedText Text { get; }
 
-    public static Validated<CategoryName> Parse(IReadOnlyDictionary<string, string>? raw) =>
+    public static Validated<CategoryName> Parse(IReadOnlyDictionary<string, string> raw) =>
         ProductName.NonEmpty(Translations.Parse(raw, MaxLength), "category-name.empty", "Category name needs at least one translation.")
             .Map(text => new CategoryName(text));
 

@@ -1,28 +1,32 @@
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Catalog.Domain;
 
-/// <summary>A product as received from the ERP, before validation (primitives only).</summary>
+/// <summary>
+/// A product as received from the ERP, before validation (primitives only). Missing required texts arrive as empty,
+/// missing collections as empty ones; optional fields are absent.
+/// </summary>
 public sealed record UnvalidatedProduct(
-    string? Sku,
+    string Sku,
     long Version,
-    IReadOnlyDictionary<string, string>? Name,
-    IReadOnlyDictionary<string, string>? Description,
-    string? CategoryCode,
-    string? Unit,
-    string? Gtin,
-    IReadOnlyList<string>? ImageIds,
-    IReadOnlyList<UnvalidatedAttribute>? Attributes,
+    IReadOnlyDictionary<string, string> Name,
+    IReadOnlyDictionary<string, string> Description,
+    Maybe<string> CategoryCode,
+    string Unit,
+    Maybe<string> Gtin,
+    IReadOnlyList<string> ImageIds,
+    IReadOnlyList<UnvalidatedAttribute> Attributes,
     bool Active);
 
 public sealed record UnvalidatedAttribute(
-    string? Code,
-    IReadOnlyDictionary<string, string>? Name,
-    IReadOnlyDictionary<string, string>? Value);
+    string Code,
+    IReadOnlyDictionary<string, string> Name,
+    IReadOnlyDictionary<string, string> Value);
 
 public sealed record ProductAttribute(AttributeCode Code, LocalizedText Name, LocalizedText Value);
 
@@ -30,9 +34,9 @@ public sealed record ProductAttribute(AttributeCode Code, LocalizedText Name, Lo
 public sealed record ProductContent(
     ProductName Name,
     LocalizedText Description,
-    CategoryCode? Category,
+    Maybe<CategoryCode> Category,
     UnitCode Unit,
-    Gtin? Gtin,
+    Maybe<Gtin> Gtin,
     EquatableArray<ImageId> Images,
     EquatableArray<ProductAttribute> Attributes);
 
@@ -47,7 +51,7 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
     private static readonly Func<Sku, SourceVersion, ProductContent, Func<bool, Product>> Create =
         (sku, version, content) => active => new Product(sku, version, content, active);
 
-    private static readonly Func<ProductName, LocalizedText, CategoryCode?, UnitCode, Gtin?, EquatableArray<ImageId>, EquatableArray<ProductAttribute>, ProductContent> CreateContent =
+    private static readonly Func<ProductName, LocalizedText, Maybe<CategoryCode>, UnitCode, Maybe<Gtin>, EquatableArray<ImageId>, EquatableArray<ProductAttribute>, ProductContent> CreateContent =
         (name, description, category, unit, gtin, images, attributes) => new ProductContent(name, description, category, unit, gtin, images, attributes);
 
     private static readonly Func<AttributeCode, LocalizedText, LocalizedText, ProductAttribute> CreateAttribute =
@@ -65,9 +69,9 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
         CreateContent
             .Apply(ProductName.Parse(input.Name).AtField("name"))
             .Apply(Translations.Parse(input.Description, MaxDescriptionLength).AtField("description"))
-            .Apply(Optional(input.CategoryCode, CategoryCode.Parse).ToValidated("categoryCode"))
+            .Apply(Maybe.ParseOptional(input.CategoryCode, CategoryCode.Parse).ToValidated("categoryCode"))
             .Apply(UnitCode.Parse(input.Unit).ToValidated("unit"))
-            .Apply(Optional(input.Gtin, Domain.Gtin.Parse).ToValidated("gtin"))
+            .Apply(Maybe.ParseOptional(input.Gtin, Domain.Gtin.Parse).ToValidated("gtin"))
             .Apply(Bounded(input.ImageIds, MaxImages, "imageIds", id => ImageId.Parse(id).ToValidated()))
             .Apply(Bounded(input.Attributes, MaxAttributes, "attributes", ValidateAttribute));
 
@@ -77,13 +81,10 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
             .Apply(Translations.Parse(input.Name, MaxAttributeTextLength).AtField("name"))
             .Apply(Translations.Parse(input.Value, MaxAttributeTextLength).AtField("value"));
 
-    /// <summary>Blank optional input means "not set".</summary>
-    internal static Result<T?, Error> Optional<T>(string? raw, Func<string, Result<T, Error>> parse)
-        where T : class =>
-        string.IsNullOrWhiteSpace(raw) ? Result.Ok<T?, Error>(null) : parse(raw).Map(value => (T?)value);
-
-    private static Validated<EquatableArray<TOut>> Bounded<TIn, TOut>(IReadOnlyList<TIn>? items, int max, string field, Func<TIn, Validated<TOut>> validate) =>
-        (items ?? []).Count > max
+    private static Validated<EquatableArray<TOut>> Bounded<TIn, TOut>(IReadOnlyList<TIn> items, int max, string field, Func<TIn, Validated<TOut>> validate)
+        where TIn : notnull
+        where TOut : notnull =>
+        items.Count > max
             ? Validated.Invalid<EquatableArray<TOut>>(Error.Validation($"{field}.too-many", $"At most {max} items are allowed.") with { Field = field })
-            : (items ?? []).Traverse(validate).Map(values => values.ToEquatableArray()).AtField(field);
+            : items.Traverse(validate).Map(values => values.ToEquatableArray()).AtField(field);
 }

@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 
@@ -6,7 +7,7 @@ namespace FCommerce.SharedKernel.Localization;
 /// <summary>A normalized BCP 47 culture tag, e.g. "pl", "en", "en-GB". Created only through <see cref="Parse"/>.</summary>
 public sealed record CultureCode : IPersistedValue<CultureCode, string>
 {
-    private CultureCode(string language, string? region)
+    private CultureCode(string language, Maybe<string> region)
     {
         LanguagePart = language;
         Region = region;
@@ -14,16 +15,16 @@ public sealed record CultureCode : IPersistedValue<CultureCode, string>
 
     private string LanguagePart { get; }
 
-    private string? Region { get; }
+    private Maybe<string> Region { get; }
 
-    public string Value => Region is null ? LanguagePart : $"{LanguagePart}-{Region}";
+    public string Value => Region.Match(region => $"{LanguagePart}-{region}", () => LanguagePart);
 
     /// <summary>The neutral language part: "en-GB" → "en".</summary>
-    public CultureCode Language => Region is null ? this : new CultureCode(LanguagePart, null);
+    public CultureCode Language => Region.Match(_ => new CultureCode(LanguagePart, Maybe<string>.None), () => this);
 
-    public bool IsNeutral => Region is null;
+    public bool IsNeutral => Region.Match(_ => false, () => true);
 
-    public static Result<CultureCode, Error> Parse(string? value)
+    public static Result<CultureCode, Error> Parse(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
         {
@@ -37,14 +38,14 @@ public sealed record CultureCode : IPersistedValue<CultureCode, string>
             && (parts.Length == 1 || (parts[1].Length is >= 2 and <= 4 && parts[1].All(char.IsAsciiLetterOrDigit)));
 
         return valid
-            ? new CultureCode(parts[0].ToLowerInvariant(), parts.Length == 2 ? parts[1].ToUpperInvariant() : null)
+            ? new CultureCode(parts[0].ToLowerInvariant(), parts.Length == 2 ? parts[1].ToUpperInvariant() : Maybe<string>.None)
             : Error.Validation("culture.invalid", $"'{value}' is not a valid culture code.");
     }
 
     static CultureCode IPersistedValue<CultureCode, string>.Rehydrate(string raw)
     {
         var separator = raw.IndexOf('-', StringComparison.Ordinal);
-        return separator < 0 ? new CultureCode(raw, null) : new CultureCode(raw[..separator], raw[(separator + 1)..]);
+        return separator < 0 ? new CultureCode(raw, Maybe<string>.None) : new CultureCode(raw[..separator], raw[(separator + 1)..]);
     }
 
     string IPersistedValue<CultureCode, string>.Dehydrate() => Value;

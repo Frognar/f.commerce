@@ -1,4 +1,5 @@
 using FCommerce.Application.Storage;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Storage;
 
@@ -16,12 +17,12 @@ internal sealed class FileSystemBlobStore(string rootPath) : IBlobStore
         File.Move(temporary, path, overwrite: true);
     }
 
-    public Task<Stream?> OpenReadAsync(string key, CancellationToken cancellationToken = default)
+    public Task<Maybe<Stream>> OpenReadAsync(string key, CancellationToken cancellationToken = default)
     {
         var path = PathOf(key);
-        return Task.FromResult<Stream?>(File.Exists(path)
+        return Task.FromResult(File.Exists(path)
             ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true)
-            : null);
+            : Maybe<Stream>.None);
     }
 
     /// <summary>Keys are module-built, but never allow one to escape the root.</summary>

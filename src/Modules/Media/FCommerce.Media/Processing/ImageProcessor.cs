@@ -1,6 +1,7 @@
 using FCommerce.Media.Domain;
 using FCommerce.SharedKernel.Results;
 using SkiaSharp;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Media.Processing;
 
@@ -15,27 +16,29 @@ internal static class ImageProcessor
     public static Result<ProcessedImage, Error> Process(ReadOnlyMemory<byte> content)
     {
         using var data = SKData.CreateCopy(content.Span);
-        using var codec = SKCodec.Create(data);
-        if (codec is null || codec.EncodedFormat is not (SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp))
-        {
-            return Error.Validation("image.unsupported-format", "Only JPEG, PNG and WebP images are supported.");
-        }
-
-        var (width, height) = Oriented(codec.Info.Width, codec.Info.Height, codec.EncodedOrigin);
-        return ImageRules.CheckDimensions(width, height).Bind(_ => Render(codec, width, height));
+        using var created = SKCodec.Create(data);
+        return created.ToMaybe()
+            .Where(codec => codec.EncodedFormat is SKEncodedImageFormat.Jpeg or SKEncodedImageFormat.Png or SKEncodedImageFormat.Webp)
+            .Match(
+                codec =>
+                {
+                    var (width, height) = Oriented(codec.Info.Width, codec.Info.Height, codec.EncodedOrigin);
+                    return ImageRules.CheckDimensions(width, height).Bind(_ => Render(codec, width, height));
+                },
+                () => Error.Validation("image.unsupported-format", "Only JPEG, PNG and WebP images are supported."));
     }
 
     private static Result<ProcessedImage, Error> Render(SKCodec codec, int width, int height)
     {
-        using var decoded = SKBitmap.Decode(codec);
-        if (decoded is null)
-        {
-            return Error.Validation("image.corrupt", "The image could not be decoded.");
-        }
-
-        using var upright = ApplyOrigin(decoded, codec.EncodedOrigin);
-        var variants = ImageVariant.All.Select(variant => (variant, Encode(upright, variant.Fit(width, height)))).ToList();
-        return new ProcessedImage(width, height, variants);
+        using var created = SKBitmap.Decode(codec);
+        return created.ToMaybe().Match(
+            decoded =>
+            {
+                using var upright = ApplyOrigin(decoded, codec.EncodedOrigin);
+                var variants = ImageVariant.All.Select(variant => (variant, Encode(upright, variant.Fit(width, height)))).ToList();
+                return Result.Ok<ProcessedImage, Error>(new ProcessedImage(width, height, variants));
+            },
+            () => Error.Validation("image.corrupt", "The image could not be decoded."));
     }
 
     private static byte[] Encode(SKBitmap source, (int Width, int Height) size)

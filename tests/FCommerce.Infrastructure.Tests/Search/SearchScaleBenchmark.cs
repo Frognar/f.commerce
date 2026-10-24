@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using FCommerce.Application.Search;
 using FCommerce.Infrastructure.Search;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FCommerce.Infrastructure.Tests.Search;
@@ -44,7 +45,7 @@ public sealed class SearchScaleBenchmark
             await MeasureAsync(engine, "lozyska kulkowe", output, token);
             await MeasureAsync(engine, "szruba", output, token);
             await MeasureAsync(engine, "SR-123456", output, token);
-            await MeasureAsync(engine, null, output, token);
+            await MeasureAsync(engine, default, output, token);
             await engine.DisposeAsync();
 
             var reopening = Stopwatch.StartNew();
@@ -59,7 +60,7 @@ public sealed class SearchScaleBenchmark
         }
     }
 
-    private static async Task MeasureAsync(EmbeddedSearchEngine engine, string? text, ITestOutputHelper output, CancellationToken token)
+    private static async Task MeasureAsync(EmbeddedSearchEngine engine, Maybe<string> text, ITestOutputHelper output, CancellationToken token)
     {
         var request = new SearchRequest(text, new SearchFilter.All([]), ["facets"], 1, 24);
         await engine.SearchAsync<Product>("products", request, token); // warm-up

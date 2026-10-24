@@ -1,4 +1,5 @@
 using System.Globalization;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.TagHelpers;
@@ -17,15 +18,23 @@ internal static class CultureLinks
     public static string CurrentCulture => CultureInfo.CurrentUICulture.Name;
 
     /// <summary>Url.Page with the current culture added.</summary>
-    public static string? CulturePage(this IUrlHelper url, string pageName, object? values = null) =>
-        url.Page(pageName, WithCulture(new RouteValueDictionary(values), CurrentCulture));
+    public static string CulturePage(this IUrlHelper url, string pageName) =>
+        url.CulturePage(pageName, new RouteValueDictionary());
+
+    /// <inheritdoc cref="CulturePage(IUrlHelper, string)"/>
+    public static string CulturePage(this IUrlHelper url, string pageName, object values) =>
+        Resolved(url.Page(pageName, WithCulture(new RouteValueDictionary(values), CurrentCulture)).ToMaybe(), pageName);
 
     /// <summary>Url.Page for a named page handler, with the current culture added.</summary>
-    public static string? CulturePageHandler(this IUrlHelper url, string pageName, string handler, object? values = null) =>
-        url.Page(pageName, handler, WithCulture(new RouteValueDictionary(values), CurrentCulture));
+    public static string CulturePageHandler(this IUrlHelper url, string pageName, string handler) =>
+        url.CulturePageHandler(pageName, handler, new RouteValueDictionary());
+
+    /// <inheritdoc cref="CulturePageHandler(IUrlHelper, string, string)"/>
+    public static string CulturePageHandler(this IUrlHelper url, string pageName, string handler, object values) =>
+        Resolved(url.Page(pageName, handler, WithCulture(new RouteValueDictionary(values), CurrentCulture)).ToMaybe(), pageName);
 
     /// <summary>The current page (route values and query string kept) in another culture — for hreflang and the language switcher.</summary>
-    public static string? CurrentPageIn(this IUrlHelper url, ViewContext context, string culture)
+    public static string CurrentPageIn(this IUrlHelper url, ViewContext context, string culture)
     {
         var values = new RouteValueDictionary(context.RouteData.Values);
         values.Remove("page");
@@ -34,8 +43,13 @@ internal static class CultureLinks
             values.TryAdd(key, value.ToString());
         }
 
-        return url.Page(context.RouteData.Values["page"]?.ToString(), WithCulture(values, culture));
+        var page = context.RouteData.Values["page"]?.ToString();
+        return Resolved(url.Page(page, WithCulture(values, culture)).ToMaybe(), page ?? "current page");
     }
+
+    /// <summary>Links are built only to existing pages; one that does not resolve is a programming error.</summary>
+    private static string Resolved(Maybe<string> url, string page) =>
+        url.Match(found => found, () => throw new InvalidOperationException($"No route to page '{page}'."));
 
     private static RouteValueDictionary WithCulture(RouteValueDictionary values, string culture)
     {

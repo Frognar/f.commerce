@@ -6,8 +6,10 @@ using FCommerce.Catalog.Persistence;
 using FCommerce.Catalog.Search;
 using FCommerce.Infrastructure.Outbox;
 using FCommerce.Application.Results;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Catalog.Import;
 
@@ -18,14 +20,14 @@ internal sealed class ImportCategoriesHandler(CatalogDbContext db, Outbox<Catalo
     {
         var batch = ImportBatch.Validate(
             command.Categories,
-            c => c.Code,
-            c => Category.Validate(new UnvalidatedCategory(c.Code, c.ParentCode, c.Name, c.SortOrder, c.Version, c.Active)));
+            c => c.Code.ToMaybe(),
+            c => Category.Validate(new UnvalidatedCategory(c.Code.OrEmpty(), c.ParentCode.ToMaybe(), c.Name.OrEmpty(), c.SortOrder, c.Version, c.Active)));
 
         var codes = batch.Valid.Select(v => v.Item.Code.Value).ToList();
         var stored = await db.Categories.Where(c => codes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, cancellationToken);
 
         var changes = batch.Valid
-            .Select(v => Reconciliation.Reconcile(stored.GetValueOrDefault(v.Item.Code.Value)?.ToDomain(), v.Item))
+            .Select(v => Reconciliation.Reconcile(stored.GetValueOrNone(v.Item.Code.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         var now = time.GetUtcNow();

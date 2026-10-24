@@ -10,9 +10,9 @@ public sealed record Gtin : IPersistedValue<Gtin, string>
 
     public string Value { get; }
 
-    public static Result<Gtin, Error> Parse(string? raw)
+    public static Result<Gtin, Error> Parse(string raw)
     {
-        var value = raw?.Trim() ?? string.Empty;
+        var value = raw.Trim();
         if (value.Length is not (8 or 12 or 13 or 14) || !value.All(char.IsAsciiDigit))
         {
             return Error.Validation("gtin.invalid", "GTIN must have 8, 12, 13 or 14 digits.");

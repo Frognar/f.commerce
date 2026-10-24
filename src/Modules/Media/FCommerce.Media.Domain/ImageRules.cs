@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Media.Domain;
@@ -11,10 +12,9 @@ public sealed record ImageVariant(string Name, int MaxSide)
 
     public static IReadOnlyList<ImageVariant> All { get; } = [Thumbnail, Medium, Large];
 
-    public static Result<ImageVariant, Error> Parse(string? name) =>
-        All.FirstOrDefault(v => v.Name == name) is { } variant
-            ? variant
-            : Error.NotFound("image-variant.unknown", $"Unknown image variant '{name}'.");
+    public static Result<ImageVariant, Error> Parse(string name) =>
+        All.FirstOrNone(v => v.Name == name)
+            .ToResult(() => Error.NotFound("image-variant.unknown", $"Unknown image variant '{name}'."));
 
     /// <summary>Target size keeping the aspect ratio; at least 1 px per side.</summary>
     public (int Width, int Height) Fit(int width, int height)

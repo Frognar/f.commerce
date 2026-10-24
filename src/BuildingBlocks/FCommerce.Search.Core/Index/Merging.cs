@@ -1,4 +1,5 @@
 using FCommerce.Search.Core.Analysis;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Search.Core.Index;
 
@@ -14,10 +15,10 @@ public static class Merging
 {
     public const int MaxSegments = 8;
 
-    /// <summary>Merge the smallest segments when there are too many; null when no merge is needed.</summary>
-    public static MergePlan? Plan(IndexSnapshot snapshot) =>
+    /// <summary>Merge the smallest segments when there are too many; none when no merge is needed.</summary>
+    public static Maybe<MergePlan> Plan(IndexSnapshot snapshot) =>
         snapshot.Segments.Length <= MaxSegments
-            ? null
+            ? Maybe<MergePlan>.None
             : new MergePlan([.. snapshot.Segments.OrderBy(s => s.Live.Count).Take(snapshot.Segments.Length - (MaxSegments / 2) + 1).Select(s => s.Segment)]);
 
     /// <summary>Builds the merged segment from the planned segments' documents live in <paramref name="snapshot"/>.</summary>
@@ -26,8 +27,7 @@ public static class Merging
         var documents = snapshot.Segments
             .Where(s => plan.Segments.Contains(s.Segment))
             .SelectMany(s => s.Live.Docs().Select(doc => s.Segment.Sources[doc]))
-            .Select(source => DocumentReader.Read(snapshot.Schema, source))
-            .OfType<IndexDocument>()
+            .Choose(source => DocumentReader.Read(snapshot.Schema, source))
             .ToList();
         return SegmentBuilder.Build(snapshot.Schema, analyzer, documents);
     }

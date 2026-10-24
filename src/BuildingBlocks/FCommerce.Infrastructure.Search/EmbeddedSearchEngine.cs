@@ -7,6 +7,7 @@ using FCommerce.Search.Core.Index;
 using FCommerce.Search.Core.Querying;
 using Microsoft.Extensions.Logging;
 using CoreFilter = FCommerce.Search.Core.Querying.Filter;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Search;
 
@@ -32,7 +33,7 @@ internal sealed class EmbeddedSearchEngine(string rootPath, ILoggerFactory logge
             [.. definition.SearchableFields],
             [.. definition.ExactFields],
             [.. definition.FilterableFields]);
-        var language = definition.Language ?? "und";
+        var language = definition.Language.ValueOr("und");
 
         // Re-configuring replaces the open store when the definition changed (the store resets itself on disk).
         if (stores.TryGetValue(definition.Name, out var open))
@@ -51,12 +52,14 @@ internal sealed class EmbeddedSearchEngine(string rootPath, ILoggerFactory logge
     }
 
     public async Task UpsertAsync<TDocument>(string index, IReadOnlyList<TDocument> documents, CancellationToken cancellationToken = default)
+        where TDocument : notnull
     {
         var store = await StoreAsync(index);
         var schema = store.Snapshot.Schema;
         var read = documents
-            .Select(document => DocumentReader.Read(schema, JsonSerializer.SerializeToUtf8Bytes(document, Json))
-                ?? throw new ArgumentException($"A document has no '{schema.PrimaryKey}'.", nameof(documents)))
+            .Select(document => DocumentReader.Read(schema, JsonSerializer.SerializeToUtf8Bytes(document, Json)).Match(
+                read => read,
+                () => throw new ArgumentException($"A document has no '{schema.PrimaryKey}'.", nameof(documents))))
             .ToList();
         await store.UpsertAsync(read, cancellationToken);
     }
@@ -68,12 +71,13 @@ internal sealed class EmbeddedSearchEngine(string rootPath, ILoggerFactory logge
         stores.ContainsKey(index) ? (await StoreAsync(index)).Snapshot.Count : 0;
 
     public async Task<SearchResult<TDocument>> SearchAsync<TDocument>(string index, SearchRequest request, CancellationToken cancellationToken = default)
+        where TDocument : notnull
     {
         var store = await StoreAsync(index);
         var results = QueryEvaluator.Search(
             store.Snapshot,
             store.Analyzer,
-            new SearchQuery(request.Text, request.Filter is null ? null : Map(request.Filter), [.. request.Facets], request.Page, request.PageSize));
+            new SearchQuery(request.Text, request.Filter.Map(Map), [.. request.Facets], request.Page, request.PageSize));
 
         return new SearchResult<TDocument>(
             [.. results.Sources.Select(source => JsonSerializer.Deserialize<TDocument>(source.Span, Json)!)],

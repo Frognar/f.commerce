@@ -7,6 +7,7 @@ using FCommerce.Customers.Contracts;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Outbox;
 using FCommerce.Infrastructure.Persistence;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -16,6 +17,8 @@ using SignInCommand = FCommerce.Access.Contracts.SignIn;
 
 namespace FCommerce.Access;
 
+/// <summary>Bound from configuration (the bootstrap e-mail is usually absent).</summary>
+[NullableEdge]
 public sealed class AccessOptions
 {
     /// <summary>When set and no operator exists yet, this person is invited as platform administrator on startup.</summary>
@@ -77,13 +80,13 @@ public static class AccessModule
 /// <summary>Invites the first platform administrator when the installation has no operator yet.</summary>
 internal sealed partial class OperatorBootstrap(IServiceScopeFactory scopes, AccessOptions options, IHostApplicationLifetime lifetime, ILogger<OperatorBootstrap> logger) : BackgroundService
 {
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        if (string.IsNullOrWhiteSpace(options.BootstrapAdminEmail))
-        {
-            return;
-        }
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        options.BootstrapAdminEmail.ToMaybe()
+            .Where(email => !string.IsNullOrWhiteSpace(email))
+            .Match(email => BootstrapAsync(email, stoppingToken), () => Task.CompletedTask);
 
+    private async Task BootstrapAsync(string email, CancellationToken stoppingToken)
+    {
         var started = new TaskCompletionSource();
         await using (lifetime.ApplicationStarted.Register(() => started.TrySetResult()))
         await using (stoppingToken.Register(() => started.TrySetCanceled(stoppingToken)))
@@ -106,13 +109,13 @@ internal sealed partial class OperatorBootstrap(IServiceScopeFactory scopes, Acc
         }
 
         var invited = await scope.ServiceProvider.GetRequiredService<OperatorManagement>().InviteAsync(
-            actor: null,
-            options.BootstrapAdminEmail,
+            actor: Maybe<Domain.Account>.None,
+            email,
             options.BootstrapAdminName,
             options.BootstrapCulture,
             AccessStore.ToView(OperatorAttributes.PlatformAdministrator),
             stoppingToken);
-        invited.Switch(_ => LogInvited(options.BootstrapAdminEmail), error => LogFailed(error.Message));
+        invited.Switch(_ => LogInvited(email), error => LogFailed(error.Message));
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "No operator yet: invited {Email} as platform administrator")]

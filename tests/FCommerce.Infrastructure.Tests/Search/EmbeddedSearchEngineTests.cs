@@ -1,6 +1,7 @@
 using FCommerce.Application.Search;
 using FCommerce.Infrastructure.Search;
 using FCommerce.Search.Core.Index;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FCommerce.Infrastructure.Tests.Search;
@@ -25,7 +26,7 @@ public sealed class EmbeddedSearchEngineTests : IAsyncDisposable
         return engine;
     }
 
-    private static async Task<List<string>> IdsAsync(EmbeddedSearchEngine engine, string? text, SearchFilter? filter = null) =>
+    private static async Task<List<string>> IdsAsync(EmbeddedSearchEngine engine, Maybe<string> text, Maybe<SearchFilter> filter = default) =>
         [.. (await engine.SearchAsync<TestDocument>("products", new SearchRequest(text, filter, [], 1, 50), Token)).Hits.Select(h => h.Id)];
 
     [Fact]
@@ -51,11 +52,11 @@ public sealed class EmbeddedSearchEngineTests : IAsyncDisposable
             ],
             Token);
 
-        Assert.Equal(["1"], await IdsAsync(engine, null, new SearchFilter.Equal("tags", "x \"quoted\" \\ value")));
-        Assert.Equal(["2", "3"], await IdsAsync(engine, null, new SearchFilter.AnyOf("groups", ["g2", "g3"])));
+        Assert.Equal(["1"], await IdsAsync(engine, default, new SearchFilter.Equal("tags", "x \"quoted\" \\ value")));
+        Assert.Equal(["2", "3"], await IdsAsync(engine, default, new SearchFilter.AnyOf("groups", ["g2", "g3"])));
         Assert.Equal(["2"], await IdsAsync(engine, "rzeczy", new SearchFilter.All([new SearchFilter.Equal("tags", "y"), new SearchFilter.Equal("groups", "g1")])));
 
-        var page = await engine.SearchAsync<TestDocument>("products", new SearchRequest(null, null, ["groups"], 1, 1), Token);
+        var page = await engine.SearchAsync<TestDocument>("products", new SearchRequest(default, default, ["groups"], 1, 1), Token);
         Assert.Equal(3, page.TotalHits);
         Assert.Equal(2, page.Facets["groups"]["g1"]);
     }

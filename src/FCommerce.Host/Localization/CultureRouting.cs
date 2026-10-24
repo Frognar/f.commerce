@@ -33,7 +33,7 @@ internal sealed class CultureRouteConstraint(SupportedCultures cultures) : IRout
     public const string Name = "culture";
 
     public bool Match(HttpContext? httpContext, IRouter? route, string routeKey, RouteValueDictionary values, RouteDirection routeDirection) =>
-        values.TryGetValue(routeKey, out var value) && cultures.IsSupported(value?.ToString());
+        values.TryGetValue(routeKey, out var value) && cultures.IsSupported(value?.ToString() ?? string.Empty);
 }
 
 internal static class CultureRedirect

@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Imports;
 using FCommerce.Catalog.Domain;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 using static FCommerce.Catalog.Tests.TestProducts;
 
@@ -14,8 +15,8 @@ public sealed class ProductValidationTests
 
         Assert.Equal("SR-M8-40", product.Sku.Value);
         Assert.Equal("M8x40 bolt", product.Content.Name.Text.Resolve(Values.Culture("en")));
-        Assert.Equal("fasteners", product.Content.Category?.Value);
-        Assert.Equal("5901234123457", product.Content.Gtin?.Value);
+        Assert.Equal("fasteners", product.Content.Category.ShouldBeSome().Value);
+        Assert.Equal("5901234123457", product.Content.Gtin.ShouldBeSome().Value);
         Assert.Single(product.Content.Attributes);
     }
 
@@ -27,10 +28,10 @@ public sealed class ProductValidationTests
             Sku = " ",
             Version = -1,
             Name = new Dictionary<string, string> { ["english"] = "x" },
-            Unit = null,
+            Unit = "",
             Gtin = "5901234123450",
             ImageIds = ["not-an-id", ImageA],
-            Attributes = [new UnvalidatedAttribute("", null, null)],
+            Attributes = [new UnvalidatedAttribute("", new Dictionary<string, string>(), new Dictionary<string, string>())],
         };
 
         var fields = Fields(Product.Validate(input));
@@ -51,10 +52,10 @@ public sealed class ProductValidationTests
     [Fact]
     public void Blank_optional_fields_are_not_set()
     {
-        var product = Product.Validate(Input() with { CategoryCode = " ", Gtin = "", Description = null, ImageIds = null, Attributes = null }).ShouldBeValid();
+        var product = Product.Validate(Input() with { CategoryCode = " ", Gtin = "", Description = new Dictionary<string, string>(), ImageIds = [], Attributes = [] }).ShouldBeValid();
 
-        Assert.Null(product.Content.Category);
-        Assert.Null(product.Content.Gtin);
+        product.Content.Category.ShouldBeNone();
+        product.Content.Gtin.ShouldBeNone();
         Assert.True(product.Content.Description.IsEmpty);
         Assert.True(product.Content.Images.IsEmpty);
     }

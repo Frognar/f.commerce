@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FCommerce.Customers.Contracts;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.IntegrationTests;
 

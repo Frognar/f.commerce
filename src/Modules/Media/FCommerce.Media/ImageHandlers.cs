@@ -8,6 +8,8 @@ using FCommerce.Media.Persistence;
 using FCommerce.Media.Processing;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Optional;
+using FCommerce.Infrastructure.Persistence;
 
 namespace FCommerce.Media;
 
@@ -22,13 +24,14 @@ internal sealed class UploadImageHandler(MediaDbContext db, IBlobStore blobs, Ti
 
     private async Task<Result<UploadedImage, Error>> StoreAsync(ImageId id, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
     {
-        var existing = await db.Images.AsNoTracking().SingleOrDefaultAsync(i => i.Id == id.Value, cancellationToken);
-        if (existing is not null)
-        {
-            return new UploadedImage(id.Value, existing.Width, existing.Height, AlreadyStored: true);
-        }
+        var existing = await db.Images.AsNoTracking().SingleOrNoneAsync(i => i.Id == id.Value, cancellationToken);
+        return await existing.Match(
+            stored => Task.FromResult(Result.Ok<UploadedImage, Error>(new UploadedImage(id.Value, stored.Width, stored.Height, AlreadyStored: true))),
+            () => ProcessAsync(id, content, cancellationToken));
+    }
 
-        return await ImageProcessor.Process(content).MapAsync(async processed =>
+    private Task<Result<UploadedImage, Error>> ProcessAsync(ImageId id, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
+        ImageProcessor.Process(content).MapAsync(async processed =>
         {
             // Blobs first: metadata only appears once every variant is readable.
             await blobs.PutAsync($"{id.StoragePrefix}/original", content, cancellationToken);
@@ -41,14 +44,13 @@ internal sealed class UploadImageHandler(MediaDbContext db, IBlobStore blobs, Ti
             await db.SaveChangesAsync(cancellationToken);
             return new UploadedImage(id.Value, processed.Width, processed.Height, AlreadyStored: false);
         });
-    }
 }
 
 internal sealed class FindStoredImagesHandler(MediaDbContext db) : IQueryHandler<FindStoredImages, IReadOnlySet<string>>
 {
     public async Task<IReadOnlySet<string>> HandleAsync(FindStoredImages query, CancellationToken cancellationToken = default)
     {
-        var ids = query.Ids.Select(raw => ImageId.Parse(raw).Match(id => (string?)id.Value, _ => null)).OfType<string>().Distinct().ToList();
+        var ids = query.Ids.Choose(raw => ImageId.Parse(raw).ToMaybe().Map(id => id.Value)).Distinct().ToList();
         var stored = await db.Images.AsNoTracking().Where(i => ids.Contains(i.Id)).Select(i => i.Id).ToListAsync(cancellationToken);
         return stored.ToHashSet(StringComparer.Ordinal);
     }
@@ -58,7 +60,7 @@ internal sealed class OpenImageHandler(IBlobStore blobs) : IQueryHandler<OpenIma
 {
     public Task<Result<ImageContent, Error>> HandleAsync(OpenImage query, CancellationToken cancellationToken = default) =>
         (from id in ImageId.Parse(query.Id) from variant in ImageVariant.Parse(query.Variant) select variant.StorageKey(id))
-            .BindAsync(async key => await blobs.OpenReadAsync(key, cancellationToken) is { } stream
-                ? Result.Ok<ImageContent, Error>(new ImageContent(stream, "image/webp"))
-                : Error.NotFound("image.not-found", $"Image '{query.Id}' does not exist."));
+            .BindAsync(async key => (await blobs.OpenReadAsync(key, cancellationToken)).Match(
+                stream => Result.Ok<ImageContent, Error>(new ImageContent(stream, "image/webp")),
+                () => Error.NotFound("image.not-found", $"Image '{query.Id}' does not exist.")));
 }

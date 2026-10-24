@@ -2,6 +2,7 @@ using System.Collections.Immutable;
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 
@@ -17,10 +18,10 @@ public sealed record HexColor
     /// <summary>The platform's default accent.</summary>
     public static HexColor DefaultAccent { get; } = new("#1f5eff");
 
-    public static Result<HexColor, Error> Parse(string? raw)
+    public static Result<HexColor, Error> Parse(string raw)
     {
-        var value = raw?.Trim().ToLowerInvariant();
-        return value is { Length: 7 } && value[0] == '#' && value[1..].All(char.IsAsciiHexDigitLower)
+        var value = raw.Trim().ToLowerInvariant();
+        return value.Length == 7 && value[0] == '#' && value[1..].All(char.IsAsciiHexDigitLower)
             ? new HexColor(value)
             : Error.Validation("color.invalid", "The colour must be in the form #rrggbb.");
     }
@@ -29,13 +30,13 @@ public sealed record HexColor
 }
 
 /// <summary>How the storefront presents the seller.</summary>
-public sealed record Branding(string StoreName, HexColor AccentColor, string? LogoImageId);
+public sealed record Branding(string StoreName, HexColor AccentColor, Maybe<string> LogoImageId);
 
 /// <summary>Who buyers and operators contact.</summary>
-public sealed record SellerContact(EmailAddress? SupportEmail, string? SupportPhone, EmailAddress? OperatorNotifications);
+public sealed record SellerContact(Maybe<EmailAddress> SupportEmail, Maybe<string> SupportPhone, Maybe<EmailAddress> OperatorNotifications);
 
 /// <summary>Commercial defaults; the default price list is applied by pricing (prices are hidden without it).</summary>
-public sealed record CommerceDefaults(string? DefaultPriceListCode, string DefaultContactTemplate);
+public sealed record CommerceDefaults(Maybe<string> DefaultPriceListCode, string DefaultContactTemplate);
 
 /// <summary>Settings of one installation, edited by the seller in the back-office.</summary>
 public sealed record PlatformSettings(
@@ -56,25 +57,25 @@ public sealed record PlatformSettings(
             0,
             CatalogVisibility.Public,
             [.. Feature.All.Where(f => f.EnabledByDefault && available.Contains(f.Id)).Select(f => f.Id)],
-            new Branding("f.commerce", HexColor.DefaultAccent, null),
-            new SellerContact(null, null, null),
-            new CommerceDefaults(null, "buyer"));
+            new Branding("f.commerce", HexColor.DefaultAccent, Maybe<string>.None),
+            new SellerContact(Maybe<EmailAddress>.None, Maybe<string>.None, Maybe<EmailAddress>.None),
+            new CommerceDefaults(Maybe<string>.None, "buyer"));
 
     public FeatureSet Features(ImmutableHashSet<FeatureId> available) => new(available, EnabledFeatures);
 }
 
-/// <summary>Settings as submitted from the back-office form (primitives).</summary>
+/// <summary>Settings as submitted from the back-office form (primitives; missing required texts arrive as empty).</summary>
 public sealed record UnvalidatedSettings(
-    string? CatalogVisibility,
-    IReadOnlyList<string>? EnabledFeatures,
-    string? StoreName,
-    string? AccentColor,
-    string? LogoImageId,
-    string? SupportEmail,
-    string? SupportPhone,
-    string? OperatorNotifications,
-    string? DefaultPriceListCode,
-    string? DefaultContactTemplate);
+    string CatalogVisibility,
+    IReadOnlyList<string> EnabledFeatures,
+    string StoreName,
+    string AccentColor,
+    Maybe<string> LogoImageId,
+    Maybe<string> SupportEmail,
+    Maybe<string> SupportPhone,
+    Maybe<string> OperatorNotifications,
+    Maybe<string> DefaultPriceListCode,
+    string DefaultContactTemplate);
 
 public static class SettingsRules
 {
@@ -105,54 +106,53 @@ public static class SettingsRules
         .. before.Commerce != after.Commerce ? ["commerce"] : Array.Empty<string>(),
     ];
 
-    private static Result<CatalogVisibility, Error> ParseVisibility(string? raw) =>
+    private static Result<CatalogVisibility, Error> ParseVisibility(string raw) =>
         Enum.TryParse<CatalogVisibility>(raw, ignoreCase: true, out var visibility) && Enum.IsDefined(visibility)
             ? visibility
             : Error.Validation("settings.catalog-visibility", "Choose who can see the catalogue.");
 
-    private static Result<ImmutableHashSet<FeatureId>, Error> ParseFeatures(IReadOnlyList<string>? raw, ImmutableHashSet<FeatureId> available) =>
-        (raw ?? []).Traverse(FeatureId.Parse)
+    private static Result<ImmutableHashSet<FeatureId>, Error> ParseFeatures(IReadOnlyList<string> raw, ImmutableHashSet<FeatureId> available) =>
+        raw.Traverse(FeatureId.Parse)
             .Bind(ids => new FeatureSet(available, []).WithEnabled(ids))
             .Map(set => set.Enabled);
 
     private static Validated<Branding> ParseBranding(UnvalidatedSettings input) =>
-        ((Func<string, HexColor, string?, Branding>)((name, color, logo) => new Branding(name, color, logo)))
-            .Apply(Text(input.StoreName, PlatformSettings.MaxStoreName, required: true, "store-name").Map(n => n!).ToValidated("storeName"))
+        ((Func<string, HexColor, Maybe<string>, Branding>)((name, color, logo) => new Branding(name, color, logo)))
+            .Apply(RequiredText(input.StoreName, PlatformSettings.MaxStoreName, "store-name").ToValidated("storeName"))
             .Apply(HexColor.Parse(input.AccentColor).ToValidated("accentColor"))
             .Apply(ImageId(input.LogoImageId).ToValidated("logoImageId"));
 
     private static Validated<SellerContact> ParseContact(UnvalidatedSettings input) =>
-        ((Func<EmailAddress?, string?, EmailAddress?, SellerContact>)((support, phone, operators) => new SellerContact(support, phone, operators)))
-            .Apply(OptionalEmail(input.SupportEmail).ToValidated("supportEmail"))
-            .Apply(Text(input.SupportPhone, PlatformSettings.MaxPhone, required: false, "phone").ToValidated("supportPhone"))
-            .Apply(OptionalEmail(input.OperatorNotifications).ToValidated("operatorNotifications"));
+        ((Func<Maybe<EmailAddress>, Maybe<string>, Maybe<EmailAddress>, SellerContact>)((support, phone, operators) => new SellerContact(support, phone, operators)))
+            .Apply(Maybe.ParseOptional(input.SupportEmail, EmailAddress.Parse).ToValidated("supportEmail"))
+            .Apply(OptionalText(input.SupportPhone, PlatformSettings.MaxPhone, "phone").ToValidated("supportPhone"))
+            .Apply(Maybe.ParseOptional(input.OperatorNotifications, EmailAddress.Parse).ToValidated("operatorNotifications"));
 
     private static Validated<CommerceDefaults> ParseCommerce(UnvalidatedSettings input) =>
-        ((Func<string?, string, CommerceDefaults>)((priceList, template) => new CommerceDefaults(priceList, template)))
-            .Apply(Text(input.DefaultPriceListCode, PlatformSettings.MaxPriceListCode, required: false, "price-list").ToValidated("defaultPriceListCode"))
-            .Apply((input.DefaultContactTemplate is { } template && MembershipAttributes.Templates.ContainsKey(template)
-                ? Result.Ok<string, Error>(template)
+        ((Func<Maybe<string>, string, CommerceDefaults>)((priceList, template) => new CommerceDefaults(priceList, template)))
+            .Apply(OptionalText(input.DefaultPriceListCode, PlatformSettings.MaxPriceListCode, "price-list").ToValidated("defaultPriceListCode"))
+            .Apply((MembershipAttributes.Templates.ContainsKey(input.DefaultContactTemplate)
+                ? Result.Ok<string, Error>(input.DefaultContactTemplate)
                 : Error.Validation("settings.contact-template", "Choose a known attribute template.")).ToValidated("defaultContactTemplate"));
 
-    private static Result<string?, Error> Text(string? raw, int maxLength, bool required, string code)
+    private static Result<string, Error> RequiredText(string raw, int maxLength, string code)
     {
-        var value = string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+        var value = raw.Trim();
         return value switch
         {
-            null when required => Error.Validation($"{code}.empty", "This value is required."),
+            "" => Error.Validation($"{code}.empty", "This value is required."),
             { Length: var length } when length > maxLength => Error.Validation($"{code}.too-long", $"At most {maxLength} characters."),
-            _ when value?.Any(char.IsControl) == true => Error.Validation($"{code}.invalid", "Control characters are not allowed."),
+            _ when value.Any(char.IsControl) => Error.Validation($"{code}.invalid", "Control characters are not allowed."),
             _ => value,
         };
     }
 
-    private static Result<EmailAddress?, Error> OptionalEmail(string? raw) =>
-        string.IsNullOrWhiteSpace(raw) ? Result.Ok<EmailAddress?, Error>(null) : EmailAddress.Parse(raw).Map(e => (EmailAddress?)e);
+    /// <summary>Blank means "not set".</summary>
+    private static Result<Maybe<string>, Error> OptionalText(Maybe<string> raw, int maxLength, string code) =>
+        Maybe.ParseOptional(raw, text => RequiredText(text, maxLength, code));
 
-    private static Result<string?, Error> ImageId(string? raw) =>
-        string.IsNullOrWhiteSpace(raw)
-            ? Result.Ok<string?, Error>(null)
-            : raw.Trim().ToLowerInvariant() is { Length: 64 } id && id.All(char.IsAsciiHexDigitLower)
-                ? id
-                : Error.Validation("image-id.invalid", "Unknown image.");
+    private static Result<Maybe<string>, Error> ImageId(Maybe<string> raw) =>
+        Maybe.ParseOptional(raw, text => text.Trim().ToLowerInvariant() is { Length: 64 } id && id.All(char.IsAsciiHexDigitLower)
+            ? Result.Ok<string, Error>(id)
+            : Error.Validation("image-id.invalid", "Unknown image."));
 }

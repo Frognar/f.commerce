@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Features;
 
 namespace FCommerce.Authorization.Core;
@@ -37,11 +38,11 @@ public abstract record Resource
     /// <summary>The signed-in user's own account (profile, password, language).</summary>
     public sealed record OwnAccount : Resource;
 
-    public sealed record CustomerProfile(string CustomerCode, EmailAddress? Salesperson) : Resource;
+    public sealed record CustomerProfile(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
 
-    public sealed record CustomerUsers(string CustomerCode, EmailAddress? Salesperson) : Resource;
+    public sealed record CustomerUsers(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
 
-    public sealed record CustomerDocuments(string CustomerCode, EmailAddress? Salesperson) : Resource;
+    public sealed record CustomerDocuments(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
 
     /// <summary>The back-office list of customers.</summary>
     public sealed record Customers : Resource;
@@ -54,13 +55,13 @@ public abstract record Resource
     public sealed record Operators : Resource;
 
     /// <summary>The customer a customer-owned resource belongs to, if any.</summary>
-    public (string Code, EmailAddress? Salesperson)? Owner =>
+    public Maybe<(string Code, Maybe<EmailAddress> Salesperson)> Owner =>
         this switch
         {
             CustomerProfile r => (r.CustomerCode, r.Salesperson),
             CustomerUsers r => (r.CustomerCode, r.Salesperson),
             CustomerDocuments r => (r.CustomerCode, r.Salesperson),
-            _ => null,
+            _ => Maybe<(string, Maybe<EmailAddress>)>.None,
         };
 }
 

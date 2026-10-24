@@ -2,6 +2,7 @@ using FCommerce.Access.Domain;
 using FCommerce.Access.Security;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 
 namespace FCommerce.Access.Tests;
@@ -33,9 +34,9 @@ public sealed class SignInTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
 
-    private static Account Active(int failures = 0, DateTimeOffset? lockedUntil = null) =>
+    private static Account Active(int failures = 0, Maybe<DateTimeOffset> lockedUntil = default) =>
         new(Guid.NewGuid(), EmailAddress.Parse("jan@firma.pl").ShouldSucceed(), PersonName.Parse("Jan").ShouldSucceed(), Values.Culture("pl"),
-            AccountStatus.Active, "hash", "stamp", failures, lockedUntil, null);
+            AccountStatus.Active, "hash", "stamp", failures, lockedUntil, default);
 
     [Fact]
     public void Correct_password_signs_in_and_clears_failures()
@@ -43,16 +44,16 @@ public sealed class SignInTests
         var outcome = SignIn.Decide(Active(failures: 3), passwordMatches: true, Now);
 
         Assert.Equal(0, outcome.Result.ShouldSucceed().FailedSignIns);
-        Assert.Equal(0, outcome.Updated!.FailedSignIns);
+        Assert.Equal(0, outcome.Updated.ShouldBeSome().FailedSignIns);
     }
 
     [Fact]
     public void Unknown_invited_or_disabled_accounts_fail_like_a_wrong_password()
     {
-        var invited = Active() with { Status = AccountStatus.Invited, PasswordHash = null };
+        var invited = Active() with { Status = AccountStatus.Invited, PasswordHash = default };
         var disabled = Active() with { Status = AccountStatus.Disabled };
 
-        Assert.Equal(SignInFailure.InvalidCredentials, SignIn.Decide(null, false, Now).Result.ShouldFail());
+        Assert.Equal(SignInFailure.InvalidCredentials, SignIn.Decide(default, false, Now).Result.ShouldFail());
         Assert.Equal(SignInFailure.InvalidCredentials, SignIn.Decide(invited, true, Now).Result.ShouldFail());
         Assert.Equal(SignInFailure.InvalidCredentials, SignIn.Decide(disabled, true, Now).Result.ShouldFail());
     }
@@ -65,7 +66,7 @@ public sealed class SignInTests
 
         Assert.Equal(SignInFailure.InvalidCredentials, fourth.Result.ShouldFail());
         Assert.Equal(SignInFailure.LockedOut, fifth.Result.ShouldFail());
-        Assert.Equal(Now + SignIn.LockoutDuration, fifth.Updated!.LockedUntil);
+        Assert.Equal(Now + SignIn.LockoutDuration, fifth.Updated.ShouldBeSome().LockedUntil.ShouldBeSome());
     }
 
     [Fact]
@@ -74,8 +75,8 @@ public sealed class SignInTests
         var locked = Active(lockedUntil: Now.AddMinutes(5));
 
         Assert.Equal(SignInFailure.LockedOut, SignIn.Decide(locked, true, Now).Result.ShouldFail());
-        Assert.Null(SignIn.Decide(locked, true, Now).Updated);
-        Assert.Null(SignIn.Decide(locked, true, Now.AddMinutes(6)).Result.ShouldSucceed().LockedUntil);
+        SignIn.Decide(locked, true, Now).Updated.ShouldBeNone();
+        SignIn.Decide(locked, true, Now.AddMinutes(6)).Result.ShouldSucceed().LockedUntil.ShouldBeNone();
     }
 }
 
@@ -99,7 +100,7 @@ public sealed class TokenAndCredentialTests
     public void Credential_changes_rotate_the_security_stamp()
     {
         var account = new Account(Guid.NewGuid(), EmailAddress.Parse("a@b.pl").ShouldSucceed(), PersonName.Parse("A").ShouldSucceed(), Values.Culture("pl"),
-            AccountStatus.Invited, null, "old", 2, null, null);
+            AccountStatus.Invited, default, "old", 2, default, default);
 
         var activated = Credentials.Activate(account, "hash", "new").ShouldSucceed();
 

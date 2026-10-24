@@ -18,14 +18,13 @@ public sealed class CultureCodeTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("p")]
     [InlineData("polish")]
     [InlineData("en-")]
     [InlineData("en-GB-x")]
     [InlineData("e1")]
-    public void Rejects_invalid_codes(string? input)
+    public void Rejects_invalid_codes(string input)
     {
         Assert.StartsWith("culture.", CultureCode.Parse(input).ShouldFail().Code, StringComparison.Ordinal);
     }
@@ -68,7 +67,7 @@ public sealed class LocalizedTextTests
 
         Assert.Equal("color", text.Resolve(De, En, Pl));
         Assert.Equal("kolor", text.Resolve(De, Pl, En));
-        Assert.Null(LocalizedText.Of((Pl, "kolor")).Resolve(De, En));
+        LocalizedText.Of((Pl, "kolor")).Resolve(De, En).ShouldBeNone();
     }
 
     [Fact]

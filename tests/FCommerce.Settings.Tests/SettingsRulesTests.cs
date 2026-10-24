@@ -11,7 +11,7 @@ public sealed class SettingsRulesTests
     private static readonly ImmutableHashSet<FeatureId> Everything = [.. Feature.All.Select(f => f.Id)];
 
     private static UnvalidatedSettings Input(params string[] features) =>
-        new("SignedInOnly", features, "Hurtownia Śruba", "#AA3300", null, "biuro@sruba.pl", "+48 600 000 000", null, "DETAL", "accounting");
+        new("SignedInOnly", features, "Hurtownia Śruba", "#AA3300", default, "biuro@sruba.pl", "+48 600 000 000", default, "DETAL", "accounting");
 
     [Fact]
     public void Valid_input_becomes_the_next_version()
@@ -21,8 +21,8 @@ public sealed class SettingsRulesTests
         Assert.Equal(5, settings.Version);
         Assert.Equal(CatalogVisibility.SignedInOnly, settings.CatalogVisibility);
         Assert.Equal("#aa3300", settings.Branding.AccentColor.Value);
-        Assert.Equal("biuro@sruba.pl", settings.Contact.SupportEmail?.Value);
-        Assert.Equal(("DETAL", "accounting"), (settings.Commerce.DefaultPriceListCode, settings.Commerce.DefaultContactTemplate));
+        Assert.Equal("biuro@sruba.pl", settings.Contact.SupportEmail.ShouldBeSome().Value);
+        Assert.Equal(("DETAL", "accounting"), (settings.Commerce.DefaultPriceListCode.ShouldBeSome(), settings.Commerce.DefaultContactTemplate));
         Assert.True(settings.Features(Everything).IsOn(Feature.Documents));
     }
 

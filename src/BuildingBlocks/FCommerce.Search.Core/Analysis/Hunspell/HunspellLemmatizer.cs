@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Search.Core.Analysis.Hunspell;
 
@@ -85,7 +86,7 @@ public sealed class HunspellLemmatizer
             lemmas.Add(foldedWord);
         }
 
-        AddSuffixRoots(foldedWord, requiredFlag: null, lemmas);
+        AddSuffixRoots(foldedWord, requiredFlag: Maybe<char>.None, lemmas);
 
         foreach (var prefix in prefixes)
         {
@@ -121,8 +122,10 @@ public sealed class HunspellLemmatizer
         return lemmas;
     }
 
-    private void AddSuffixRoots(string word, char? requiredFlag, List<string> lemmas)
+    /// <param name="requiredFlag">When given (after a cross-product prefix), only cross-product suffixes of roots with this flag.</param>
+    private void AddSuffixRoots(string word, Maybe<char> requiredFlag, List<string> lemmas)
     {
+        var (crossProductOnly, flag) = requiredFlag.Match(required => (true, required), () => (false, '\0'));
         for (var length = 0; length <= Math.Min(longestSuffix, word.Length - 1); length++)
         {
             if (!suffixesByAppend.TryGetValue(word[^length..], out var rules))
@@ -133,13 +136,13 @@ public sealed class HunspellLemmatizer
             var stem = word[..^length];
             foreach (var rule in rules)
             {
-                if (requiredFlag is not null && !rule.CrossProduct)
+                if (crossProductOnly && !rule.CrossProduct)
                 {
                     continue;
                 }
 
                 var root = stem + rule.Strip;
-                if (rule.MatchesRoot(root) && HasFlag(root, rule.Flag) && (requiredFlag is null || HasFlag(root, requiredFlag.Value)))
+                if (rule.MatchesRoot(root) && HasFlag(root, rule.Flag) && (!crossProductOnly || HasFlag(root, flag)))
                 {
                     Add(lemmas, root);
                 }

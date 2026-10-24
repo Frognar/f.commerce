@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Catalog.Domain;
@@ -20,9 +21,9 @@ public static class Reconciliation
                 .ToEquatableArray(),
             product => product.Sku.Value);
 
-    public static Change<Product> Reconcile(Product? stored, Product incoming) =>
+    public static Change<Product> Reconcile(Maybe<Product> stored, Product incoming) =>
         ImportBatch.Reconcile(stored, incoming, p => p.Version, (a, b) => a.Content == b.Content && a.Active == b.Active);
 
-    public static Change<Category> Reconcile(Category? stored, Category incoming) =>
+    public static Change<Category> Reconcile(Maybe<Category> stored, Category incoming) =>
         ImportBatch.Reconcile(stored, incoming, c => c.Version, (a, b) => a.Content == b.Content && a.Active == b.Active);
 }

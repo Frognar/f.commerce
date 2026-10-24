@@ -7,6 +7,7 @@ using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -34,19 +35,23 @@ internal sealed partial class ErpContactInvitations(
             return;
         }
 
-        var customer = (await customers.HandleAsync(new GetCustomer(changed.CustomerCode), cancellationToken)).Match(c => c, _ => (CustomerDetails?)null);
-        if (customer is null)
-        {
-            LogUnknownCustomer(changed.CustomerCode);
-            return;
-        }
+        await (await customers.HandleAsync(new GetCustomer(changed.CustomerCode), cancellationToken)).ToMaybe().Match(
+            customer => SyncAsync(customer, changed, current, cancellationToken),
+            () =>
+            {
+                LogUnknownCustomer(changed.CustomerCode);
+                return Task.CompletedTask;
+            });
+    }
 
+    private async Task SyncAsync(CustomerDetails customer, PortalContactsChanged changed, PlatformSettingsView current, CancellationToken cancellationToken)
+    {
         var contacts = changed.Contacts
-            .Select(c =>
-                from email in EmailAddress.Parse(c.Email)
-                from name in PersonName.Parse(c.Name)
-                select new ErpContactSync.Contact(c.ExternalId, email, name, MembershipRules.FromTemplate(c.AttributeTemplate ?? current.DefaultContactTemplate)))
-            .SelectMany(parsed => parsed.Match(contact => (ErpContactSync.Contact[])[contact], _ => []))
+            .Choose(c =>
+                (from email in EmailAddress.Parse(c.Email.OrEmpty())
+                 from name in PersonName.Parse(c.Name.OrEmpty())
+                 select new ErpContactSync.Contact(c.ExternalId, email, name, MembershipRules.FromTemplate(c.AttributeTemplate.ToMaybe().Or(current.DefaultContactTemplate))))
+                .ToMaybe())
             .ToList();
 
         var emails = contacts.Select(c => c.Email.Value).ToList();
@@ -73,24 +78,26 @@ internal sealed partial class ErpContactInvitations(
             case ErpContactSync.Step.CreateAccount create:
                 return CultureCode.Parse(options.DefaultCulture).Bind(culture =>
                 {
-                    var account = new Account(Guid.CreateVersion7(), create.Contact.Email, create.Contact.Name, culture, AccountStatus.Invited, null, Tokens.NewSecurityStamp(), 0, null, null);
+                    var account = new Account(
+                        Guid.CreateVersion7(), create.Contact.Email, create.Contact.Name, culture, AccountStatus.Invited, Maybe<string>.None,
+                        Tokens.NewSecurityStamp(), 0, Maybe<DateTimeOffset>.None, Maybe<Authorization.Core.OperatorAttributes>.None);
                     var membership = ErpContactSync.ErpMembership(account.Id, customer.Code, create.Contact);
                     store.Db.Accounts.Add(AccountRow.From(account, store.Now));
-                    store.Audit(null, "membership.granted", subject, MembershipManagement.Details(account.Email, membership));
+                    store.Audit(AccessStore.SystemActor, "membership.granted", subject, MembershipManagement.Details(account.Email, membership));
                     return memberships.Grant(account, membership, customer.Name);
                 });
 
             case ErpContactSync.Step.Grant grant:
-                store.Audit(null, "membership.granted", subject, MembershipManagement.Details(grant.Account.Email, grant.Membership));
+                store.Audit(AccessStore.SystemActor, "membership.granted", subject, MembershipManagement.Details(grant.Account.Email, grant.Membership));
                 return memberships.Grant(grant.Account, grant.Membership, customer.Name);
 
             case ErpContactSync.Step.Revoke revoke:
                 store.Db.Memberships.Remove(store.Db.Memberships.Local.Single(m => m.UserId == revoke.Membership.UserId && m.CustomerCode == customer.Code));
-                store.Audit(null, "membership.revoked", subject, MembershipManagement.Details(revoke.Email, revoke.Membership));
+                store.Audit(AccessStore.SystemActor, "membership.revoked", subject, MembershipManagement.Details(revoke.Email, revoke.Membership));
                 return Unit.Value;
 
             case ErpContactSync.Step.Skip skip:
-                store.Audit(null, "membership.erp-skipped", subject, new { email = skip.Contact.Email.Value, reason = skip.Reason.Code });
+                store.Audit(AccessStore.SystemActor, "membership.erp-skipped", subject, new { email = skip.Contact.Email.Value, reason = skip.Reason.Code });
                 return Unit.Value;
 
             default:

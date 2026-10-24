@@ -33,7 +33,6 @@ public sealed class StreamIdTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("cart")]
     [InlineData("cart-")]
@@ -41,7 +40,7 @@ public sealed class StreamIdTests
     [InlineData("Cart-42")]
     [InlineData("2cart-42")]
     [InlineData("$foreign-42")]
-    public void Rejects_malformed_keys(string? key)
+    public void Rejects_malformed_keys(string key)
     {
         Assert.StartsWith("stream-id.", StreamId.Parse(key).ShouldFail().Code, StringComparison.Ordinal);
     }

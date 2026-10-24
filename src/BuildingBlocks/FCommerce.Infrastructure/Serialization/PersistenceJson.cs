@@ -15,6 +15,7 @@ public static class PersistenceJson
     {
         options.Converters.Add(new PersistedValueConverterFactory());
         options.Converters.Add(new EquatableArrayConverterFactory());
+        options.Converters.Add(new MaybeConverterFactory());
         options.Converters.Add(new JsonStringEnumConverter());
         return options;
     }

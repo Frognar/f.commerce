@@ -17,9 +17,9 @@ public sealed record TaxId : IPersistedValue<TaxId, string>
 
     public string Number => Value[2..];
 
-    public static Result<TaxId, Error> Parse(string? raw)
+    public static Result<TaxId, Error> Parse(string raw)
     {
-        var compact = new string((raw ?? string.Empty).Where(c => !char.IsWhiteSpace(c) && c is not '-' and not '.').ToArray()).ToUpperInvariant();
+        var compact = new string(raw.Where(c => !char.IsWhiteSpace(c) && c is not '-' and not '.').ToArray()).ToUpperInvariant();
         var value = compact.Length == 10 && compact.All(char.IsAsciiDigit) ? "PL" + compact : compact;
 
         if (value.Length is < 4 or > 14 || !char.IsAsciiLetter(value[0]) || !char.IsAsciiLetter(value[1]) || !value[2..].All(char.IsAsciiLetterOrDigit))

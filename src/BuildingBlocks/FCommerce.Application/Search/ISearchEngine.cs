@@ -1,4 +1,5 @@
 using FCommerce.SharedKernel.Collections;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Application.Search;
 
@@ -12,13 +13,15 @@ public interface ISearchEngine
     Task ConfigureIndexAsync(SearchIndexDefinition definition, CancellationToken cancellationToken = default);
 
     /// <summary>Adds or fully replaces documents by primary key.</summary>
-    Task UpsertAsync<TDocument>(string index, IReadOnlyList<TDocument> documents, CancellationToken cancellationToken = default);
+    Task UpsertAsync<TDocument>(string index, IReadOnlyList<TDocument> documents, CancellationToken cancellationToken = default)
+        where TDocument : notnull;
 
     Task DeleteAsync(string index, IReadOnlyList<string> ids, CancellationToken cancellationToken = default);
 
     Task<long> CountAsync(string index, CancellationToken cancellationToken = default);
 
-    Task<SearchResult<TDocument>> SearchAsync<TDocument>(string index, SearchRequest request, CancellationToken cancellationToken = default);
+    Task<SearchResult<TDocument>> SearchAsync<TDocument>(string index, SearchRequest request, CancellationToken cancellationToken = default)
+        where TDocument : notnull;
 }
 
 /// <param name="Name">Index name: ASCII letters, digits, '-' and '_'.</param>
@@ -32,7 +35,7 @@ public sealed record SearchIndexDefinition(
     EquatableArray<string> SearchableFields,
     EquatableArray<string> FilterableFields,
     EquatableArray<string> ExactFields,
-    string? Language,
+    Maybe<string> Language,
     int MaxFacetValues = 1000);
 
 /// <summary>Filter expression; field names must be filterable fields of the index.</summary>
@@ -52,10 +55,11 @@ public abstract record SearchFilter
 /// <param name="Text">Query text; every word must match (typos tolerated, last word as prefix). Empty returns all documents matching the filter.</param>
 /// <param name="Facets">Filterable fields whose value counts should be returned.</param>
 /// <param name="Page">1-based page number.</param>
-public sealed record SearchRequest(string? Text, SearchFilter? Filter, EquatableArray<string> Facets, int Page, int PageSize);
+public sealed record SearchRequest(Maybe<string> Text, Maybe<SearchFilter> Filter, EquatableArray<string> Facets, int Page, int PageSize);
 
 /// <param name="Facets">Field → value → number of matching documents.</param>
 public sealed record SearchResult<TDocument>(
     IReadOnlyList<TDocument> Hits,
     int TotalHits,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> Facets);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, int>> Facets)
+    where TDocument : notnull;

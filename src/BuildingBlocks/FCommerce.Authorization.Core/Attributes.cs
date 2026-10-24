@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Authorization.Core;
 
@@ -30,16 +31,16 @@ public abstract record DeliveryAddressScope
 public sealed record MembershipAttributes(
     bool CanOrder,
     OrderScope OrderScope,
-    Money? OrderLimit,
+    Maybe<Money> OrderLimit,
     bool CanViewDocuments,
     bool CanManageUsers,
     DeliveryAddressScope DeliveryAddresses)
 {
-    public static MembershipAttributes Administrator { get; } = new(true, OrderScope.Company, null, true, true, DeliveryAddressScope.All);
+    public static MembershipAttributes Administrator { get; } = new(true, OrderScope.Company, Maybe<Money>.None, true, true, DeliveryAddressScope.All);
 
-    public static MembershipAttributes Buyer { get; } = new(true, OrderScope.Own, null, false, false, DeliveryAddressScope.All);
+    public static MembershipAttributes Buyer { get; } = new(true, OrderScope.Own, Maybe<Money>.None, false, false, DeliveryAddressScope.All);
 
-    public static MembershipAttributes Accounting { get; } = new(false, OrderScope.Company, null, true, false, DeliveryAddressScope.All);
+    public static MembershipAttributes Accounting { get; } = new(false, OrderScope.Company, Maybe<Money>.None, true, false, DeliveryAddressScope.All);
 
     /// <summary>Named attribute sets offered in the UI; they are only starting points.</summary>
     public static IReadOnlyDictionary<string, MembershipAttributes> Templates { get; } = new Dictionary<string, MembershipAttributes>

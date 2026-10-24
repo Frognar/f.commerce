@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Access.Domain;
@@ -8,9 +9,9 @@ public static class PasswordPolicy
     public const int MinLength = 12;
     public const int MaxLength = 128;
 
-    public static Result<string, Error> Check(string? password, string email)
+    public static Result<string, Error> Check(string password, string email)
     {
-        if (password is null || password.Length < MinLength)
+        if (password.Length < MinLength)
         {
             return Error.Validation("password.too-short", $"The password must have at least {MinLength} characters.") with { Field = "password" };
         }
@@ -49,18 +50,21 @@ public static class SignIn
     public static readonly TimeSpan LockoutDuration = TimeSpan.FromMinutes(15);
 
     /// <summary>The outcome with the account to store (failures are stored too).</summary>
-    public sealed record Outcome(Result<Account, SignInFailure> Result, Account? Updated);
+    public sealed record Outcome(Result<Account, SignInFailure> Result, Maybe<Account> Updated);
 
-    public static Outcome Decide(Account? account, bool passwordMatches, DateTimeOffset now)
+    /// <param name="account">The account with the e-mail signed in with, if there is one.</param>
+    public static Outcome Decide(Maybe<Account> account, bool passwordMatches, DateTimeOffset now) =>
+        account
+            .Where(a => a.Status == AccountStatus.Active && a.PasswordHash.Match(_ => true, () => false))
+            .Match(
+                active => Decide(active, passwordMatches, now),
+                () => new Outcome(SignInFailure.InvalidCredentials, Maybe<Account>.None));
+
+    private static Outcome Decide(Account account, bool passwordMatches, DateTimeOffset now)
     {
-        if (account is null || account.Status != AccountStatus.Active || account.PasswordHash is null)
-        {
-            return new Outcome(SignInFailure.InvalidCredentials, null);
-        }
-
         if (account.IsLocked(now))
         {
-            return new Outcome(SignInFailure.LockedOut, null);
+            return new Outcome(SignInFailure.LockedOut, Maybe<Account>.None);
         }
 
         if (!passwordMatches)
@@ -72,8 +76,8 @@ public static class SignIn
             return new Outcome(updated.IsLocked(now) ? SignInFailure.LockedOut : SignInFailure.InvalidCredentials, updated);
         }
 
-        var signedIn = account with { FailedSignIns = 0, LockedUntil = null };
-        return new Outcome(signedIn, signedIn == account ? null : signedIn);
+        var signedIn = account with { FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
+        return new Outcome(signedIn, signedIn == account ? Maybe<Account>.None : signedIn);
     }
 }
 
@@ -84,17 +88,17 @@ public enum TokenPurpose
 }
 
 /// <summary>A one-time link token as stored: only its hash, never the token itself.</summary>
-public sealed record OneTimeToken(Guid AccountId, TokenPurpose Purpose, string Hash, DateTimeOffset ExpiresAt, DateTimeOffset? UsedAt)
+public sealed record OneTimeToken(Guid AccountId, TokenPurpose Purpose, string Hash, DateTimeOffset ExpiresAt, Maybe<DateTimeOffset> UsedAt)
 {
     public static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
     public static readonly TimeSpan PasswordResetLifetime = TimeSpan.FromHours(1);
 
     public static OneTimeToken Issue(Guid accountId, TokenPurpose purpose, string hash, DateTimeOffset now) =>
-        new(accountId, purpose, hash, now + (purpose == TokenPurpose.Invitation ? InvitationLifetime : PasswordResetLifetime), null);
+        new(accountId, purpose, hash, now + (purpose == TokenPurpose.Invitation ? InvitationLifetime : PasswordResetLifetime), Maybe<DateTimeOffset>.None);
 
     /// <summary>Marks the token used, if it is unused and not expired.</summary>
     public Result<OneTimeToken, Error> Redeem(TokenPurpose purpose, DateTimeOffset now) =>
-        purpose != Purpose || UsedAt is not null || now >= ExpiresAt
+        UsedAt.Match(_ => true, () => purpose != Purpose || now >= ExpiresAt)
             ? Error.Validation("token.invalid", "The link is invalid or has expired.")
             : this with { UsedAt = now };
 }
@@ -106,12 +110,12 @@ public static class Credentials
     public static Result<Account, Error> Activate(Account account, string passwordHash, string newStamp) =>
         account.Status == AccountStatus.Disabled
             ? Error.Forbidden("account.disabled", "This account is disabled.")
-            : account with { Status = AccountStatus.Active, PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = null };
+            : account with { Status = AccountStatus.Active, PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
 
     public static Result<Account, Error> ChangePassword(Account account, string passwordHash, string newStamp) =>
         account.Status != AccountStatus.Active
             ? Error.Forbidden("account.not-active", "This account is not active.")
-            : account with { PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = null };
+            : account with { PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
 
     public static Account Disable(Account account, string newStamp) =>
         account with { Status = AccountStatus.Disabled, SecurityStamp = newStamp };

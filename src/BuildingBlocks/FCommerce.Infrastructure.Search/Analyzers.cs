@@ -13,12 +13,12 @@ internal static class Analyzers
 
     private static readonly Analyzer EnglishAnalyzer = Analyzer.English();
 
-    public static Analyzer For(string? language) =>
-        language?.Split('-')[0].ToLowerInvariant() switch
+    public static Analyzer For(string language) =>
+        language.Split('-')[0].ToLowerInvariant() switch
         {
             "pl" => PolishAnalyzer.Value,
             "en" => EnglishAnalyzer,
-            var other => Analyzer.Simple(other ?? "und"),
+            var other => Analyzer.Simple(other),
         };
 
     private static string ReadResource(string name)

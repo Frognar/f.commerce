@@ -12,10 +12,10 @@ public sealed record ImageId : IPersistedValue<ImageId, string>
 
     public string Value { get; }
 
-    public static Result<ImageId, Error> Parse(string? raw)
+    public static Result<ImageId, Error> Parse(string raw)
     {
-        var value = raw?.Trim().ToLowerInvariant();
-        return value is { Length: Length } && value.All(char.IsAsciiHexDigitLower)
+        var value = raw.Trim().ToLowerInvariant();
+        return value.Length == Length && value.All(char.IsAsciiHexDigitLower)
             ? new ImageId(value)
             : Error.Validation("image-id.invalid", $"'{raw}' is not a valid image id.");
     }

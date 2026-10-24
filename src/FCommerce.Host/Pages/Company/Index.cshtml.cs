@@ -1,5 +1,6 @@
 using FCommerce.Authorization.Core;
 using FCommerce.Customers.Contracts;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
@@ -7,20 +8,20 @@ namespace FCommerce.Host.Pages.Company;
 
 public sealed class IndexModel(CompanyContext company) : PageModel
 {
-    public CustomerDetails? Customer { get; private set; }
+    /// <summary>None when the user is signed in but acts for no company.</summary>
+    public Maybe<CustomerDetails> Customer { get; private set; }
+
+    public bool HasCompany => Customer.Match(_ => true, () => false);
 
     public bool CanSeeUsers { get; private set; }
 
     public bool CanSeeDocuments { get; private set; }
 
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
-    {
-        var customer = await company.ActiveCustomerAsync(cancellationToken);
-        if (customer is null)
-        {
-            return Page(); // signed in, but acting for no company
-        }
+    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
+        await (await company.ActiveCustomerAsync(cancellationToken)).Match(customer => ShowAsync(customer, cancellationToken), () => Task.FromResult<IActionResult>(Page()));
 
+    private async Task<IActionResult> ShowAsync(CustomerDetails customer, CancellationToken cancellationToken)
+    {
         if (!await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerProfile(code, salesperson), customer, cancellationToken))
         {
             return Forbid();

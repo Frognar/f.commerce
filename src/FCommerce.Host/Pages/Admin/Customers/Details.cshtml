@@ -1,17 +1,19 @@
 @page "/admin/customers/{**code}"
 @model FCommerce.Host.Pages.Admin.Customers.DetailsModel
 @{
-    var customer = Model.Customer;
-    ViewData["Title"] = customer?.Name ?? T["CustomerNotFound"];
+    ViewData["Title"] = Model.Found ? Model.Customer.Name : T["CustomerNotFound"].Value;
 }
 <nav class="breadcrumb">
     <a asp-page="/Admin/Index">@T["BackOffice"]</a>
     <a asp-page="/Admin/Customers/Index">@T["Customers"]</a>
 </nav>
-@if (customer is null)
+@if (!Model.Found)
 {
     <h1>@T["CustomerNotFound"]</h1>
     return;
+}
+@{
+    var customer = Model.Customer;
 }
 <h1>@customer.Name</h1>
 <p class="muted">
@@ -29,9 +31,9 @@
         <span class="badge">@T["CustomerBlocked"]</span>
     }
 </p>
-@if (Model.Saved is not null)
+@foreach (var saved in Model.Saved.AsEnumerable())
 {
-    <p class="notice" role="status">@Model.Saved</p>
+    <p class="notice" role="status">@saved</p>
 }
 <div asp-validation-summary="All" class="alert" role="alert"></div>
 
@@ -60,7 +62,7 @@ else
     </table>
 }
 
-@if (Model.Users is { } users)
+@foreach (var users in Model.Users.AsEnumerable())
 {
     <h2>@T["PlatformUsers"]</h2>
     <partial name="_CustomerUsers" model="users" />
@@ -76,9 +78,9 @@ else
             {
                 <tr>
                     <td>@entry.At.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
-                    <td>@(entry.Actor ?? T["SystemActor"])</td>
+                    <td>@entry.Actor.ValueOr(T["SystemActor"])</td>
                     <td>@T[$"Audit.{entry.Action}"]</td>
-                    <td>@entry.Email</td>
+                    <td>@entry.Email.ValueOr(string.Empty)</td>
                 </tr>
             }
         </tbody>

@@ -1,10 +1,12 @@
+using FCommerce.SharedKernel.Optional;
+
 namespace FCommerce.Application.Subscriptions;
 
 /// <summary>A hole in the global log first observed at <see cref="FirstSeenAt"/>.</summary>
 public sealed record PendingGap(long Position, DateTimeOffset FirstSeenAt);
 
 /// <summary>How many events of a batch are safe to process, and the gap (if any) that stopped us.</summary>
-public sealed record SafeBatch(int Count, PendingGap? Gap);
+public sealed record SafeBatch(int Count, Maybe<PendingGap> Gap);
 
 /// <summary>
 /// Global positions are allocated before commit, so a transaction that commits late can make a lower
@@ -17,7 +19,7 @@ public static class GapDetection
     public static SafeBatch Evaluate(
         long checkpoint,
         IReadOnlyList<long> positions,
-        PendingGap? previousGap,
+        Maybe<PendingGap> previousGap,
         DateTimeOffset now,
         TimeSpan timeout)
     {
@@ -31,24 +33,17 @@ public static class GapDetection
                 continue;
             }
 
-            var gapExpired = previousGap is not null
-                && previousGap.Position == expected
-                && now - previousGap.FirstSeenAt >= timeout;
-
-            if (gapExpired)
+            var open = previousGap.Where(gap => gap.Position == expected);
+            if (open.Exists(gap => now - gap.FirstSeenAt >= timeout))
             {
                 expected = position + 1;
-                previousGap = null;
+                previousGap = Maybe<PendingGap>.None;
                 continue;
             }
 
-            var gap = previousGap is not null && previousGap.Position == expected
-                ? previousGap
-                : new PendingGap(expected, now);
-
-            return new SafeBatch(i, gap);
+            return new SafeBatch(i, open.ValueOr(() => new PendingGap(expected, now)));
         }
 
-        return new SafeBatch(positions.Count, null);
+        return new SafeBatch(positions.Count, Maybe<PendingGap>.None);
     }
 }

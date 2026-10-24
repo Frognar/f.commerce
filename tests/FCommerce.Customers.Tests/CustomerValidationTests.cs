@@ -18,12 +18,12 @@ public sealed class CustomerValidationTests
             [new UnvalidatedDeliveryAddress("MAG", "Magazyn", new UnvalidatedAddress("ul. Składowa 5", "61-131", "Poznań", "PL"), IsDefault: true)],
             [
                 new UnvalidatedContact("C1", "Jan Kowalski", "Jan.Kowalski@Sruba.PL", "+48 600 100 200", PortalAccess: true, "administrator"),
-                new UnvalidatedContact("C2", "Ewa Nowak", null, null, PortalAccess: false, null),
+                new UnvalidatedContact("C2", "Ewa Nowak", default, default, PortalAccess: false, default),
             ],
-            new UnvalidatedSalesperson("Anna Handlowiec", "anna@seller.test", null),
+            new UnvalidatedSalesperson("Anna Handlowiec", "anna@seller.test", default),
             "HURT",
             30,
-            null,
+            default,
             Blocked: false,
             Active: true);
 
@@ -35,22 +35,22 @@ public sealed class CustomerValidationTests
         var customer = Valid(Input());
 
         Assert.Equal("Hurtownia Śruba sp. z o.o.", customer.Content.Name);
-        Assert.Equal("PL5261040828", customer.Content.TaxId?.Value);
+        Assert.Equal("PL5261040828", customer.Content.TaxId.ShouldBeSome().Value);
         Assert.Equal(("00-950", "PL"), (customer.Content.BillingAddress.PostalCode.Value, customer.Content.BillingAddress.Country.Value));
-        Assert.Equal("jan.kowalski@sruba.pl", customer.Content.Contacts[0].Email?.Value);
-        Assert.Equal("anna@seller.test", customer.Content.Salesperson?.Email?.Value);
-        Assert.Equal(("HURT", 30, "PLN"), (customer.Content.Terms.PriceListCode, customer.Content.Terms.PaymentTermDays, customer.Content.Terms.Currency.Code));
+        Assert.Equal("jan.kowalski@sruba.pl", customer.Content.Contacts[0].Email.ShouldBeSome().Value);
+        Assert.Equal("anna@seller.test", customer.Content.Salesperson.ShouldBeSome().Email.ShouldBeSome().Value);
+        Assert.Equal(("HURT", 30, "PLN"), (customer.Content.Terms.PriceListCode.ShouldBeSome(), customer.Content.Terms.PaymentTermDays.ShouldBeSome(), customer.Content.Terms.Currency.Code));
     }
 
     [Fact]
     public void Optional_parts_may_be_absent()
     {
-        var customer = Valid(Input() with { TaxId = " ", DeliveryAddresses = null, Contacts = null, Salesperson = null, PriceListCode = null, PaymentTermDays = null });
+        var customer = Valid(Input() with { TaxId = " ", DeliveryAddresses = [], Contacts = [], Salesperson = default, PriceListCode = default, PaymentTermDays = default });
 
-        Assert.Null(customer.Content.TaxId);
+        customer.Content.TaxId.ShouldBeNone();
         Assert.Empty(customer.Content.DeliveryAddresses);
         Assert.Empty(customer.Content.Contacts);
-        Assert.Null(customer.Content.Salesperson);
+        customer.Content.Salesperson.ShouldBeNone();
     }
 
     [Fact]
@@ -61,9 +61,9 @@ public sealed class CustomerValidationTests
             Code = "",
             TaxId = "5261040827",
             BillingAddress = Warsaw with { PostalCode = "123", City = " " },
-            DeliveryAddresses = [new UnvalidatedDeliveryAddress("MAG", null, new UnvalidatedAddress("ul. Składowa 5", "61-131", "Poznań", "XX"), false)],
-            Contacts = [new UnvalidatedContact("C1", "Jan", "jan@", null, false, "king")],
-            Salesperson = new UnvalidatedSalesperson("", null, null),
+            DeliveryAddresses = [new UnvalidatedDeliveryAddress("MAG", default, new UnvalidatedAddress("ul. Składowa 5", "61-131", "Poznań", "XX"), false)],
+            Contacts = [new UnvalidatedContact("C1", "Jan", "jan@", default, false, "king")],
+            Salesperson = new UnvalidatedSalesperson("", default, default),
             PaymentTermDays = 400,
             Currency = "ZLOTY",
         };
@@ -89,7 +89,7 @@ public sealed class CustomerValidationTests
     [Fact]
     public void A_missing_billing_address_is_reported()
     {
-        var error = Assert.Single(Domain.Customers.Validate(Input() with { BillingAddress = null }).ShouldBeInvalid());
+        var error = Assert.Single(Domain.Customers.Validate(Input() with { BillingAddress = default }).ShouldBeInvalid());
 
         Assert.Equal(("address.missing", "billingAddress"), (error.Code, error.Field));
     }
@@ -97,7 +97,7 @@ public sealed class CustomerValidationTests
     [Fact]
     public void A_contact_with_platform_access_needs_an_email()
     {
-        var input = Input() with { Contacts = [new UnvalidatedContact("C1", "Jan Kowalski", null, null, PortalAccess: true, null)] };
+        var input = Input() with { Contacts = [new UnvalidatedContact("C1", "Jan Kowalski", default, default, PortalAccess: true, default)] };
 
         var error = Assert.Single(Domain.Customers.Validate(input).ShouldBeInvalid());
 
@@ -107,7 +107,7 @@ public sealed class CustomerValidationTests
     [Fact]
     public void Delivery_addresses_have_unique_codes_and_at_most_one_default()
     {
-        var address = new UnvalidatedDeliveryAddress("MAG", null, Warsaw, IsDefault: true);
+        var address = new UnvalidatedDeliveryAddress("MAG", default, Warsaw, IsDefault: true);
 
         var codes = Domain.Customers.Validate(Input() with { DeliveryAddresses = [address, address] }).ShouldBeInvalid().Select(e => e.Code);
 
@@ -117,7 +117,7 @@ public sealed class CustomerValidationTests
     [Fact]
     public void Contact_ids_are_unique()
     {
-        var contact = new UnvalidatedContact("C1", "Jan", null, null, false, null);
+        var contact = new UnvalidatedContact("C1", "Jan", default, default, false, default);
 
         var error = Assert.Single(Domain.Customers.Validate(Input() with { Contacts = [contact, contact] }).ShouldBeInvalid());
 
@@ -129,7 +129,7 @@ public sealed class CustomerValidationTests
     {
         var stored = Valid(Input(version: 5));
 
-        Assert.IsType<Change<Customer>.Created>(Domain.Customers.Reconcile(null, stored));
+        Assert.IsType<Change<Customer>.Created>(Domain.Customers.Reconcile(default, stored));
         Assert.IsType<Change<Customer>.Stale>(Domain.Customers.Reconcile(stored, Valid(Input(version: 5) with { Name = "Inna" })));
         Assert.IsType<Change<Customer>.Unchanged>(Domain.Customers.Reconcile(stored, Valid(Input(version: 6))));
         Assert.IsType<Change<Customer>.Updated>(Domain.Customers.Reconcile(stored, Valid(Input(version: 6) with { Blocked = true })));
@@ -142,8 +142,8 @@ public sealed class CustomerValidationTests
         var phoneOfOther = Valid(Input() with { Contacts = [Input().Contacts![0], Input().Contacts![1] with { Phone = "+48 500 000 000" }] });
         var newTemplate = Valid(Input() with { Contacts = [Input().Contacts![0] with { AttributeTemplate = "buyer" }, Input().Contacts![1]] });
 
-        Assert.True(Domain.Customers.PortalContactsChanged(null, before));
-        Assert.False(Domain.Customers.PortalContactsChanged(null, Valid(Input() with { Contacts = null })));
+        Assert.True(Domain.Customers.PortalContactsChanged(default, before));
+        Assert.False(Domain.Customers.PortalContactsChanged(default, Valid(Input() with { Contacts = [] })));
         Assert.False(Domain.Customers.PortalContactsChanged(before, phoneOfOther));
         Assert.True(Domain.Customers.PortalContactsChanged(before, newTemplate));
     }

@@ -83,11 +83,10 @@ public sealed class MoneyTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("PL")]
     [InlineData("PLN1")]
     [InlineData("P1N")]
-    public void Rejects_invalid_currency_codes(string? input)
+    public void Rejects_invalid_currency_codes(string input)
     {
         Assert.Equal("currency.invalid", Monetary.Currency.Parse(input).ShouldFail().Code);
     }

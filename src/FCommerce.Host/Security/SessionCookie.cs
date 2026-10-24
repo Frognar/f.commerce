@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Claims;
 using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -59,9 +60,9 @@ internal static class SessionCookie
     private static async Task<bool> IsValidAsync(HttpContext http, Guid userId, string stamp)
     {
         var sessions = http.RequestServices.GetRequiredService<IQueryHandler<GetSession, Result<SessionView, Error>>>();
-        var session = (await sessions.HandleAsync(new GetSession(userId, stamp), http.RequestAborted)).Match(s => (SessionView?)s, _ => null);
+        var session = (await sessions.HandleAsync(new GetSession(userId, stamp), http.RequestAborted)).ToMaybe();
         http.Items[CurrentUser.SessionItem] = session;
-        return session is not null;
+        return session.Match(_ => true, () => false);
     }
 
     private static Task Redirect(RedirectContext<CookieAuthenticationOptions> context, string page, bool withReturnUrl)

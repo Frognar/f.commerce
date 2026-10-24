@@ -14,7 +14,7 @@
             var formId = $"member-{user.UserId:N}";
             var disabled = !Model.CanManage;
             <tr>
-                <td>@user.Name @if (user.UserId == Model.CurrentUserId) { <span class="badge">@T["You"]</span> }</td>
+                <td>@user.Name @if (Model.CurrentUserId.Exists(id => id == user.UserId)) { <span class="badge">@T["You"]</span> }</td>
                 <td>@user.Email</td>
                 <td>@T[$"Status.{user.Status}"]</td>
                 <td>@T[$"MembershipSource.{user.Source}"]</td>

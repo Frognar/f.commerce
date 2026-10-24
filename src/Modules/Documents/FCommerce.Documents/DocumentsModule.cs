@@ -5,6 +5,7 @@ using FCommerce.Infrastructure.Persistence;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Documents;
 

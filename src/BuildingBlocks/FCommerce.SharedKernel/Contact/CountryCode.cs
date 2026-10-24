@@ -27,10 +27,10 @@ public sealed record CountryCode : IPersistedValue<CountryCode, string>
 
     public string Value { get; }
 
-    public static Result<CountryCode, Error> Parse(string? raw)
+    public static Result<CountryCode, Error> Parse(string raw)
     {
-        var value = raw?.Trim().ToUpperInvariant();
-        return value is not null && Assigned.Contains(value)
+        var value = raw.Trim().ToUpperInvariant();
+        return Assigned.Contains(value)
             ? new CountryCode(value)
             : Error.Validation("country.invalid", $"'{raw}' is not an ISO 3166-1 alpha-2 country code.");
     }

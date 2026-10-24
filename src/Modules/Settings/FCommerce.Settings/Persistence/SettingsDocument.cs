@@ -5,6 +5,7 @@ using FCommerce.Infrastructure.Serialization;
 using FCommerce.Settings.Domain;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Settings.Persistence;
 
@@ -28,11 +29,11 @@ internal sealed record SettingsDocument(
                 [.. settings.EnabledFeatures.Select(f => f.Value).Order(StringComparer.Ordinal)],
                 settings.Branding.StoreName,
                 settings.Branding.AccentColor.Value,
-                settings.Branding.LogoImageId,
-                settings.Contact.SupportEmail?.Value,
-                settings.Contact.SupportPhone,
-                settings.Contact.OperatorNotifications?.Value,
-                settings.Commerce.DefaultPriceListCode,
+                settings.Branding.LogoImageId.OrNull(),
+                settings.Contact.SupportEmail.Map(e => e.Value).OrNull(),
+                settings.Contact.SupportPhone.OrNull(),
+                settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull(),
+                settings.Commerce.DefaultPriceListCode.OrNull(),
                 settings.Commerce.DefaultContactTemplate),
             PersistenceJson.Options);
 
@@ -46,11 +47,11 @@ internal sealed record SettingsDocument(
         return new PlatformSettings(
             version,
             Enum.Parse<CatalogVisibility>(document.CatalogVisibility),
-            [.. document.EnabledFeatures.Select(id => FeatureId.Parse(id).Match(f => (FeatureId?)f, _ => null)).OfType<FeatureId>().Where(available.Contains)],
-            new Branding(document.StoreName, HexColor.Parse(document.AccentColor).Match(c => c, _ => HexColor.DefaultAccent), document.LogoImageId),
-            new SellerContact(Email(document.SupportEmail), document.SupportPhone, Email(document.OperatorNotifications)),
-            new CommerceDefaults(document.DefaultPriceListCode, document.DefaultContactTemplate));
+            [.. document.EnabledFeatures.Choose(id => FeatureId.Parse(id).ToMaybe()).Where(available.Contains)],
+            new Branding(document.StoreName, HexColor.Parse(document.AccentColor).ValueOr(_ => HexColor.DefaultAccent), document.LogoImageId.ToMaybe()),
+            new SellerContact(Email(document.SupportEmail), document.SupportPhone.ToMaybe(), Email(document.OperatorNotifications)),
+            new CommerceDefaults(document.DefaultPriceListCode.ToMaybe(), document.DefaultContactTemplate));
     }
 
-    private static EmailAddress? Email(string? raw) => raw is null ? null : Persisted.Rehydrate<EmailAddress, string>(raw);
+    private static Maybe<EmailAddress> Email(string? raw) => raw.ToMaybe().Map(Persisted.Rehydrate<EmailAddress, string>);
 }

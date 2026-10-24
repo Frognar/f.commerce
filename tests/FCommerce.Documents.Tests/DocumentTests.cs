@@ -1,6 +1,7 @@
 using FCommerce.Documents.Domain;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 
 namespace FCommerce.Documents.Tests;
@@ -29,11 +30,11 @@ public sealed class DocumentTests
     [Fact]
     public void Delivery_notes_need_no_amounts_and_paid_defaults_to_zero()
     {
-        var note = Valid(Invoice() with { Type = "delivery-note", Currency = null, Net = null, Gross = null, Paid = null, DueDate = null });
-        var proforma = Valid(Invoice() with { Type = "proforma", Paid = null });
+        var note = Valid(Invoice() with { Type = "delivery-note", Currency = default, Net = default, Gross = default, Paid = default, DueDate = default });
+        var proforma = Valid(Invoice() with { Type = "proforma", Paid = default });
 
-        Assert.Null(note.Content.Amounts);
-        Assert.Equal(0m, proforma.Content.Amounts?.Paid);
+        note.Content.Amounts.ShouldBeNone();
+        Assert.Equal(0m, proforma.Content.Amounts.ShouldBeSome().Paid);
     }
 
     [Fact]
@@ -44,10 +45,10 @@ public sealed class DocumentTests
             Id = " ",
             Version = -1,
             Type = "receipt",
-            Number = null,
-            IssueDate = null,
+            Number = "",
+            IssueDate = default,
             Currency = "ZLOTY",
-            Net = null,
+            Net = default,
             Gross = 10.001m,
         };
 
@@ -63,7 +64,14 @@ public sealed class DocumentTests
     [InlineData("invoice", -100, -123, "gross", "amount.negative")]
     public void Invoices_need_non_negative_amounts(string type, int? net, int? gross, string field, string code)
     {
-        var input = Invoice() with { Type = type, Net = net, Gross = gross, Currency = net is null ? null : "PLN", Paid = null };
+        var input = Invoice() with
+        {
+            Type = type,
+            Net = net.ToMaybe().Map(value => (decimal)value),
+            Gross = gross.ToMaybe().Map(value => (decimal)value),
+            Currency = net.ToMaybe().Map(_ => "PLN"),
+            Paid = default,
+        };
 
         var error = Assert.Single(Domain.Documents.Validate(input).ShouldBeInvalid());
 
@@ -96,7 +104,7 @@ public sealed class DocumentTests
     [InlineData(0, null, "Unpaid")] // no due date
     public void Payment_status_follows_what_is_paid_and_the_due_date(int paid, int? dueInDays, string expected)
     {
-        var document = Valid(Invoice() with { Paid = paid, DueDate = dueInDays is { } days ? Today.AddDays(days) : null });
+        var document = Valid(Invoice() with { Paid = paid, DueDate = dueInDays.ToMaybe().Map(days => Today.AddDays(days)) });
 
         Assert.Equal(Enum.Parse<PaymentStatus>(expected), Domain.Documents.StatusOn(document.Content, Today));
     }
@@ -119,7 +127,7 @@ public sealed class DocumentTests
             new(Pln, 100m, Today.AddDays(-1)),
             new(Pln, 50m, Today),
             new(Pln, 0m, Today.AddDays(-30)),
-            new(eur, 20m, null),
+            new(eur, 20m, default),
         ];
 
         var receivables = Domain.Documents.Receivables(items, Today);
@@ -145,7 +153,7 @@ public sealed class DocumentTests
     {
         var result = Domain.Documents.CheckFile(System.Text.Encoding.ASCII.GetBytes(content));
 
-        Assert.Equal(error, result.Match(_ => (string?)null, e => e.Code));
+        Assert.Equal(error, result.Match(_ => Maybe<string>.None, e => e.Code).OrNull());
     }
 
     [Fact]

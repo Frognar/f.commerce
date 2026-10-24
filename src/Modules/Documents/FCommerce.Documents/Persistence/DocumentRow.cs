@@ -3,6 +3,7 @@ using System.Text;
 using FCommerce.Documents.Domain;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Documents.Persistence;
 
@@ -69,14 +70,14 @@ internal sealed class DocumentRow
         Type = content.Type;
         Number = content.Number;
         IssueDate = content.Dates.Issued;
-        SaleDate = content.Dates.Sold;
-        DueDate = content.Dates.Due;
-        Currency = content.Amounts?.Currency.Code;
-        Net = content.Amounts?.Net;
-        Gross = content.Amounts?.Gross;
-        Paid = content.Amounts?.Paid;
+        SaleDate = content.Dates.Sold.OrNull();
+        DueDate = content.Dates.Due.OrNull();
+        Currency = content.Amounts.Map(a => a.Currency.Code).OrNull();
+        Net = content.Amounts.Map(a => a.Net).OrNull();
+        Gross = content.Amounts.Map(a => a.Gross).OrNull();
+        Paid = content.Amounts.Map(a => a.Paid).OrNull();
         Outstanding = Domain.Documents.Outstanding(content);
-        OrderNumber = content.OrderNumber;
+        OrderNumber = content.OrderNumber.OrNull();
         UpdatedAt = now;
     }
 
@@ -88,7 +89,7 @@ internal sealed class DocumentRow
                 CustomerCode,
                 Type,
                 Number,
-                new DocumentDates(IssueDate, SaleDate, DueDate),
-                Currency is null ? null : new DocumentAmounts(Persisted.Rehydrate<SharedKernel.Monetary.Currency, string>(Currency), Net ?? 0m, Gross ?? 0m, Paid ?? 0m),
-                OrderNumber));
+                new DocumentDates(IssueDate, SaleDate.ToMaybe(), DueDate.ToMaybe()),
+                Currency.ToMaybe().Map(code => new DocumentAmounts(Persisted.Rehydrate<SharedKernel.Monetary.Currency, string>(code), Net ?? 0m, Gross ?? 0m, Paid ?? 0m)),
+                OrderNumber.ToMaybe()));
 }

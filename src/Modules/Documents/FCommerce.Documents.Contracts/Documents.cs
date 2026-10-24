@@ -1,6 +1,7 @@
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Messaging;
 using FCommerce.SharedKernel.Results;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Documents.Contracts;
 

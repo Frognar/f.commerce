@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 
@@ -10,7 +11,7 @@ public sealed record CompanyAddress(string Street, PostalCode PostalCode, string
 /// <summary>The company as the applicant describes it (the customer itself always comes from the ERP).</summary>
 public sealed record ApplicantCompany(string Name, TaxId TaxId, CompanyAddress Address);
 
-public sealed record Applicant(PersonName Name, EmailAddress Email, string? Phone, CultureCode Culture);
+public sealed record Applicant(PersonName Name, EmailAddress Email, Maybe<string> Phone, CultureCode Culture);
 
 public abstract record RegistrationStatus
 {
@@ -31,17 +32,18 @@ public abstract record RegistrationStatus
 /// <summary>A company's request for platform access, decided by an operator.</summary>
 public sealed record RegistrationRequest(Guid Id, ApplicantCompany Company, Applicant Applicant, DateTimeOffset SubmittedAt, RegistrationStatus Status);
 
+/// <summary>The public form as submitted; missing required texts arrive as empty.</summary>
 public sealed record UnvalidatedRegistration(
-    string? CompanyName,
-    string? TaxId,
-    string? Street,
-    string? PostalCode,
-    string? City,
-    string? Country,
-    string? PersonName,
-    string? Email,
-    string? Phone,
-    string? Culture,
+    string CompanyName,
+    string TaxId,
+    string Street,
+    string PostalCode,
+    string City,
+    string Country,
+    string PersonName,
+    string Email,
+    Maybe<string> Phone,
+    string Culture,
     bool AcceptedTerms);
 
 public static class Registrations
@@ -59,10 +61,10 @@ public static class Registrations
     public static Validated<(ApplicantCompany Company, Applicant Applicant)> Validate(UnvalidatedRegistration input) =>
         Create
             .Apply(ValidateCompany(input))
-            .Apply(((Func<PersonName, EmailAddress, string?, CultureCode, Applicant>)((name, email, phone, culture) => new Applicant(name, email, phone, culture)))
+            .Apply(((Func<PersonName, EmailAddress, Maybe<string>, CultureCode, Applicant>)((name, email, phone, culture) => new Applicant(name, email, phone, culture)))
                 .Apply(Domain.PersonName.Parse(input.PersonName).ToValidated("personName"))
                 .Apply(EmailAddress.Parse(input.Email).ToValidated("email"))
-                .Apply(Text(input.Phone, MaxPhone, "phone", optional: true).ToValidated("phone"))
+                .Apply(Maybe.ParseOptional(input.Phone, phone => Text(phone, MaxPhone, "phone")).ToValidated("phone"))
                 .Apply(CultureCode.Parse(input.Culture).ToValidated("culture")))
             .Apply((input.AcceptedTerms
                 ? Result.Ok<bool, Error>(true)
@@ -74,10 +76,10 @@ public static class Registrations
     public static Result<RegistrationRequest, Error> Approve(RegistrationRequest request, Guid operatorId, string customerCode, DateTimeOffset now) =>
         Pending(request).Map(pending => pending with { Status = new RegistrationStatus.Approved(operatorId, now, customerCode) });
 
-    public static Result<RegistrationRequest, Error> Reject(RegistrationRequest request, Guid operatorId, string? reason, DateTimeOffset now) =>
+    public static Result<RegistrationRequest, Error> Reject(RegistrationRequest request, Guid operatorId, string reason, DateTimeOffset now) =>
         from pending in Pending(request)
-        from text in Text(reason, MaxReason, "reason", optional: false).MapError(e => e with { Field = "reason" })
-        select pending with { Status = new RegistrationStatus.Rejected(operatorId, now, text!) };
+        from text in Text(reason, MaxReason, "reason", allowControl: true).MapError(e => e with { Field = "reason" })
+        select pending with { Status = new RegistrationStatus.Rejected(operatorId, now, text) };
 
     private static Result<RegistrationRequest, Error> Pending(RegistrationRequest request) =>
         request.Status is RegistrationStatus.PendingDecision
@@ -88,22 +90,22 @@ public static class Registrations
         CountryCode.Parse(input.Country).ToValidated("country").Match(
             country => ((Func<string, TaxId, string, PostalCode, string, ApplicantCompany>)((name, taxId, street, postal, city) =>
                     new ApplicantCompany(name, taxId, new CompanyAddress(street, postal, city, country))))
-                .Apply(Text(input.CompanyName, MaxCompanyName, "company-name", optional: false).Map(t => t!).ToValidated("companyName"))
+                .Apply(Text(input.CompanyName, MaxCompanyName, "company-name").ToValidated("companyName"))
                 .Apply(TaxId.Parse(input.TaxId).ToValidated("taxId"))
-                .Apply(Text(input.Street, MaxStreet, "street", optional: false).Map(t => t!).ToValidated("street"))
+                .Apply(Text(input.Street, MaxStreet, "street").ToValidated("street"))
                 .Apply(PostalCode.Parse(input.PostalCode, country).ToValidated("postalCode"))
-                .Apply(Text(input.City, MaxCity, "city", optional: false).Map(t => t!).ToValidated("city")),
+                .Apply(Text(input.City, MaxCity, "city").ToValidated("city")),
             errors => Validated.Invalid<ApplicantCompany>(errors[0], [.. errors.Skip(1)]));
 
-    private static Result<string?, Error> Text(string? raw, int maxLength, string code, bool optional)
+    /// <summary>A required text; <paramref name="allowControl"/> admits line breaks (free-form reasons).</summary>
+    private static Result<string, Error> Text(string raw, int maxLength, string code, bool allowControl = false)
     {
-        var value = raw?.Trim();
+        var value = raw.Trim();
         return value switch
         {
-            null or "" when optional => Result.Ok<string?, Error>(null),
-            null or "" => Error.Validation($"{code}.empty", "This field is required."),
+            "" => Error.Validation($"{code}.empty", "This field is required."),
             { Length: var length } when length > maxLength => Error.Validation($"{code}.too-long", $"At most {maxLength} characters."),
-            _ when value.Any(char.IsControl) && code != "reason" => Error.Validation($"{code}.invalid", "Control characters are not allowed."),
+            _ when !allowControl && value.Any(char.IsControl) => Error.Validation($"{code}.invalid", "Control characters are not allowed."),
             _ => value,
         };
     }

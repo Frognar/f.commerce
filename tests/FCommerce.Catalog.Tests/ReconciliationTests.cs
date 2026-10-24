@@ -12,7 +12,7 @@ public sealed class ReconciliationTests
     {
         var incoming = Valid();
 
-        Assert.Equal(new Change<Product>.Created(incoming), Reconciliation.Reconcile(null, incoming));
+        Assert.Equal(new Change<Product>.Created(incoming), Reconciliation.Reconcile(default, incoming));
     }
 
     [Fact]

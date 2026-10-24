@@ -17,7 +17,6 @@ public sealed class EmailAddressTests
     }
 
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("jan")]
     [InlineData("jan@firma")]
@@ -26,7 +25,7 @@ public sealed class EmailAddressTests
     [InlineData("jan@firma..pl")]
     [InlineData("@firma.pl")]
     [InlineData("<jan@firma.pl>")]
-    public void Rejects_malformed_addresses(string? input)
+    public void Rejects_malformed_addresses(string input)
     {
         Assert.Equal("email.invalid", EmailAddress.Parse(input).ShouldFail().Code);
     }
@@ -46,8 +45,7 @@ public sealed class CountryCodeTests
     [InlineData("XX")]
     [InlineData("POL")]
     [InlineData("")]
-    [InlineData(null)]
-    public void Rejects_unassigned_codes(string? input)
+    public void Rejects_unassigned_codes(string input)
     {
         Assert.Equal("country.invalid", CountryCode.Parse(input).ShouldFail().Code);
     }

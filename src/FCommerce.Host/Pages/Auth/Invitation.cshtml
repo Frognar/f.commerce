@@ -5,7 +5,7 @@
 }
 <section class="narrow card">
     <h1>@T["AcceptInvitation"]</h1>
-    @if (Model.Invitation is null)
+    @if (!Model.Valid)
     {
         <p class="alert" role="alert">@T["Error.token.invalid"]</p>
         <p><a asp-page="/Auth/SignIn">@T["SignIn"]</a></p>

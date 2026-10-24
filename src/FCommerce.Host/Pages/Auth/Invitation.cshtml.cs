@@ -3,6 +3,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -27,15 +28,21 @@ public sealed class InvitationModel(
     [BindProperty]
     public string Confirmation { get; set; } = string.Empty;
 
-    public InvitationView? Invitation { get; private set; }
+    private Maybe<InvitationView> invitation;
+
+    /// <summary>False for an invalid or expired link.</summary>
+    public bool Valid => invitation.Match(_ => true, () => false);
+
+    /// <summary>The invitation; read only when <see cref="Valid"/>.</summary>
+    public InvitationView Invitation => invitation.Match(i => i, () => throw new InvalidOperationException("The invitation is not loaded."));
 
     public async Task OnGetAsync(CancellationToken cancellationToken) =>
-        Invitation = (await invitations.HandleAsync(new GetInvitation(Token), cancellationToken)).Match(i => (InvitationView?)i, _ => null);
+        invitation = (await invitations.HandleAsync(new GetInvitation(Token), cancellationToken)).ToMaybe();
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         await OnGetAsync(cancellationToken);
-        if (Invitation is null)
+        if (!Valid)
         {
             return Page();
         }
@@ -50,14 +57,11 @@ public sealed class InvitationModel(
             async signedIn =>
             {
                 await SessionCookie.SignInAsync(HttpContext, signedIn, remember: false);
-                var session = (await sessions.HandleAsync(new GetSession(signedIn.UserId, signedIn.SecurityStamp), cancellationToken)).Match(s => (SessionView?)s, _ => null);
-                var landing = session switch
-                {
-                    { Operator: not null } => "/Admin/Index",
-                    { Memberships.Count: > 0 } => "/Company/Index",
-                    _ => "/Index",
-                };
-                return LocalRedirect(Url.CulturePage(landing)!);
+                var session = (await sessions.HandleAsync(new GetSession(signedIn.UserId, signedIn.SecurityStamp), cancellationToken)).ToMaybe();
+                var landing = session.Match(
+                    s => s.Operator is not null ? "/Admin/Index" : s.Memberships.Count > 0 ? "/Company/Index" : "/Index",
+                    () => "/Index");
+                return LocalRedirect(Url.CulturePage(landing));
             },
             error =>
             {

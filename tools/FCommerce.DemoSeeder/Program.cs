@@ -6,6 +6,7 @@ using FCommerce.Customers.Contracts;
 using FCommerce.DemoSeeder;
 using FCommerce.Documents.Contracts;
 using FCommerce.Media.Contracts;
+using FCommerce.SharedKernel.Contracts;
 
 // Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key>]
 var baseUrl = args.Length > 0 ? args[0] : "http://localhost:5180";

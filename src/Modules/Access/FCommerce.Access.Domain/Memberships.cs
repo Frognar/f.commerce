@@ -1,5 +1,6 @@
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Access.Domain;
@@ -15,7 +16,7 @@ public enum MembershipSource
 
 /// <summary>A user's right to act for a customer, with the attributes the access policies use.</summary>
 /// <param name="ErpContactId">The ERP contact the membership came from (ERP source only).</param>
-public sealed record Membership(Guid UserId, string CustomerCode, MembershipAttributes Attributes, MembershipSource Source, string? ErpContactId);
+public sealed record Membership(Guid UserId, string CustomerCode, MembershipAttributes Attributes, MembershipSource Source, Maybe<string> ErpContactId);
 
 /// <summary>The rights edited in the UI; order limit and delivery addresses keep their values.</summary>
 public sealed record MembershipRights(bool CanOrder, OrderScope OrderScope, bool CanViewDocuments, bool CanManageUsers)
@@ -30,21 +31,21 @@ public sealed record MembershipRights(bool CanOrder, OrderScope OrderScope, bool
 public static class MembershipRules
 {
     /// <summary>
-    /// Whether an account (null: a new one) may become a member of <paramref name="customerCode"/>. Operators act in the
+    /// Whether an account (none: a new one) may become a member of <paramref name="customerCode"/>. Operators act in the
     /// back-office only; without the multi-customer feature a user belongs to one customer.
     /// </summary>
     public static Result<Membership, Error> Admit(
-        Account? account,
+        Maybe<Account> account,
         IReadOnlyCollection<Membership> memberships,
         bool multiCustomer,
         Membership requested)
     {
-        if (account?.Operator is not null)
+        if (account.Exists(a => a.IsOperator))
         {
             return Error.Conflict("membership.operator-account", "Operator accounts cannot act for customers.");
         }
 
-        if (account?.Status == AccountStatus.Disabled)
+        if (account.Exists(a => a.Status == AccountStatus.Disabled))
         {
             return Error.Conflict("membership.account-disabled", "This account is disabled.");
         }
@@ -64,8 +65,8 @@ public static class MembershipRules
         customerMemberships.Count(m => m.UserId != except && m.Attributes.CanManageUsers);
 
     /// <summary>The attributes for a template name; unknown names fall back to the buyer template.</summary>
-    public static MembershipAttributes FromTemplate(string? template) =>
-        template is not null && MembershipAttributes.Templates.TryGetValue(template, out var attributes) ? attributes : MembershipAttributes.Buyer;
+    public static MembershipAttributes FromTemplate(Maybe<string> template) =>
+        template.Bind(MembershipAttributes.Templates.GetValueOrNone).ValueOr(MembershipAttributes.Buyer);
 }
 
 /// <summary>

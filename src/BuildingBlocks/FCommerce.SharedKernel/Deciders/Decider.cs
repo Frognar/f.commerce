@@ -15,6 +15,9 @@ public sealed record Decider<TCommand, TState, TEvent>(
     Func<TCommand, TState, DecisionContext, Result<EquatableArray<TEvent>, Error>> Decide,
     Func<TState, TEvent, TState> Evolve,
     TState Initial)
+    where TCommand : notnull
+    where TState : notnull
+    where TEvent : notnull
 {
     public TState Fold(IEnumerable<TEvent> events) => events.Aggregate(Initial, Evolve);
 

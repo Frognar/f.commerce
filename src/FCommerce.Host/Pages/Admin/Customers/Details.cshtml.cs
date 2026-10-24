@@ -6,6 +6,7 @@ using FCommerce.Customers.Contracts;
 using FCommerce.Host.Pages.Shared;
 using FCommerce.Host.Security;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -19,22 +20,28 @@ public sealed class DetailsModel(
     AccessControl access,
     CurrentUser user) : PageModel
 {
-    public sealed record AuditLine(DateTimeOffset At, string? Actor, string Action, string? Email);
+    /// <param name="Actor">None for the system (ERP-driven changes).</param>
+    public sealed record AuditLine(DateTimeOffset At, Maybe<string> Actor, string Action, Maybe<string> Email);
 
-    public CustomerDetails? Customer { get; private set; }
+    private Maybe<CustomerDetails> customer;
 
-    /// <summary>Null when the operator may not see the customer's users.</summary>
-    public CustomerUsersPanel? Users { get; private set; }
+    public bool Found => customer.Match(_ => true, () => false);
+
+    /// <summary>The customer; read only when <see cref="Found"/>.</summary>
+    public CustomerDetails Customer => customer.Match(c => c, () => throw new InvalidOperationException("The customer is not loaded."));
+
+    /// <summary>None when the operator may not see the customer's users.</summary>
+    public Maybe<CustomerUsersPanel> Users { get; private set; }
 
     public IReadOnlyList<AuditLine> Audit { get; private set; } = [];
 
-    public string? Saved { get; private set; }
+    public Maybe<string> Saved { get; private set; }
 
     [BindProperty]
     public CustomerUserForm UserForm { get; set; } = new();
 
     public async Task<IActionResult> OnGetAsync(string code, CancellationToken cancellationToken) =>
-        await LoadAsync(code, AccessAction.Read, cancellationToken) ?? Page();
+        (await LoadAsync(code, AccessAction.Read, cancellationToken)).ValueOr(Page);
 
     public Task<IActionResult> OnPostInviteAsync(string code, CancellationToken cancellationToken) =>
         ManageAsync(code, (actor, customer) => users.InviteAsync(actor, customer, UserForm, ModelState, cancellationToken), cancellationToken);
@@ -45,52 +52,48 @@ public sealed class DetailsModel(
     public Task<IActionResult> OnPostRevokeAsync(string code, Guid id, CancellationToken cancellationToken) =>
         ManageAsync(code, (actor, customer) => users.RevokeAsync(actor, customer, id, ModelState, cancellationToken), cancellationToken);
 
-    private async Task<IActionResult> ManageAsync(string code, Func<Guid, string, Task<string?>> command, CancellationToken cancellationToken)
-    {
-        if (await LoadAsync(code, AccessAction.Manage, cancellationToken) is { } denied)
-        {
-            return denied;
-        }
-
-        Saved = await command(user.UserId!.Value, Customer!.Code);
-        return await LoadAsync(code, AccessAction.Read, cancellationToken) ?? Page();
-    }
+    private async Task<IActionResult> ManageAsync(string code, Func<Guid, string, Task<Maybe<string>>> command, CancellationToken cancellationToken) =>
+        await (await LoadAsync(code, AccessAction.Manage, cancellationToken)).Match(
+            Task.FromResult,
+            async () =>
+            {
+                Saved = await command(user.RequiredUserId, Customer.Code);
+                return (await LoadAsync(code, AccessAction.Read, cancellationToken)).ValueOr(Page);
+            });
 
     /// <summary>Loads the page; returns a result only when the page cannot be shown (not found, denied).</summary>
-    private async Task<IActionResult?> LoadAsync(string code, AccessAction usersAction, CancellationToken cancellationToken)
-    {
-        var found = (await customers.HandleAsync(new GetCustomer(code), cancellationToken)).Match(c => c, _ => (CustomerDetails?)null);
-        if (found is null)
-        {
-            Response.StatusCode = StatusCodes.Status404NotFound;
-            return Page();
-        }
+    private async Task<Maybe<IActionResult>> LoadAsync(string code, AccessAction usersAction, CancellationToken cancellationToken) =>
+        await (await customers.HandleAsync(new GetCustomer(code), cancellationToken)).ToMaybe().Match(
+            found => LoadAsync(found, usersAction, cancellationToken),
+            () =>
+            {
+                Response.StatusCode = StatusCodes.Status404NotFound;
+                return Task.FromResult(Maybe.Some<IActionResult>(Page()));
+            });
 
-        var salesperson = found.Salesperson?.Email is { } email ? EmailAddress.Parse(email).Match(e => e, _ => (EmailAddress?)null) : null;
+    private async Task<Maybe<IActionResult>> LoadAsync(CustomerDetails found, AccessAction usersAction, CancellationToken cancellationToken)
+    {
+        var salesperson = Company.CompanyContext.Salesperson(found);
         if (!await access.CanAsync(AccessAction.Read, new Resource.CustomerProfile(found.Code, salesperson), cancellationToken)
             || !await access.CanAsync(usersAction, new Resource.CustomerUsers(found.Code, salesperson), cancellationToken))
         {
             return Forbid();
         }
 
-        Customer = found;
+        customer = found;
         Users = new CustomerUsersPanel(
             await users.UsersAsync(found.Code, cancellationToken),
             await access.CanAsync(AccessAction.Manage, new Resource.CustomerUsers(found.Code, salesperson), cancellationToken),
             new Dictionary<string, string> { ["code"] = found.Code },
             user.UserId);
-        Audit = [.. (await auditLog.HandleAsync(new GetAuditLog($"customer:{found.Code}"), cancellationToken)).Select(entry => new AuditLine(entry.At, entry.Actor, entry.Action, EmailOf(entry.Details)))];
-        return null;
+        Audit = [.. (await auditLog.HandleAsync(new GetAuditLog($"customer:{found.Code}"), cancellationToken))
+            .Select(entry => new AuditLine(entry.At, entry.Actor.ToMaybe(), entry.Action, entry.Details.ToMaybe().Bind(EmailOf)))];
+        return Maybe<IActionResult>.None;
     }
 
-    private static string? EmailOf(string? details)
+    private static Maybe<string> EmailOf(string details)
     {
-        if (details is null)
-        {
-            return null;
-        }
-
         using var document = JsonDocument.Parse(details);
-        return document.RootElement.TryGetProperty("email", out var email) ? email.GetString() : null;
+        return document.RootElement.TryGetProperty("email", out var email) ? email.GetString().ToMaybe() : Maybe<string>.None;
     }
 }

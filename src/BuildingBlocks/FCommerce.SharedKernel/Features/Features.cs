@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.SharedKernel.Features;
@@ -10,10 +11,9 @@ public sealed record FeatureId
 
     public string Value { get; }
 
-    public static Result<FeatureId, Error> Parse(string? raw) =>
-        Feature.All.FirstOrDefault(f => f.Id.Value == raw?.Trim()) is { } feature
-            ? feature.Id
-            : Error.Validation("feature.unknown", $"'{raw}' is not a known feature.");
+    public static Result<FeatureId, Error> Parse(string raw) =>
+        Feature.All.Select(f => f.Id).FirstOrNone(id => id.Value == raw.Trim())
+            .ToResult(() => Error.Validation("feature.unknown", $"'{raw}' is not a known feature."));
 
     internal static FeatureId Define(string value) => new(value);
 

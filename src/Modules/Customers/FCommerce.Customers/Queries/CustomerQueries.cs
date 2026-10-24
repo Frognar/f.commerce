@@ -5,6 +5,7 @@ using FCommerce.Customers.Domain;
 using FCommerce.Customers.Persistence;
 using FCommerce.Search.Core.Analysis;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,23 +35,19 @@ internal sealed class SearchCustomersHandler(CustomersDbContext db) : IQueryHand
     public const int MaxPageSize = 100;
 
     public Task<Result<CustomerPage, Error>> HandleAsync(SearchCustomers query, CancellationToken cancellationToken = default) =>
-        (string.IsNullOrWhiteSpace(query.SalespersonEmail)
-            ? Result.Ok<EmailAddress?, Error>(null)
-            : EmailAddress.Parse(query.SalespersonEmail).Map(email => (EmailAddress?)email))
-        .MapAsync(salesperson => SearchAsync(query, salesperson, cancellationToken));
+        Maybe.ParseOptional(query.SalespersonEmail.ToMaybe(), EmailAddress.Parse)
+            .MapAsync(salesperson => SearchAsync(query, salesperson, cancellationToken));
 
-    private async Task<CustomerPage> SearchAsync(SearchCustomers query, EmailAddress? salesperson, CancellationToken cancellationToken)
+    private async Task<CustomerPage> SearchAsync(SearchCustomers query, Maybe<EmailAddress> salesperson, CancellationToken cancellationToken)
     {
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
 
-        var customers = db.Customers.AsNoTracking();
-        if (salesperson is not null)
-        {
-            customers = customers.Where(c => c.SalespersonEmail == salesperson.Value);
-        }
+        var customers = salesperson.Match(
+            email => db.Customers.AsNoTracking().Where(c => c.SalespersonEmail == email.Value),
+            () => db.Customers.AsNoTracking());
 
-        foreach (var term in Terms(query.Text))
+        foreach (var term in Terms(query.Text.OrEmpty()))
         {
             var pattern = "%" + EscapeLike(term) + "%";
             customers = customers.Where(c => EF.Functions.Like(c.SearchText, pattern, "\\"));
@@ -62,8 +59,8 @@ internal sealed class SearchCustomersHandler(CustomersDbContext db) : IQueryHand
     }
 
     /// <summary>Folded words; a tax number written with separators ("526-104-08-28") becomes one term.</summary>
-    private static IEnumerable<string> Terms(string? text) =>
-        Folding.Fold(text ?? string.Empty)
+    private static IEnumerable<string> Terms(string text) =>
+        Folding.Fold(text)
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(term => term.All(c => char.IsAsciiDigit(c) || c is '-') ? term.Replace("-", string.Empty, StringComparison.Ordinal) : term)
             .Where(term => term.Length > 0)
@@ -83,6 +80,9 @@ internal sealed class FindCustomersByTaxIdHandler(CustomersDbContext db) : IQuer
 
 internal static class CustomerViews
 {
+    public static Maybe<string> SalespersonEmail(CustomerContent content) =>
+        content.Salesperson.Bind(s => s.Email).Map(email => email.Value);
+
     public static CustomerSummary Summary(CustomerRow row) =>
         Summary(row.ToDomain());
 
@@ -90,10 +90,10 @@ internal static class CustomerViews
         new(
             customer.Code.Value,
             customer.Content.Name,
-            customer.Content.TaxId?.Value,
+            customer.Content.TaxId.Map(t => t.Value).OrNull(),
             customer.Content.BillingAddress.City,
-            customer.Content.Salesperson?.Name,
-            customer.Content.Salesperson?.Email?.Value,
+            customer.Content.Salesperson.Map(s => s.Name).OrNull(),
+            SalespersonEmail(customer.Content).OrNull(),
             customer.Active,
             customer.Content.Terms.Blocked);
 
@@ -103,13 +103,13 @@ internal static class CustomerViews
         return new CustomerDetails(
             customer.Code.Value,
             content.Name,
-            content.TaxId?.Value,
+            content.TaxId.Map(t => t.Value).OrNull(),
             Address(content.BillingAddress),
-            [.. content.DeliveryAddresses.Select(a => new DeliveryAddressView(a.Code, a.Name, Address(a.Address), a.IsDefault))],
-            [.. content.Contacts.Select(c => new ContactView(c.ExternalId, c.Name, c.Email?.Value, c.Phone, c.PortalAccess, c.AttributeTemplate))],
-            content.Salesperson is { } s ? new SalespersonView(s.Name, s.Email?.Value, s.Phone) : null,
-            content.Terms.PriceListCode,
-            content.Terms.PaymentTermDays,
+            [.. content.DeliveryAddresses.Select(a => new DeliveryAddressView(a.Code, a.Name.OrNull(), Address(a.Address), a.IsDefault))],
+            [.. content.Contacts.Select(c => new ContactView(c.ExternalId, c.Name, c.Email.Map(e => e.Value).OrNull(), c.Phone.OrNull(), c.PortalAccess, c.AttributeTemplate.OrNull()))],
+            content.Salesperson.Map(s => new SalespersonView(s.Name, s.Email.Map(e => e.Value).OrNull(), s.Phone.OrNull())).OrNull(),
+            content.Terms.PriceListCode.OrNull(),
+            content.Terms.PaymentTermDays.OrNull(),
             content.Terms.Currency.Code,
             content.Terms.Blocked,
             customer.Active,

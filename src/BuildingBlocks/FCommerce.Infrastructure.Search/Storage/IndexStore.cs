@@ -2,13 +2,15 @@ using System.Text.Json;
 using FCommerce.Search.Core.Analysis;
 using FCommerce.Search.Core.Index;
 using Microsoft.Extensions.Logging;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Search.Storage;
 
 /// <summary>What is on disk for an index; replaced atomically after every change.</summary>
 internal sealed record Manifest(int AnalyzerVersion, string Language, string Schema, int NextSegment, IReadOnlyList<ManifestSegment> Segments);
 
-/// <param name="Live">File with the live-documents bit set; null when every document is live.</param>
+/// <param name="Live">File with the live-documents bit set; null when every document is live (stored JSON).</param>
+[NullableEdge]
 internal sealed record ManifestSegment(string File, int DocCount, string? Live);
 
 /// <summary>
@@ -52,34 +54,39 @@ internal sealed partial class IndexStore : IAsyncDisposable
         var expected = new Manifest(Analyzer.Version, language, schema.Signature, 1, []);
         var path = Path.Combine(directory, ManifestFile);
 
-        var stored = File.Exists(path) ? JsonSerializer.Deserialize<Manifest>(await File.ReadAllBytesAsync(path, cancellationToken)) : null;
-        if (stored is null || stored.AnalyzerVersion != expected.AnalyzerVersion || stored.Language != language || stored.Schema != expected.Schema)
-        {
-            if (stored is not null)
-            {
-                LogReset(logger, directory);
-            }
+        var stored = File.Exists(path)
+            ? JsonSerializer.Deserialize<Manifest>(await File.ReadAllBytesAsync(path, cancellationToken)).ToMaybe()
+            : Maybe<Manifest>.None;
+        return await stored
+            .Where(m => m.AnalyzerVersion == expected.AnalyzerVersion && m.Language == language && m.Schema == expected.Schema)
+            .Match(
+                manifest => LoadAsync(directory, analyzer, manifest, schema, logger, cancellationToken),
+                async () =>
+                {
+                    stored.Switch(_ => LogReset(logger, directory), () => { });
+                    foreach (var file in Directory.EnumerateFiles(directory))
+                    {
+                        File.Delete(file);
+                    }
 
-            foreach (var file in Directory.EnumerateFiles(directory))
-            {
-                File.Delete(file);
-            }
+                    await WriteManifestAsync(directory, expected, cancellationToken);
+                    return new IndexStore(directory, analyzer, expected, IndexSnapshot.Empty(schema), logger);
+                });
+    }
 
-            await WriteManifestAsync(directory, expected, cancellationToken);
-            return new IndexStore(directory, analyzer, expected, IndexSnapshot.Empty(schema), logger);
-        }
-
+    private static async Task<IndexStore> LoadAsync(string directory, Analyzer analyzer, Manifest manifest, IndexSchema schema, ILogger logger, CancellationToken cancellationToken)
+    {
         var segments = new List<SegmentState>();
-        foreach (var entry in stored.Segments)
+        foreach (var entry in manifest.Segments)
         {
             var segment = await SegmentFile.ReadAsync(Path.Combine(directory, entry.File), cancellationToken);
-            var live = entry.Live is null
-                ? LiveDocs.All(segment.DocCount)
-                : LiveDocs.FromWords(await ReadWordsAsync(Path.Combine(directory, entry.Live), cancellationToken), segment.DocCount);
+            var live = await entry.Live.ToMaybe().Match(
+                async file => LiveDocs.FromWords(await ReadWordsAsync(Path.Combine(directory, file), cancellationToken), segment.DocCount),
+                () => Task.FromResult(LiveDocs.All(segment.DocCount)));
             segments.Add(new SegmentState(segment, live));
         }
 
-        return new IndexStore(directory, analyzer, stored, new IndexSnapshot(schema, [.. segments]), logger);
+        return new IndexStore(directory, analyzer, manifest, new IndexSnapshot(schema, [.. segments]), logger);
     }
 
     public Task UpsertAsync(IReadOnlyList<IndexDocument> documents, CancellationToken cancellationToken) =>
@@ -122,15 +129,15 @@ internal sealed partial class IndexStore : IAsyncDisposable
         var entries = new List<ManifestSegment>();
         foreach (var state in next.Segments)
         {
-            var entry = known.GetValueOrDefault(state.Segment);
-            if (entry is null)
+            var entry = await known.GetValueOrNone(state.Segment).Match(Task.FromResult, async () =>
             {
                 var name = $"seg-{nextSegment++:D6}";
                 await SegmentFile.WriteAsync(Path.Combine(directory, $"{name}.bin"), state.Segment, cancellationToken);
-                entry = new ManifestSegment($"{name}.bin", state.Segment.DocCount, Live: null);
-            }
+                return new ManifestSegment($"{name}.bin", state.Segment.DocCount, Live: null);
+            });
 
-            if (state.Live.Count != state.Segment.DocCount && !ReferenceEquals(state.Live, snapshot.Segments.FirstOrDefault(s => s.Segment == state.Segment)?.Live))
+            var liveChanged = !snapshot.Segments.FirstOrNone(s => s.Segment == state.Segment).Exists(s => ReferenceEquals(s.Live, state.Live));
+            if (state.Live.Count != state.Segment.DocCount && liveChanged)
             {
                 var liveName = $"{Path.GetFileNameWithoutExtension(entry.File)}.live-{nextSegment++:D6}";
                 await AtomicFile.WriteAsync(Path.Combine(directory, liveName), [.. System.Runtime.InteropServices.MemoryMarshal.AsBytes(state.Live.Words)], cancellationToken);
@@ -155,7 +162,7 @@ internal sealed partial class IndexStore : IAsyncDisposable
     {
         lock (mergeGate)
         {
-            if (!merging.IsCompleted || Merging.Plan(snapshot) is null)
+            if (!merging.IsCompleted || Merging.Plan(snapshot).Match(_ => false, () => true))
             {
                 return;
             }
@@ -168,7 +175,18 @@ internal sealed partial class IndexStore : IAsyncDisposable
     {
         try
         {
-            while (Merging.Plan(snapshot) is { } plan)
+            await MergeAsync();
+        }
+        catch (Exception exception)
+        {
+            LogMergeFailed(logger, exception, directory);
+        }
+    }
+
+    /// <summary>Merges as long as there are too many segments (writes may add segments while a merge runs).</summary>
+    private Task MergeAsync() =>
+        Merging.Plan(snapshot).Match(
+            async plan =>
             {
                 var merged = Merging.Build(snapshot, Analyzer, plan);
                 await writeLock.WaitAsync();
@@ -180,17 +198,14 @@ internal sealed partial class IndexStore : IAsyncDisposable
                 {
                     writeLock.Release();
                 }
-            }
-        }
-        catch (Exception exception)
-        {
-            LogMergeFailed(logger, exception, directory);
-        }
-    }
+
+                await MergeAsync();
+            },
+            () => Task.CompletedTask);
 
     private void DeleteUnreferencedFiles()
     {
-        var referenced = manifest.Segments.SelectMany(s => new[] { s.File, s.Live }).OfType<string>().Append(ManifestFile).ToHashSet(StringComparer.Ordinal);
+        var referenced = manifest.Segments.SelectMany(s => s.Live.ToMaybe().AsEnumerable().Prepend(s.File)).Append(ManifestFile).ToHashSet(StringComparer.Ordinal);
         foreach (var file in Directory.EnumerateFiles(directory))
         {
             var name = Path.GetFileName(file);

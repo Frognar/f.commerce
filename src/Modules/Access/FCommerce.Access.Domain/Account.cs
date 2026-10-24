@@ -1,6 +1,7 @@
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 
@@ -14,12 +15,12 @@ public sealed record PersonName : IPersistedValue<PersonName, string>
 
     public string Value { get; }
 
-    public static Result<PersonName, Error> Parse(string? raw)
+    public static Result<PersonName, Error> Parse(string raw)
     {
-        var value = raw?.Trim();
+        var value = raw.Trim();
         return value switch
         {
-            null or "" => Error.Validation("name.empty", "Name is required."),
+            "" => Error.Validation("name.empty", "Name is required."),
             { Length: > MaxLength } => Error.Validation("name.too-long", $"Name must not exceed {MaxLength} characters."),
             _ when value.Any(char.IsControl) => Error.Validation("name.invalid", "Name must not contain control characters."),
             _ => new PersonName(value),
@@ -51,11 +52,13 @@ public sealed record Account(
     PersonName Name,
     CultureCode Culture,
     AccountStatus Status,
-    string? PasswordHash,
+    Maybe<string> PasswordHash,
     string SecurityStamp,
     int FailedSignIns,
-    DateTimeOffset? LockedUntil,
-    OperatorAttributes? Operator)
+    Maybe<DateTimeOffset> LockedUntil,
+    Maybe<OperatorAttributes> Operator)
 {
-    public bool IsLocked(DateTimeOffset now) => LockedUntil is { } until && until > now;
+    public bool IsLocked(DateTimeOffset now) => LockedUntil.Exists(until => until > now);
+
+    public bool IsOperator => Operator.Match(_ => true, () => false);
 }

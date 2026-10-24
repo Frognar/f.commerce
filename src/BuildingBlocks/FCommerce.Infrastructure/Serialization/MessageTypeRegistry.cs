@@ -1,5 +1,6 @@
 using System.Collections.Frozen;
 using FCommerce.SharedKernel.Results;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Serialization;
 
@@ -28,20 +29,15 @@ public sealed class MessageTypeRegistry
     {
         var all = registrations.Distinct().ToList();
 
-        var duplicateName = all.GroupBy(r => r.Name, StringComparer.Ordinal).FirstOrDefault(g => g.Count() > 1);
-        if (duplicateName is not null)
-        {
-            return Error.Conflict(
-                "message-types.duplicate-name",
-                $"Message type name '{duplicateName.Key}' is registered for several types: {string.Join(", ", duplicateName.Select(r => r.Type.FullName))}.");
-        }
-
-        var duplicateType = all.GroupBy(r => r.Type).FirstOrDefault(g => g.Count() > 1);
-        return duplicateType is not null
-            ? Error.Conflict(
-                "message-types.duplicate-type",
-                $"Type '{duplicateType.Key.FullName}' is registered under several names: {string.Join(", ", duplicateType.Select(r => r.Name))}.")
-            : new MessageTypeRegistry(all);
+        var duplicateName = all.GroupBy(r => r.Name, StringComparer.Ordinal).FirstOrNone(g => g.Count() > 1).Map(group => Error.Conflict(
+            "message-types.duplicate-name",
+            $"Message type name '{group.Key}' is registered for several types: {string.Join(", ", group.Select(r => r.Type.FullName))}."));
+        var duplicateType = all.GroupBy(r => r.Type).FirstOrNone(g => g.Count() > 1).Map(group => Error.Conflict(
+            "message-types.duplicate-type",
+            $"Type '{group.Key.FullName}' is registered under several names: {string.Join(", ", group.Select(r => r.Name))}."));
+        return duplicateName.Or(duplicateType).Match(
+            Result.Fail<MessageTypeRegistry, Error>,
+            () => new MessageTypeRegistry(all));
     }
 
     public Result<string, Error> NameOf(Type type) =>

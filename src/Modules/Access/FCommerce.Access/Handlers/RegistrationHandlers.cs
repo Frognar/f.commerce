@@ -5,6 +5,8 @@ using FCommerce.Application.Messaging;
 using FCommerce.Application.Results;
 using FCommerce.Authorization.Core;
 using FCommerce.Customers.Contracts;
+using FCommerce.Infrastructure.Persistence;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 using Microsoft.EntityFrameworkCore;
@@ -15,8 +17,9 @@ internal sealed class SubmitRegistrationHandler(AccessStore store) : ICommandHan
 {
     public async Task<Result<Guid, Error>> HandleAsync(SubmitRegistration command, CancellationToken cancellationToken = default) =>
         await Registrations.Validate(new UnvalidatedRegistration(
-                command.CompanyName, command.TaxId, command.Street, command.PostalCode, command.City, command.Country,
-                command.PersonName, command.Email, command.Phone, command.Culture, command.AcceptedTerms))
+                command.CompanyName.OrEmpty(), command.TaxId.OrEmpty(), command.Street.OrEmpty(), command.PostalCode.OrEmpty(), command.City.OrEmpty(),
+                command.Country.OrEmpty(), command.PersonName.OrEmpty(), command.Email.OrEmpty(), command.Phone.ToMaybe(), command.Culture.OrEmpty(),
+                command.AcceptedTerms))
             .ToResult()
             .BindAsync(async form =>
             {
@@ -25,7 +28,7 @@ internal sealed class SubmitRegistrationHandler(AccessStore store) : ICommandHan
                 return await store.Enqueue(new RegistrationSubmitted(request.Id, request.Company.Name, request.Company.TaxId.Value, request.Applicant.Name.Value, request.Applicant.Email.Value))
                     .MapAsync(async _ =>
                     {
-                        store.Audit(null, "registration.submitted", $"registration:{request.Id}", new { email = request.Applicant.Email.Value, taxId = request.Company.TaxId.Value });
+                        store.Audit(AccessStore.SystemActor, "registration.submitted", $"registration:{request.Id}", new { email = request.Applicant.Email.Value, taxId = request.Company.TaxId.Value });
                         await store.Db.SaveChangesAsync(cancellationToken);
                         return request.Id;
                     });
@@ -40,25 +43,23 @@ internal sealed class ApproveRegistrationHandler(
 {
     public async Task<Result<Unit, Error>> HandleAsync(ApproveRegistration command, CancellationToken cancellationToken = default)
     {
-        var row = await store.Db.Registrations.SingleOrDefaultAsync(r => r.Id == command.RequestId, cancellationToken);
-        var actor = (await store.FindAsync(command.ActorId, cancellationToken))?.ToDomain();
-        if (row is null)
-        {
-            return Error.NotFound("registration.not-found", "The request does not exist.");
-        }
+        var row = await store.Db.Registrations.SingleOrNoneAsync(r => r.Id == command.RequestId, cancellationToken);
+        var decider = await RegistrationViews.DeciderAsync(store, command.ActorId, cancellationToken);
+        return await row.Match(
+            stored => decider.Match(
+                _ => MembershipAttributes.Templates.GetValueOrNone(command.Template.OrEmpty()).Match(
+                    template => ApproveAsync(stored, template, command, cancellationToken),
+                    () => Task.FromResult(Result.Fail<Unit, Error>(
+                        Error.Validation("registration.template-unknown", "Choose the rights for the applicant.") with { Field = "template" }))),
+                () => Task.FromResult(Result.Fail<Unit, Error>(
+                    Error.Forbidden("grant.not-allowed", "Only operators who decide registrations can approve them.")))),
+            () => Task.FromResult(Result.Fail<Unit, Error>(RegistrationViews.NotFound())));
+    }
 
-        if (actor is null || AccessStore.AsOperator(actor) is not { Attributes.CanDecideRegistrations: true })
-        {
-            return Error.Forbidden("grant.not-allowed", "Only operators who decide registrations can approve them.");
-        }
-
-        if (!MembershipAttributes.Templates.TryGetValue(command.Template, out var template))
-        {
-            return Error.Validation("registration.template-unknown", "Choose the rights for the applicant.") with { Field = "template" };
-        }
-
+    private async Task<Result<Unit, Error>> ApproveAsync(RegistrationRow row, MembershipAttributes template, ApproveRegistration command, CancellationToken cancellationToken)
+    {
         var request = row.ToDomain();
-        return await (await customers.HandleAsync(new GetCustomer(command.CustomerCode), cancellationToken)).BindAsync(async customer =>
+        return await (await customers.HandleAsync(new GetCustomer(command.CustomerCode.OrEmpty()), cancellationToken)).BindAsync(async customer =>
             await Registrations.Approve(request, command.ActorId, customer.Code, store.Now).BindAsync(async approved =>
             {
                 var invitee = new CustomerInvitee(request.Applicant.Email, request.Applicant.Name, request.Applicant.Culture, MembershipRights.Of(template));
@@ -77,20 +78,20 @@ internal sealed class RejectRegistrationHandler(AccessStore store) : ICommandHan
 {
     public async Task<Result<Unit, Error>> HandleAsync(RejectRegistration command, CancellationToken cancellationToken = default)
     {
-        var row = await store.Db.Registrations.SingleOrDefaultAsync(r => r.Id == command.RequestId, cancellationToken);
-        var actor = (await store.FindAsync(command.ActorId, cancellationToken))?.ToDomain();
-        if (row is null)
-        {
-            return Error.NotFound("registration.not-found", "The request does not exist.");
-        }
+        var row = await store.Db.Registrations.SingleOrNoneAsync(r => r.Id == command.RequestId, cancellationToken);
+        var decider = await RegistrationViews.DeciderAsync(store, command.ActorId, cancellationToken);
+        return await row.Match(
+            stored => decider.Match(
+                actor => RejectAsync(stored, actor, command.Reason.OrEmpty(), cancellationToken),
+                () => Task.FromResult(Result.Fail<Unit, Error>(
+                    Error.Forbidden("grant.not-allowed", "Only operators who decide registrations can reject them.")))),
+            () => Task.FromResult(Result.Fail<Unit, Error>(RegistrationViews.NotFound())));
+    }
 
-        if (actor is null || AccessStore.AsOperator(actor) is not { Attributes.CanDecideRegistrations: true })
-        {
-            return Error.Forbidden("grant.not-allowed", "Only operators who decide registrations can reject them.");
-        }
-
+    private async Task<Result<Unit, Error>> RejectAsync(RegistrationRow row, Account actor, string reasonText, CancellationToken cancellationToken)
+    {
         var request = row.ToDomain();
-        return await Registrations.Reject(request, actor.Id, command.Reason, store.Now).BindAsync(async rejected =>
+        return await Registrations.Reject(request, actor.Id, reasonText, store.Now).BindAsync(async rejected =>
         {
             var reason = ((RegistrationStatus.Rejected)rejected.Status).Reason;
             row.Apply(rejected);
@@ -111,11 +112,8 @@ internal sealed class GetRegistrationRequestsHandler(AccessDbContext db) : IQuer
 
     public async Task<IReadOnlyList<RegistrationSummary>> HandleAsync(GetRegistrationRequests query, CancellationToken cancellationToken = default)
     {
-        var requests = db.Registrations.AsNoTracking();
-        if (RegistrationViews.StatusOf(query.Status) is { } status)
-        {
-            requests = requests.Where(r => r.Status == status);
-        }
+        var all = db.Registrations.AsNoTracking();
+        var requests = RegistrationViews.StatusOf(query.Status.OrEmpty()).Match(status => all.Where(r => r.Status == status), () => all);
 
         return [.. (await requests.OrderByDescending(r => r.SubmittedAt).Take(MaxItems).ToListAsync(cancellationToken))
             .Select(row => row.ToDomain())
@@ -127,19 +125,23 @@ internal sealed class GetRegistrationRequestHandler(AccessDbContext db) : IQuery
 {
     public async Task<Result<RegistrationDetails, Error>> HandleAsync(GetRegistrationRequest query, CancellationToken cancellationToken = default)
     {
-        var request = (await db.Registrations.AsNoTracking().SingleOrDefaultAsync(r => r.Id == query.Id, cancellationToken))?.ToDomain();
-        if (request is null)
-        {
-            return Error.NotFound("registration.not-found", "The request does not exist.");
-        }
+        var row = await db.Registrations.AsNoTracking().SingleOrNoneAsync(r => r.Id == query.Id, cancellationToken);
+        return await row.Match(
+            async stored => Result.Ok<RegistrationDetails, Error>(await DetailsAsync(stored.ToDomain(), cancellationToken)),
+            () => Task.FromResult(Result.Fail<RegistrationDetails, Error>(RegistrationViews.NotFound())));
+    }
 
+    private async Task<RegistrationDetails> DetailsAsync(RegistrationRequest request, CancellationToken cancellationToken)
+    {
         var (decidedById, decidedAt, customer, reason) = request.Status switch
         {
-            RegistrationStatus.Approved a => ((Guid?)a.DecidedBy, (DateTimeOffset?)a.At, a.CustomerCode, (string?)null),
-            RegistrationStatus.Rejected r => (r.DecidedBy, r.At, null, r.Reason),
-            _ => (null, null, null, null),
+            RegistrationStatus.Approved a => (Maybe.Some(a.DecidedBy), Maybe.Some(a.At), Maybe.Some(a.CustomerCode), Maybe<string>.None),
+            RegistrationStatus.Rejected r => (Maybe.Some(r.DecidedBy), Maybe.Some(r.At), Maybe<string>.None, Maybe.Some(r.Reason)),
+            _ => (Maybe<Guid>.None, Maybe<DateTimeOffset>.None, Maybe<string>.None, Maybe<string>.None),
         };
-        var decidedBy = decidedById is { } id ? await db.Accounts.AsNoTracking().Where(a => a.Id == id).Select(a => a.Name).SingleOrDefaultAsync(cancellationToken) : null;
+        var decidedBy = await decidedById.Match(
+            id => db.Accounts.AsNoTracking().Where(a => a.Id == id).Select(a => a.Name).FirstOrNoneAsync(cancellationToken),
+            () => Task.FromResult(Maybe<string>.None));
         var (company, applicant) = (request.Company, request.Applicant);
         return new RegistrationDetails(
             request.Id,
@@ -151,14 +153,14 @@ internal sealed class GetRegistrationRequestHandler(AccessDbContext db) : IQuery
             company.Address.Country.Value,
             applicant.Name.Value,
             applicant.Email.Value,
-            applicant.Phone,
+            applicant.Phone.OrNull(),
             applicant.Culture.Value,
             request.SubmittedAt,
             RegistrationViews.StatusName(request.Status),
-            decidedBy,
-            decidedAt,
-            customer,
-            reason);
+            decidedBy.OrNull(),
+            decidedAt.OrNull(),
+            customer.OrNull(),
+            reason.OrNull());
     }
 }
 
@@ -172,13 +174,21 @@ internal static class RegistrationViews
             _ => "pending",
         };
 
-    /// <summary>The stored status for a status filter; null for no filter.</summary>
-    public static string? StatusOf(string? filter) =>
+    /// <summary>The stored status for a status filter; none for no filter.</summary>
+    public static Maybe<string> StatusOf(string filter) =>
         filter switch
         {
             "pending" => "Pending",
             "approved" => "Approved",
             "rejected" => "Rejected",
-            _ => null,
+            _ => Maybe<string>.None,
         };
+
+    public static Error NotFound() => Error.NotFound("registration.not-found", "The request does not exist.");
+
+    /// <summary>The actor, when it is an active operator who decides registrations.</summary>
+    public static async Task<Maybe<Account>> DeciderAsync(AccessStore store, Guid actorId, CancellationToken cancellationToken) =>
+        (await store.FindAsync(actorId, cancellationToken))
+            .Map(row => row.ToDomain())
+            .Where(actor => AccessStore.AsOperator(actor).Exists(op => op.Attributes.CanDecideRegistrations));
 }

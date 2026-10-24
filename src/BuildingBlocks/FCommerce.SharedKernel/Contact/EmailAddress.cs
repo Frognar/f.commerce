@@ -18,9 +18,9 @@ public sealed record EmailAddress : IPersistedValue<EmailAddress, string>
 
     public string Domain => Value[(Value.LastIndexOf('@') + 1)..];
 
-    public static Result<EmailAddress, Error> Parse(string? raw)
+    public static Result<EmailAddress, Error> Parse(string raw)
     {
-        var value = raw?.Trim().ToLowerInvariant() ?? string.Empty;
+        var value = raw.Trim().ToLowerInvariant();
         var at = value.LastIndexOf('@');
         var valid = value.Length is > 2 and <= MaxLength
             && at is > 0 and <= 64

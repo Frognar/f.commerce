@@ -3,6 +3,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Authorization.Core;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Localization;
@@ -33,13 +34,13 @@ public sealed class CustomerUserForm
 
     /// <summary>The template's rights (an unknown template gives none, so nothing is granted by mistake).</summary>
     public MembershipRightsView TemplateRights() =>
-        MembershipAttributes.Templates.TryGetValue(Template, out var attributes)
-            ? new MembershipRightsView(attributes.CanOrder, attributes.OrderScope == Authorization.Core.OrderScope.Company ? "company" : "own", attributes.CanViewDocuments, attributes.CanManageUsers)
-            : new MembershipRightsView(false, "own", false, false);
+        MembershipAttributes.Templates.GetValueOrNone(Template).Match(
+            attributes => new MembershipRightsView(attributes.CanOrder, attributes.OrderScope == Authorization.Core.OrderScope.Company ? "company" : "own", attributes.CanViewDocuments, attributes.CanManageUsers),
+            () => new MembershipRightsView(false, "own", false, false));
 }
 
 /// <summary>What the users panel shows; forms post to the current page with <see cref="RouteValues"/>.</summary>
-public sealed record CustomerUsersPanel(IReadOnlyList<CustomerUserSummary> Users, bool CanManage, IDictionary<string, string> RouteValues, Guid? CurrentUserId);
+public sealed record CustomerUsersPanel(IReadOnlyList<CustomerUserSummary> Users, bool CanManage, IDictionary<string, string> RouteValues, Maybe<Guid> CurrentUserId);
 
 /// <summary>Runs the users panel commands for the pages that host it.</summary>
 public sealed class CustomerUsersActions(
@@ -52,26 +53,27 @@ public sealed class CustomerUsersActions(
     public Task<IReadOnlyList<CustomerUserSummary>> UsersAsync(string customerCode, CancellationToken cancellationToken) =>
         users.HandleAsync(new GetCustomerUsers(customerCode), cancellationToken);
 
-    /// <summary>Runs the command; returns the confirmation text, or null after adding the errors to the model state.</summary>
-    public async Task<string?> InviteAsync(Guid actorId, string customerCode, CustomerUserForm form, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
+    /// <summary>Runs the command; returns the confirmation text, or none after adding the errors to the model state.</summary>
+    public async Task<Maybe<string>> InviteAsync(Guid actorId, string customerCode, CustomerUserForm form, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
         Outcome(await invite.HandleAsync(new InviteCustomerUser(actorId, customerCode, form.Email, form.Name, form.Culture, form.TemplateRights()), cancellationToken), "UserInvited", modelState);
 
-    public async Task<string?> ChangeAsync(Guid actorId, string customerCode, Guid userId, CustomerUserForm form, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
+    public async Task<Maybe<string>> ChangeAsync(Guid actorId, string customerCode, Guid userId, CustomerUserForm form, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
         Outcome(await change.HandleAsync(new ChangeMembership(actorId, userId, customerCode, form.Rights()), cancellationToken), "Saved", modelState);
 
-    public async Task<string?> RevokeAsync(Guid actorId, string customerCode, Guid userId, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
+    public async Task<Maybe<string>> RevokeAsync(Guid actorId, string customerCode, Guid userId, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
         Outcome(await revoke.HandleAsync(new RevokeMembership(actorId, userId, customerCode), cancellationToken), "AccessRevoked", modelState);
 
-    private string? Outcome<T>(Result<T, Error> result, string savedText, ModelStateDictionary modelState) =>
+    private Maybe<string> Outcome<T>(Result<T, Error> result, string savedText, ModelStateDictionary modelState)
+        where T : notnull =>
         result.Match(
             _ =>
             {
                 modelState.Clear();
-                return (string?)texts[savedText];
+                return Maybe.Some<string>(texts[savedText]);
             },
             error =>
             {
                 modelState.AddErrors(error, texts);
-                return null;
+                return Maybe<string>.None;
             });
 }

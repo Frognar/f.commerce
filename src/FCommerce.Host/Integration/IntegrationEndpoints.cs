@@ -4,8 +4,10 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Host.Http;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Host.Integration;
 
@@ -23,20 +25,20 @@ internal static class IntegrationEndpoints
             .AddEndpointFilter<IntegrationApiKeyFilter>()
             .WithTags("Integration");
 
-        integration.MapPut("/catalog/products", async (ImportProducts? command, ICommandHandler<ImportProducts, Result<ImportReport, Error>> handler, CancellationToken ct) =>
-                await Batch(command?.Products, () => handler.HandleAsync(command!, ct)))
+        integration.MapPut("/catalog/products", (ImportProducts? command, ICommandHandler<ImportProducts, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.Products, c => handler.HandleAsync(c, ct)))
             .WithSummary("Upserts products; items are validated independently and reported.");
 
-        integration.MapPut("/catalog/categories", async (ImportCategories? command, ICommandHandler<ImportCategories, Result<ImportReport, Error>> handler, CancellationToken ct) =>
-                await Batch(command?.Categories, () => handler.HandleAsync(command!, ct)))
+        integration.MapPut("/catalog/categories", (ImportCategories? command, ICommandHandler<ImportCategories, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.Categories, c => handler.HandleAsync(c, ct)))
             .WithSummary("Upserts categories; a parent may arrive after its children.");
 
-        integration.MapPut("/customers", async (ImportCustomers? command, ICommandHandler<ImportCustomers, Result<ImportReport, Error>> handler, CancellationToken ct) =>
-                await Batch(command?.Customers, () => handler.HandleAsync(command!, ct)))
+        integration.MapPut("/customers", (ImportCustomers? command, ICommandHandler<ImportCustomers, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.Customers, c => handler.HandleAsync(c, ct)))
             .WithSummary("Upserts customers with their addresses, contacts and salesperson; items are validated independently and reported.");
 
-        integration.MapPut("/documents", async (ImportDocuments? command, ICommandHandler<ImportDocuments, Result<ImportReport, Error>> handler, CancellationToken ct) =>
-                await Batch(command?.Documents, () => handler.HandleAsync(command!, ct)))
+        integration.MapPut("/documents", (ImportDocuments? command, ICommandHandler<ImportDocuments, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.Documents, c => handler.HandleAsync(c, ct)))
             .WithSummary("Upserts document metadata (invoices, corrections, delivery notes, proformas); items are validated independently and reported.");
 
         integration.MapPut("/documents/{id}/file", StoreDocumentFileAsync)
@@ -56,11 +58,14 @@ internal static class IntegrationEndpoints
         return (await handler.HandleAsync(new StoreDocumentFile(documentId, buffer.GetBuffer().AsMemory(0, (int)buffer.Length)), ct)).ToHttpResult(_ => Results.NoContent());
     }
 
-    private static async Task<IResult> Batch<T>(IReadOnlyList<T>? items, Func<Task<Result<ImportReport, Error>>> import) =>
-        items switch
-        {
-            null => Error.Validation("batch.missing", "The request body must contain the items to import.").ToProblem(),
-            { Count: > MaxBatchSize } => Error.Validation("batch.too-large", $"At most {MaxBatchSize} items per request.").ToProblem(),
-            _ => (await import()).ToHttpResult(Results.Ok),
-        };
+    /// <param name="command">The body; missing when the request had none.</param>
+    /// <param name="items">The batch items of the body (the JSON may lack them).</param>
+    private static async Task<IResult> Batch<TCommand, T>(Maybe<TCommand> command, Func<TCommand, IReadOnlyList<T>> items, Func<TCommand, Task<Result<ImportReport, Error>>> import)
+        where TCommand : notnull
+        where T : notnull =>
+        await command.Bind(c => items(c).ToMaybe().Map(list => (Command: c, list.Count))).Match(
+            async batch => batch.Count > MaxBatchSize
+                ? Error.Validation("batch.too-large", $"At most {MaxBatchSize} items per request.").ToProblem()
+                : (await import(batch.Command)).ToHttpResult(Results.Ok),
+            () => Task.FromResult(Error.Validation("batch.missing", "The request body must contain the items to import.").ToProblem()));
 }

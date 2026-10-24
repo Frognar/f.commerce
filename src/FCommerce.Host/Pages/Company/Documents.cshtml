@@ -4,7 +4,7 @@
 @{
     ViewData["Title"] = T["Documents"];
 }
-<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer!.Name</a></nav>
+<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer.Name</a></nav>
 <h1>@T["Documents"]</h1>
 
 <section class="receivables" aria-label="@T["Receivables"]">

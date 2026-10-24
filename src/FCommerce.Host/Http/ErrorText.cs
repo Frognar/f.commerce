@@ -19,7 +19,7 @@ internal static class ErrorText
     {
         foreach (var single in error.Details.IsEmpty ? [error] : error.Details.AsImmutableArray().AsEnumerable())
         {
-            modelState.AddModelError(single.Field ?? string.Empty, texts.Describe(single));
+            modelState.AddModelError(single.Field.ValueOr(string.Empty), texts.Describe(single));
         }
     }
 }

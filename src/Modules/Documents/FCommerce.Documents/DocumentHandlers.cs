@@ -4,11 +4,14 @@ using FCommerce.Application.Storage;
 using FCommerce.Documents.Contracts;
 using FCommerce.Documents.Domain;
 using FCommerce.Documents.Persistence;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Documents;
 
@@ -27,13 +30,13 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClo
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportDocuments command, CancellationToken cancellationToken = default)
     {
-        var batch = ImportBatch.Validate(command.Documents, d => d.Id, d => Domain.Documents.Validate(ToUnvalidated(d)));
+        var batch = ImportBatch.Validate(command.Documents, d => d.Id.ToMaybe(), d => Domain.Documents.Validate(ToUnvalidated(d)));
 
         var ids = batch.Valid.Select(v => v.Item.Id.Value).ToList();
         var rows = await db.Documents.Where(d => ids.Contains(d.Id)).ToDictionaryAsync(d => d.Id, cancellationToken);
 
         var changes = batch.Valid
-            .Select(v => Domain.Documents.Reconcile(rows.GetValueOrDefault(v.Item.Id.Value)?.ToDomain(), v.Item))
+            .Select(v => Domain.Documents.Reconcile(rows.GetValueOrNone(v.Item.Id.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         foreach (var change in changes)
@@ -58,19 +61,19 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClo
 
     private static UnvalidatedDocument ToUnvalidated(DocumentData data) =>
         new(
-            data.Id,
+            data.Id.OrEmpty(),
             data.Version,
-            data.CustomerCode,
-            data.Type,
-            data.Number,
-            data.IssueDate,
-            data.SaleDate,
-            data.DueDate,
-            data.Currency,
-            data.Net,
-            data.Gross,
-            data.Paid,
-            data.OrderNumber);
+            data.CustomerCode.OrEmpty(),
+            data.Type.OrEmpty(),
+            data.Number.OrEmpty(),
+            data.IssueDate.ToMaybe(),
+            data.SaleDate.ToMaybe(),
+            data.DueDate.ToMaybe(),
+            data.Currency.ToMaybe(),
+            data.Net.ToMaybe(),
+            data.Gross.ToMaybe(),
+            data.Paid.ToMaybe(),
+            data.OrderNumber.ToMaybe());
 }
 
 /// <summary>The file is accepted only for a document whose metadata is already imported; the blob is written first.</summary>
@@ -82,17 +85,17 @@ internal sealed class StoreDocumentFileHandler(DocumentsDbContext db, IBlobStore
          select id)
         .BindAsync(async id =>
         {
-            var row = await db.Documents.SingleOrDefaultAsync(d => d.Id == id.Value, cancellationToken);
-            if (row is null)
-            {
-                return Error.NotFound("document.not-found", $"Document '{id}' has not been imported.");
-            }
-
-            await blobs.PutAsync(DocumentRow.FileKey(id), command.Content, cancellationToken);
-            row.FileSize = command.Content.Length;
-            row.FileUpdatedAt = clock.Now;
-            await db.SaveChangesAsync(cancellationToken);
-            return Result.Ok<Unit, Error>(Unit.Value);
+            var row = await db.Documents.SingleOrNoneAsync(d => d.Id == id.Value, cancellationToken);
+            return await row.Match(
+                async stored =>
+                {
+                    await blobs.PutAsync(DocumentRow.FileKey(id), command.Content, cancellationToken);
+                    stored.FileSize = command.Content.Length;
+                    stored.FileUpdatedAt = clock.Now;
+                    await db.SaveChangesAsync(cancellationToken);
+                    return Result.Ok<Unit, Error>(Unit.Value);
+                },
+                () => Task.FromResult(Result.Fail<Unit, Error>(Error.NotFound("document.not-found", $"Document '{id}' has not been imported."))));
         });
 }
 
@@ -103,41 +106,32 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
     private static readonly DocumentType[] Payable = [.. Enum.GetValues<DocumentType>().Where(Domain.Documents.IsPayable)];
 
     public Task<Result<DocumentPage, Error>> HandleAsync(GetCustomerDocuments query, CancellationToken cancellationToken = default) =>
-        (from type in Optional(query.Type, ParseType)
-         from status in Optional(query.Status, ParseStatus)
+        (from type in Maybe.ParseOptional(query.Type.ToMaybe(), raw => ParseType(raw.Trim()))
+         from status in Maybe.ParseOptional(query.Status.ToMaybe(), raw => ParseStatus(raw.Trim()))
          select (type, status))
         .MapAsync(filter => ListAsync(query, filter.type, filter.status, cancellationToken));
 
-    private async Task<DocumentPage> ListAsync(GetCustomerDocuments query, DocumentType? type, PaymentStatus? status, CancellationToken cancellationToken)
+    private async Task<DocumentPage> ListAsync(GetCustomerDocuments query, Maybe<DocumentType> type, Maybe<PaymentStatus> status, CancellationToken cancellationToken)
     {
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
         var today = clock.Today;
 
         var documents = db.Documents.AsNoTracking().Where(d => d.CustomerCode == query.CustomerCode);
-        if (type is { } t)
-        {
-            documents = documents.Where(d => d.Type == t);
-        }
+        documents = type.Match(t => documents.Where(d => d.Type == t), () => documents);
+        documents = query.IssuedFrom.ToMaybe().Match(from => documents.Where(d => d.IssueDate >= from), () => documents);
+        documents = query.IssuedTo.ToMaybe().Match(to => documents.Where(d => d.IssueDate <= to), () => documents);
 
-        if (query.IssuedFrom is { } from)
-        {
-            documents = documents.Where(d => d.IssueDate >= from);
-        }
-
-        if (query.IssuedTo is { } to)
-        {
-            documents = documents.Where(d => d.IssueDate <= to);
-        }
-
-        // The status rules of Documents.StatusOn, as a query over the stored outstanding amount.
-        documents = status switch
-        {
-            PaymentStatus.Paid => documents.Where(d => Payable.Contains(d.Type) && d.Outstanding == 0),
-            PaymentStatus.Unpaid => documents.Where(d => d.Outstanding > 0 && (d.DueDate == null || d.DueDate >= today)),
-            PaymentStatus.Overdue => documents.Where(d => d.Outstanding > 0 && d.DueDate < today),
-            _ => documents,
-        };
+        // The status rules of Documents.StatusOn, as a query over the stored outstanding amount (row columns may be null).
+        documents = status.Match(
+            s => s switch
+            {
+                PaymentStatus.Paid => documents.Where(d => Payable.Contains(d.Type) && d.Outstanding == 0),
+                PaymentStatus.Unpaid => documents.Where(d => d.Outstanding > 0 && (d.DueDate == null || d.DueDate >= today)),
+                PaymentStatus.Overdue => documents.Where(d => d.Outstanding > 0 && d.DueDate < today),
+                _ => documents,
+            },
+            () => documents);
 
         var total = await documents.CountAsync(cancellationToken);
         var rows = await documents
@@ -156,12 +150,12 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             Domain.Documents.TypeNames.First(n => n.Value == content.Type).Key,
             content.Number,
             content.Dates.Issued,
-            content.Dates.Due,
-            content.Amounts?.Currency.Code,
-            content.Amounts?.Gross,
+            content.Dates.Due.OrNull(),
+            content.Amounts.Map(a => a.Currency.Code).OrNull(),
+            content.Amounts.Map(a => a.Gross).OrNull(),
             row.Outstanding,
             StatusName(Domain.Documents.StatusOn(content, today)),
-            content.OrderNumber,
+            content.OrderNumber.OrNull(),
             row.FileSize is not null);
     }
 
@@ -187,10 +181,6 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             PaymentStatus.Overdue => DocumentStatuses.Overdue,
             _ => DocumentStatuses.None,
         };
-
-    private static Result<T?, Error> Optional<T>(string? raw, Func<string, Result<T, Error>> parse)
-        where T : struct =>
-        string.IsNullOrWhiteSpace(raw) ? Result.Ok<T?, Error>(null) : parse(raw.Trim()).Map(value => (T?)value);
 }
 
 internal sealed class GetReceivablesHandler(DocumentsDbContext db, DocumentsClock clock) : IQueryHandler<GetReceivables, IReadOnlyList<ReceivableView>>
@@ -202,7 +192,7 @@ internal sealed class GetReceivablesHandler(DocumentsDbContext db, DocumentsCloc
             .Select(d => new { d.Currency, d.Outstanding, d.DueDate })
             .ToListAsync(cancellationToken);
 
-        return [.. Domain.Documents.Receivables(open.Select(d => new OpenItem(Persisted.Rehydrate<Currency, string>(d.Currency!), d.Outstanding, d.DueDate)), clock.Today)
+        return [.. Domain.Documents.Receivables(open.Choose(d => d.Currency.ToMaybe().Map(code => new OpenItem(Persisted.Rehydrate<Currency, string>(code), d.Outstanding, d.DueDate.ToMaybe()))), clock.Today)
             .Select(r => new ReceivableView(r.Currency.Code, r.Outstanding, r.Overdue, r.OverdueCount))];
     }
 }
@@ -214,11 +204,11 @@ internal sealed class OpenDocumentFileHandler(DocumentsDbContext db, IBlobStore 
         DocumentId.Parse(query.DocumentId).BindAsync(async id =>
         {
             var row = await db.Documents.AsNoTracking()
-                .SingleOrDefaultAsync(d => d.Id == id.Value && d.CustomerCode == query.CustomerCode && d.FileSize != null, cancellationToken);
-            var stream = row is null ? null : await blobs.OpenReadAsync(DocumentRow.FileKey(id), cancellationToken);
-            return stream is null
-                ? Error.NotFound("document.not-found", "The document does not exist.")
-                : Result.Ok<DocumentFile, Error>(new DocumentFile(stream, FileName(row!.Number)));
+                .SingleOrNoneAsync(d => d.Id == id.Value && d.CustomerCode == query.CustomerCode && d.FileSize != null, cancellationToken);
+            var file = await row.Match(
+                async stored => (await blobs.OpenReadAsync(DocumentRow.FileKey(id), cancellationToken)).Map(stream => new DocumentFile(stream, FileName(stored.Number))),
+                () => Task.FromResult(Maybe<DocumentFile>.None));
+            return file.ToResult(() => Error.NotFound("document.not-found", "The document does not exist."));
         });
 
     /// <summary>"FV/2026/10/001" → "FV-2026-10-001.pdf".</summary>

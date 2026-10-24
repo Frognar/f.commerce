@@ -9,6 +9,7 @@ namespace FCommerce.SharedKernel.Persistence;
 /// </summary>
 public interface IPersistedValue<TSelf, TRaw>
     where TSelf : IPersistedValue<TSelf, TRaw>
+    where TRaw : notnull
 {
     static abstract TSelf Rehydrate(TRaw raw);
 

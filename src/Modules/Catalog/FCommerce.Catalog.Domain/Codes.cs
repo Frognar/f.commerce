@@ -13,7 +13,7 @@ public sealed record Sku : IPersistedValue<Sku, string>
 
     public string Value { get; }
 
-    public static Result<Sku, Error> Parse(string? raw) =>
+    public static Result<Sku, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "sku", "SKU").Map(value => new Sku(value));
 
     static Sku IPersistedValue<Sku, string>.Rehydrate(string raw) => new(raw);
@@ -31,7 +31,7 @@ public sealed record CategoryCode : IPersistedValue<CategoryCode, string>
 
     public string Value { get; }
 
-    public static Result<CategoryCode, Error> Parse(string? raw) =>
+    public static Result<CategoryCode, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "category-code", "Category code").Map(value => new CategoryCode(value));
 
     static CategoryCode IPersistedValue<CategoryCode, string>.Rehydrate(string raw) => new(raw);
@@ -49,7 +49,7 @@ public sealed record AttributeCode : IPersistedValue<AttributeCode, string>
 
     public string Value { get; }
 
-    public static Result<AttributeCode, Error> Parse(string? raw) =>
+    public static Result<AttributeCode, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "attribute-code", "Attribute code").Map(value => new AttributeCode(value));
 
     static AttributeCode IPersistedValue<AttributeCode, string>.Rehydrate(string raw) => new(raw);
@@ -68,7 +68,7 @@ public sealed record UnitCode : IPersistedValue<UnitCode, string>
 
     public string Value { get; }
 
-    public static Result<UnitCode, Error> Parse(string? raw) =>
+    public static Result<UnitCode, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "unit", "Unit").Map(value => new UnitCode(value));
 
     static UnitCode IPersistedValue<UnitCode, string>.Rehydrate(string raw) => new(raw);

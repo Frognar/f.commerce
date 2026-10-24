@@ -6,7 +6,9 @@ using FCommerce.SharedKernel.Results;
 namespace FCommerce.Application.EventStore;
 
 /// <summary>Result of running a command through a decider.</summary>
-public sealed record Decision<TState, TEvent>(TState State, long Version, EquatableArray<TEvent> NewEvents);
+public sealed record Decision<TState, TEvent>(TState State, long Version, EquatableArray<TEvent> NewEvents)
+    where TState : notnull
+    where TEvent : notnull;
 
 /// <summary>The imperative shell around a pure <see cref="Decider{TCommand,TState,TEvent}"/>.</summary>
 public static class EventSourcing
@@ -25,6 +27,8 @@ public static class EventSourcing
         DecisionContext context,
         EventMetadata metadata,
         CancellationToken cancellationToken = default)
+        where TCommand : notnull
+        where TState : notnull
         where TEvent : notnull =>
         AttemptAsync(store, streamId, decider, command, context, metadata, attempt: 1, cancellationToken);
 
@@ -34,6 +38,9 @@ public static class EventSourcing
         StreamId streamId,
         Decider<TCommand, TState, TEvent> decider,
         CancellationToken cancellationToken = default)
+        where TCommand : notnull
+        where TState : notnull
+        where TEvent : notnull
     {
         var history = await store.ReadStreamAsync(streamId, cancellationToken);
         var state = decider.Fold(history.Select(e => (TEvent)e.Data));
@@ -49,6 +56,8 @@ public static class EventSourcing
         EventMetadata metadata,
         int attempt,
         CancellationToken cancellationToken)
+        where TCommand : notnull
+        where TState : notnull
         where TEvent : notnull
     {
         var (state, version) = await store.LoadAsync(streamId, decider, cancellationToken);

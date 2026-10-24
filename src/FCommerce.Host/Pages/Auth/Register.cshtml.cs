@@ -5,6 +5,7 @@ using FCommerce.Authorization.Core;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -21,6 +22,8 @@ public sealed class RegisterModel(
     AccessControl access,
     IStringLocalizer<SharedResource> texts) : PageModel
 {
+    /// <summary>The form as posted (optional fields arrive empty or missing).</summary>
+    [NullableEdge]
     public sealed class RegistrationForm
     {
         public string CompanyName { get; set; } = string.Empty;

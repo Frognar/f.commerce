@@ -1,8 +1,10 @@
 using System.Text.Json;
 using FCommerce.Customers.Domain;
+using FCommerce.Customers.Queries;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.Search.Core.Analysis;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Customers.Persistence;
 
@@ -47,9 +49,9 @@ internal sealed class CustomerRow
         var content = customer.Content;
         Version = customer.Version.Value;
         Name = content.Name;
-        TaxId = content.TaxId?.Value;
+        TaxId = content.TaxId.Map(t => t.Value).OrNull();
         City = content.BillingAddress.City;
-        SalespersonEmail = content.Salesperson?.Email?.Value;
+        SalespersonEmail = CustomerViews.SalespersonEmail(content).OrNull();
         Active = customer.Active;
         Blocked = content.Terms.Blocked;
         Content = JsonSerializer.Serialize(content, PersistenceJson.Options);
@@ -67,8 +69,9 @@ internal sealed class CustomerRow
     private static string SearchTextOf(Customer customer) =>
         Folding.Fold(string.Join(
             ' ',
-            new[] { customer.Code.Value, customer.Content.Name, customer.Content.TaxId?.Value, customer.Content.TaxId?.Number, customer.Content.BillingAddress.City }
+            new[] { customer.Code.Value, customer.Content.Name }
+                .Concat(customer.Content.TaxId.AsEnumerable().SelectMany(t => new[] { t.Value, t.Number }))
+                .Append(customer.Content.BillingAddress.City)
                 .Concat(customer.Content.DeliveryAddresses.Select(a => a.Address.City))
-                .Where(part => part is not null)
                 .Distinct()));
 }

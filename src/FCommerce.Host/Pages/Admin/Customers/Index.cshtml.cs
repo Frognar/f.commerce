@@ -4,6 +4,7 @@ using FCommerce.Customers.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -31,10 +32,10 @@ public sealed class IndexModel(IQueryHandler<SearchCustomers, Result<CustomerPag
     {
         var salesperson = await user.SubjectAsync(cancellationToken) is Subject.Operator { Attributes.CustomerScope: CustomerScope.AsSalesperson } op
             ? op.Email.Value
-            : null;
-        OwnCustomersOnly = salesperson is not null;
+            : Maybe<string>.None;
+        OwnCustomersOnly = salesperson.Match(_ => true, () => false);
 
-        return (await search.HandleAsync(new SearchCustomers(Query, salesperson, PageNumber), cancellationToken)).Match<IActionResult>(
+        return (await search.HandleAsync(new SearchCustomers(Query, salesperson.OrNull(), PageNumber), cancellationToken)).Match<IActionResult>(
             results =>
             {
                 Results = results;
@@ -43,17 +44,14 @@ public sealed class IndexModel(IQueryHandler<SearchCustomers, Result<CustomerPag
             error => BadRequest(error.Message));
     }
 
-    public string Href(int? page = null)
+    /// <summary>A page of the list with the current search.</summary>
+    public string Href(int page)
     {
         var query = new QueryBuilder();
-        if (!string.IsNullOrWhiteSpace(Query))
+        Query.ToMaybe().Where(text => !string.IsNullOrWhiteSpace(text)).Switch(text => query.Add("q", text), () => { });
+        if (page > 1)
         {
-            query.Add("q", Query);
-        }
-
-        if (page is > 1)
-        {
-            query.Add("p", page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            query.Add("p", page.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
 
         return Url.CulturePage("/Admin/Customers/Index") + query.ToQueryString();

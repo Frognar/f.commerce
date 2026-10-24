@@ -17,7 +17,7 @@ internal static class EmailRenderer
 {
     private static readonly ResourceManager Texts = new("FCommerce.Notifications.Templates.EmailTexts", typeof(EmailRenderer).Assembly);
 
-    public static string Text(string key, string culture, params object?[] arguments)
+    public static string Text(string key, string culture, params object[] arguments)
     {
         var info = CultureInfo.GetCultureInfo(culture);
         var format = Texts.GetString(key, info) ?? key;

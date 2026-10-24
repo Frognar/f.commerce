@@ -5,6 +5,7 @@ namespace FCommerce.Application.Messaging;
 /// <summary>Handles a command from a module's public contract. Adapters (pages, API) depend on this, never on the module internals.</summary>
 public interface ICommandHandler<in TCommand, TResult>
     where TCommand : ICommand<TResult>
+    where TResult : notnull
 {
     Task<TResult> HandleAsync(TCommand command, CancellationToken cancellationToken = default);
 }
@@ -12,6 +13,7 @@ public interface ICommandHandler<in TCommand, TResult>
 /// <summary>Handles a read-only query from a module's public contract.</summary>
 public interface IQueryHandler<in TQuery, TResult>
     where TQuery : IQuery<TResult>
+    where TResult : notnull
 {
     Task<TResult> HandleAsync(TQuery query, CancellationToken cancellationToken = default);
 }

@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Media.Contracts;
 using SkiaSharp;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.IntegrationTests;
 

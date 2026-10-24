@@ -38,21 +38,28 @@ public sealed class LiveDocs
     /// <summary>A copy with the given documents deleted (the same instance when nothing changes).</summary>
     public LiveDocs Without(IEnumerable<int> docs)
     {
-        ulong[]? copy = null;
+        // Copy on the first change only; the copy then also tells whether a document was already deleted.
+        var copy = words;
+        var copied = false;
         var count = Count;
         foreach (var doc in docs)
         {
-            if (!IsLive(doc) || (copy is not null && (copy[doc >> 6] & (1UL << (doc & 63))) == 0))
+            if ((copy[doc >> 6] & (1UL << (doc & 63))) == 0)
             {
                 continue;
             }
 
-            copy ??= [.. words];
+            if (!copied)
+            {
+                copy = [.. words];
+                copied = true;
+            }
+
             copy[doc >> 6] &= ~(1UL << (doc & 63));
             count--;
         }
 
-        return copy is null ? this : new LiveDocs(copy, Size, count);
+        return copied ? new LiveDocs(copy, Size, count) : this;
     }
 
     public ReadOnlySpan<ulong> Words => words;

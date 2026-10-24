@@ -41,7 +41,7 @@ public sealed class PolicyTests
 
         Assert.True(Decide(user, AccessAction.Read, new Resource.Catalog(), Environment(CatalogVisibility.SignedInOnly)).IsPermitted);
         Assert.True(Decide(user, AccessAction.Manage, new Resource.OwnAccount()).IsPermitted);
-        AssertDenied(Decide(user, AccessAction.Read, new Resource.CustomerProfile("C1", null)), "no-applicable-policy");
+        AssertDenied(Decide(user, AccessAction.Read, new Resource.CustomerProfile("C1", default)), "no-applicable-policy");
         AssertDenied(Decide(user, AccessAction.Read, new Resource.Customers()), "no-applicable-policy");
     }
 
@@ -59,24 +59,24 @@ public sealed class PolicyTests
     [Fact]
     public void Customer_users_act_only_for_their_active_customer()
     {
-        Assert.True(Decide(Accountant, AccessAction.Download, new Resource.CustomerDocuments("C1", null)).IsPermitted);
-        AssertDenied(Decide(Accountant, AccessAction.Download, new Resource.CustomerDocuments("C2", null)), "other-customer");
-        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C2", null)), "other-customer");
+        Assert.True(Decide(Accountant, AccessAction.Download, new Resource.CustomerDocuments("C1", default)).IsPermitted);
+        AssertDenied(Decide(Accountant, AccessAction.Download, new Resource.CustomerDocuments("C2", default)), "other-customer");
+        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C2", default)), "other-customer");
     }
 
     [Fact]
     public void Attributes_decide_within_the_customer()
     {
-        AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.CustomerDocuments("C1", null)), "cannot-view-documents");
-        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.CustomerUsers("C1", null)), "cannot-manage-users");
-        Assert.True(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C1", null)).IsPermitted);
-        Assert.True(Decide(Buyer, AccessAction.Read, new Resource.CustomerProfile("C1", null)).IsPermitted);
+        AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.CustomerDocuments("C1", default)), "cannot-view-documents");
+        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.CustomerUsers("C1", default)), "cannot-manage-users");
+        Assert.True(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C1", default)).IsPermitted);
+        Assert.True(Decide(Buyer, AccessAction.Read, new Resource.CustomerProfile("C1", default)).IsPermitted);
     }
 
     [Fact]
     public void An_inactive_customer_locks_out_its_users()
     {
-        AssertDenied(Decide(Admin, AccessAction.Read, new Resource.CustomerProfile("C1", null), Environment(customerActive: false)), "customer-inactive");
+        AssertDenied(Decide(Admin, AccessAction.Read, new Resource.CustomerProfile("C1", default), Environment(customerActive: false)), "customer-inactive");
     }
 
     [Fact]
@@ -84,8 +84,8 @@ public sealed class PolicyTests
     {
         var documentsOff = Environment(off: Feature.Documents);
 
-        AssertDenied(Decide(Accountant, AccessAction.Read, new Resource.CustomerDocuments("C1", null), documentsOff), "feature-off:documents");
-        AssertDenied(Decide(PlatformAdmin, AccessAction.Read, new Resource.CustomerDocuments("C1", null), documentsOff), "feature-off:documents");
+        AssertDenied(Decide(Accountant, AccessAction.Read, new Resource.CustomerDocuments("C1", default), documentsOff), "feature-off:documents");
+        AssertDenied(Decide(PlatformAdmin, AccessAction.Read, new Resource.CustomerDocuments("C1", default), documentsOff), "feature-off:documents");
         AssertDenied(Decide(Subject.Anonymous, AccessAction.Submit, new Resource.Registrations(), Environment(off: Feature.SelfRegistration)), "feature-off:self-registration");
     }
 
@@ -94,9 +94,9 @@ public sealed class PolicyTests
     {
         var environment = Environment(off: Feature.CustomerAdminInvitations);
 
-        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C1", null), environment), "feature-off:customer-admin-invitations");
-        Assert.True(Decide(Admin, AccessAction.Read, new Resource.CustomerUsers("C1", null), environment).IsPermitted);
-        Assert.True(Decide(PlatformAdmin, AccessAction.Manage, new Resource.CustomerUsers("C1", null), environment).IsPermitted);
+        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.CustomerUsers("C1", default), environment), "feature-off:customer-admin-invitations");
+        Assert.True(Decide(Admin, AccessAction.Read, new Resource.CustomerUsers("C1", default), environment).IsPermitted);
+        Assert.True(Decide(PlatformAdmin, AccessAction.Manage, new Resource.CustomerUsers("C1", default), environment).IsPermitted);
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class PolicyTests
     {
         Assert.True(Decide(SalespersonAnna, AccessAction.Manage, new Resource.CustomerUsers("C1", Anna)).IsPermitted);
         AssertDenied(Decide(SalespersonAnna, AccessAction.Manage, new Resource.CustomerUsers("C2", Piotr)), "outside-operator-scope");
-        AssertDenied(Decide(SalespersonAnna, AccessAction.Read, new Resource.CustomerProfile("C3", null)), "outside-operator-scope");
+        AssertDenied(Decide(SalespersonAnna, AccessAction.Read, new Resource.CustomerProfile("C3", default)), "outside-operator-scope");
         Assert.True(Decide(PlatformAdmin, AccessAction.Manage, new Resource.CustomerUsers("C2", Anna)).IsPermitted);
     }
 
@@ -133,7 +133,7 @@ public sealed class PolicyTests
     [Fact]
     public void Every_reason_for_a_denial_is_reported()
     {
-        var decision = Decide(Buyer, AccessAction.Read, new Resource.CustomerDocuments("C2", null), Environment(off: Feature.Documents));
+        var decision = Decide(Buyer, AccessAction.Read, new Resource.CustomerDocuments("C2", default), Environment(off: Feature.Documents));
 
         AssertDenied(decision, "cannot-view-documents", "feature-off:documents", "other-customer");
     }
@@ -148,10 +148,10 @@ public sealed class GrantTests
     [Fact]
     public void Customer_administrators_manage_memberships_of_their_own_customer_only()
     {
-        Assert.Equal(MembershipAttributes.Buyer, Grants.Membership(Admin, "C1", null, MembershipAttributes.Buyer, 1).ShouldSucceed());
-        Assert.Equal("grant.not-allowed", Grants.Membership(Admin, "C2", null, MembershipAttributes.Buyer, 1).ShouldFail().Code);
-        Assert.Equal("grant.not-allowed", Grants.Membership(Buyer, "C1", null, MembershipAttributes.Buyer, 1).ShouldFail().Code);
-        Assert.Equal("grant.not-allowed", Grants.Membership(Subject.Anonymous, "C1", null, MembershipAttributes.Buyer, 1).ShouldFail().Code);
+        Assert.Equal(MembershipAttributes.Buyer, Grants.Membership(Admin, "C1", default, MembershipAttributes.Buyer, 1).ShouldSucceed());
+        Assert.Equal("grant.not-allowed", Grants.Membership(Admin, "C2", default, MembershipAttributes.Buyer, 1).ShouldFail().Code);
+        Assert.Equal("grant.not-allowed", Grants.Membership(Buyer, "C1", default, MembershipAttributes.Buyer, 1).ShouldFail().Code);
+        Assert.Equal("grant.not-allowed", Grants.Membership(Subject.Anonymous, "C1", default, MembershipAttributes.Buyer, 1).ShouldFail().Code);
     }
 
     [Fact]
@@ -169,9 +169,9 @@ public sealed class GrantTests
     {
         var salesperson = new Subject.Operator(Guid.NewGuid(), EmailAddress.Parse("s@seller.pl").ShouldSucceed(), OperatorAttributes.Salesperson);
 
-        Assert.Equal(OperatorAttributes.Salesperson, Grants.Operator(Operator, null, OperatorAttributes.Salesperson, 0).ShouldSucceed());
-        Assert.Equal("grant.not-allowed", Grants.Operator(salesperson, null, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
-        Assert.Equal("grant.not-allowed", Grants.Operator(Admin, null, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
+        Assert.Equal(OperatorAttributes.Salesperson, Grants.Operator(Operator, default, OperatorAttributes.Salesperson, 0).ShouldSucceed());
+        Assert.Equal("grant.not-allowed", Grants.Operator(salesperson, default, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
+        Assert.Equal("grant.not-allowed", Grants.Operator(Admin, default, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
         Assert.Equal("grant.last-operator-manager", Grants.Operator(Operator, OperatorAttributes.PlatformAdministrator, OperatorAttributes.Salesperson, 0).ShouldFail().Code);
     }
 }

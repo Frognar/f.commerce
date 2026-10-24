@@ -26,6 +26,8 @@ internal static class TestProducts
     public static Product Valid(string sku = "SR-M8-40", long version = 1) =>
         Product.Validate(Input(sku, version)).ShouldBeValid();
 
-    public static IReadOnlyList<string?> Fields<T>(Validated<T> validated) =>
-        [.. validated.ShouldBeInvalid().Select(e => e.Field)];
+    /// <summary>Field paths of the errors; an error without a field reads as an empty path.</summary>
+    public static IReadOnlyList<string> Fields<T>(Validated<T> validated)
+        where T : notnull =>
+        [.. validated.ShouldBeInvalid().Select(e => e.Field.ValueOr(string.Empty))];
 }

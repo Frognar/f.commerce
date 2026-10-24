@@ -1,4 +1,5 @@
 using FCommerce.SharedKernel.Collections;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.SharedKernel.Results;
 
@@ -19,7 +20,7 @@ public sealed record Error(ErrorKind Kind, string Code, string Message)
 {
     public const string ValidationFailedCode = "validation.failed";
 
-    public string? Field { get; init; }
+    public Maybe<string> Field { get; init; }
 
     public EquatableArray<Error> Details { get; init; }
 
@@ -41,12 +42,7 @@ public sealed record Error(ErrorKind Kind, string Code, string Message)
     public Error AtField(string field) =>
         this with
         {
-            Field = Field switch
-            {
-                null => field,
-                _ when Field.StartsWith('[') => field + Field,
-                _ => $"{field}.{Field}",
-            },
+            Field = Field.Match(inner => inner.StartsWith('[') ? field + inner : $"{field}.{inner}", () => field),
             Details = Details.Select(d => d.AtField(field)).ToEquatableArray(),
         };
 }

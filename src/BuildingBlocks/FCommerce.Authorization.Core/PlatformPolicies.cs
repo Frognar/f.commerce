@@ -1,4 +1,5 @@
 using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Authorization.Core;
 
@@ -28,36 +29,35 @@ public static class PlatformPolicies
 
     /// <summary>Resources of a switched-off feature are denied to everybody.</summary>
     private static PolicyResult FeatureGate(AccessRequest request) =>
-        RequiredFeature(request) is { } feature && !request.Environment.FeaturesOn.Contains(feature)
-            ? PolicyResult.Deny($"feature-off:{feature}")
-            : PolicyResult.NotApplicable;
+        RequiredFeature(request)
+            .Where(feature => !request.Environment.FeaturesOn.Contains(feature))
+            .Match(feature => PolicyResult.Deny($"feature-off:{feature}"), () => PolicyResult.NotApplicable);
 
-    private static FeatureId? RequiredFeature(AccessRequest request) =>
+    private static Maybe<FeatureId> RequiredFeature(AccessRequest request) =>
         (request.Resource, request.Subject) switch
         {
             (Resource.CustomerDocuments, _) => Feature.Documents,
             (Resource.Registrations, _) => Feature.SelfRegistration,
             (Resource.CustomerUsers, Subject.CustomerUser) when request.Action == AccessAction.Manage => Feature.CustomerAdminInvitations,
             (Resource.CustomerProfile or Resource.CustomerUsers, Subject.CustomerUser) => Feature.CustomerAccounts,
-            _ => null,
+            _ => Maybe<FeatureId>.None,
         };
 
     /// <summary>A customer user acts only within the active customer of the session.</summary>
     private static PolicyResult CustomerIsolation(AccessRequest request) =>
-        request.Subject is Subject.CustomerUser user && request.Resource.Owner is { } owner && owner.Code != user.ActiveCustomer
+        request.Subject is Subject.CustomerUser user && request.Resource.Owner.Exists(owner => owner.Code != user.ActiveCustomer)
             ? PolicyResult.Deny("other-customer")
             : PolicyResult.NotApplicable;
 
     private static PolicyResult InactiveCustomer(AccessRequest request) =>
-        request.Subject is Subject.CustomerUser && request.Resource.Owner is not null && !request.Environment.ActiveCustomerActive
+        request.Subject is Subject.CustomerUser && request.Resource.Owner.Exists(_ => !request.Environment.ActiveCustomerActive)
             ? PolicyResult.Deny("customer-inactive")
             : PolicyResult.NotApplicable;
 
     /// <summary>A salesperson-scoped operator handles only customers they are the salesperson of.</summary>
     private static PolicyResult OperatorScope(AccessRequest request) =>
         request.Subject is Subject.Operator { Attributes.CustomerScope: CustomerScope.AsSalesperson } op
-        && request.Resource.Owner is { } owner
-        && owner.Salesperson != op.Email
+        && request.Resource.Owner.Exists(owner => !owner.Salesperson.Exists(salesperson => salesperson == op.Email))
             ? PolicyResult.Deny("outside-operator-scope")
             : PolicyResult.NotApplicable;
 

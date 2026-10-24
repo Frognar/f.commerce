@@ -12,10 +12,14 @@ namespace FCommerce.Infrastructure;
 public static class InfrastructureServiceCollectionExtensions
 {
     /// <summary>Database-independent infrastructure. A database adapter (e.g. AddPostgres) must also be registered.</summary>
-    public static IServiceCollection AddFCommerceInfrastructure(this IServiceCollection services, Action<SubscriptionOptions>? configureSubscriptions = null)
+    public static IServiceCollection AddFCommerceInfrastructure(this IServiceCollection services) =>
+        services.AddFCommerceInfrastructure(_ => { });
+
+    /// <inheritdoc cref="AddFCommerceInfrastructure(IServiceCollection)"/>
+    public static IServiceCollection AddFCommerceInfrastructure(this IServiceCollection services, Action<SubscriptionOptions> configureSubscriptions)
     {
         var subscriptionOptions = new SubscriptionOptions();
-        configureSubscriptions?.Invoke(subscriptionOptions);
+        configureSubscriptions(subscriptionOptions);
 
         services.TryAddSingleton(TimeProvider.System);
         // Invalid registrations are a startup configuration error: fail fast at the composition root.

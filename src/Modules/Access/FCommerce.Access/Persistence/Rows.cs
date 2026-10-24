@@ -5,6 +5,7 @@ using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
 using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Access.Persistence;
 
@@ -46,11 +47,11 @@ internal sealed class AccountRow
         Name = account.Name.Value;
         Culture = account.Culture.Value;
         Status = account.Status.ToString();
-        PasswordHash = account.PasswordHash;
+        PasswordHash = account.PasswordHash.OrNull();
         SecurityStamp = account.SecurityStamp;
         FailedSignIns = account.FailedSignIns;
-        LockedUntil = account.LockedUntil;
-        Operator = account.Operator is null ? null : JsonSerializer.Serialize(account.Operator, PersistenceJson.Options);
+        LockedUntil = account.LockedUntil.OrNull();
+        Operator = account.Operator.Map(attributes => JsonSerializer.Serialize(attributes, PersistenceJson.Options)).OrNull();
     }
 
     public Account ToDomain() =>
@@ -60,11 +61,11 @@ internal sealed class AccountRow
             Persisted.Rehydrate<PersonName, string>(Name),
             Persisted.Rehydrate<CultureCode, string>(Culture),
             Enum.Parse<AccountStatus>(Status),
-            PasswordHash,
+            PasswordHash.ToMaybe(),
             SecurityStamp,
             FailedSignIns,
-            LockedUntil,
-            Operator is null ? null : JsonSerializer.Deserialize<OperatorAttributes>(Operator, PersistenceJson.Options));
+            LockedUntil.ToMaybe(),
+            Operator.ToMaybe().Bind(json => JsonSerializer.Deserialize<OperatorAttributes>(json, PersistenceJson.Options).ToMaybe()));
 }
 
 internal sealed class MembershipRow
@@ -89,18 +90,18 @@ internal sealed class MembershipRow
             CustomerCode = membership.CustomerCode,
             Attributes = AttributesDocument.Write(membership.Attributes),
             Source = membership.Source.ToString(),
-            ErpContactId = membership.ErpContactId,
+            ErpContactId = membership.ErpContactId.OrNull(),
             CreatedAt = now,
         };
 
     public void Apply(Membership membership)
     {
         Attributes = AttributesDocument.Write(membership.Attributes);
-        ErpContactId = membership.ErpContactId;
+        ErpContactId = membership.ErpContactId.OrNull();
     }
 
     public Membership ToDomain() =>
-        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Enum.Parse<MembershipSource>(Source), ErpContactId);
+        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Enum.Parse<MembershipSource>(Source), ErpContactId.ToMaybe());
 
     /// <summary>Flat storage shape of <see cref="MembershipAttributes"/> (its address scope is a closed hierarchy).</summary>
     private sealed record AttributesDocument(
@@ -117,8 +118,8 @@ internal sealed class MembershipRow
                 new AttributesDocument(
                     attributes.CanOrder,
                     attributes.OrderScope,
-                    attributes.OrderLimit?.Amount,
-                    attributes.OrderLimit?.Currency.Code,
+                    attributes.OrderLimit.Map(limit => limit.Amount).OrNull(),
+                    attributes.OrderLimit.Map(limit => limit.Currency.Code).OrNull(),
                     attributes.CanViewDocuments,
                     attributes.CanManageUsers,
                     attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null),
@@ -130,7 +131,7 @@ internal sealed class MembershipRow
             return new MembershipAttributes(
                 document.CanOrder,
                 document.OrderScope,
-                document is { OrderLimit: { } amount, OrderLimitCurrency: { } currency } ? new Money(amount, Persisted.Rehydrate<Currency, string>(currency)) : null,
+                document is { OrderLimit: { } amount, OrderLimitCurrency: { } currency } ? new Money(amount, Persisted.Rehydrate<Currency, string>(currency)) : Maybe<Money>.None,
                 document.CanViewDocuments,
                 document.CanManageUsers,
                 document.DeliveryAddressCodes is { } codes ? DeliveryAddressScope.Only([.. codes]) : DeliveryAddressScope.All);
@@ -222,10 +223,10 @@ internal sealed class TokenRow
 
     public DateTimeOffset? UsedAt { get; set; }
 
-    public OneTimeToken ToDomain() => new(AccountId, Enum.Parse<TokenPurpose>(Purpose), Hash, ExpiresAt, UsedAt);
+    public OneTimeToken ToDomain() => new(AccountId, Enum.Parse<TokenPurpose>(Purpose), Hash, ExpiresAt, UsedAt.ToMaybe());
 
     public static TokenRow From(OneTimeToken token) =>
-        new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash, ExpiresAt = token.ExpiresAt, UsedAt = token.UsedAt };
+        new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash, ExpiresAt = token.ExpiresAt, UsedAt = token.UsedAt.OrNull() };
 }
 
 /// <summary>Append-only record of security-relevant changes, written in the same transaction as the change.</summary>

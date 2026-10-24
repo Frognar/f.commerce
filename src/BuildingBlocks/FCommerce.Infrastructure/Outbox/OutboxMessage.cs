@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Outbox;
 
 /// <summary>An integration event stored in the same transaction as the state change that produced it.</summary>
+[NullableEdge]
 public sealed class OutboxMessage
 {
     public long Id { get; init; }

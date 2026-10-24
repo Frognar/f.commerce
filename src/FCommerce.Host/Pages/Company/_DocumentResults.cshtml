@@ -20,9 +20,9 @@
                     <td>@document.Number</td>
                     <td>@T[$"DocumentType.{document.Type}"]</td>
                     <td>@DocumentsModel.Date(document.IssueDate)</td>
-                    <td>@DocumentsModel.Date(document.DueDate)</td>
-                    <td class="number">@(document.Gross is { } gross ? DocumentsModel.Amount(gross, document.Currency) : "")</td>
-                    <td class="number">@(document.Outstanding > 0 ? DocumentsModel.Amount(document.Outstanding, document.Currency) : "")</td>
+                    <td>@DocumentsModel.Date(document.DueDate.ToMaybe())</td>
+                    <td class="number">@document.Gross.ToMaybe().Map(gross => DocumentsModel.Amount(gross, document.Currency.ToMaybe())).ValueOr(string.Empty)</td>
+                    <td class="number">@(document.Outstanding > 0 ? DocumentsModel.Amount(document.Outstanding, document.Currency.ToMaybe()) : "")</td>
                     <td>
                         @if (document.Status != FCommerce.Documents.Contracts.DocumentStatuses.None)
                         {

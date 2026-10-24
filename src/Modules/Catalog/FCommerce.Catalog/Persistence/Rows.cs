@@ -4,6 +4,7 @@ using FCommerce.Catalog.Domain;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Catalog.Persistence;
 
@@ -55,9 +56,9 @@ internal sealed class ProductRow
         Version = product.Version.Value;
         Name = Json.Write(product.Content.Name);
         Description = Json.Write(product.Content.Description);
-        CategoryCode = product.Content.Category?.Value;
+        CategoryCode = product.Content.Category.Map(c => c.Value).OrNull();
         Unit = product.Content.Unit.Value;
-        Gtin = product.Content.Gtin?.Value;
+        Gtin = product.Content.Gtin.Map(g => g.Value).OrNull();
         Images = Json.Write(product.Content.Images);
         Attributes = Json.Write(product.Content.Attributes);
         Active = product.Active;
@@ -71,9 +72,9 @@ internal sealed class ProductRow
             new ProductContent(
                 Json.Read<ProductName>(Name),
                 Json.Read<LocalizedText>(Description),
-                CategoryCode is null ? null : Persisted.Rehydrate<Domain.CategoryCode, string>(CategoryCode),
+                CategoryCode.ToMaybe().Map(Persisted.Rehydrate<Domain.CategoryCode, string>),
                 Persisted.Rehydrate<UnitCode, string>(Unit),
-                Gtin is null ? null : Persisted.Rehydrate<Domain.Gtin, string>(Gtin),
+                Gtin.ToMaybe().Map(Persisted.Rehydrate<Domain.Gtin, string>),
                 Json.Read<EquatableArray<ImageId>>(Images),
                 Json.Read<EquatableArray<ProductAttribute>>(Attributes)),
             Active);
@@ -105,7 +106,7 @@ internal sealed class CategoryRow
     public void Apply(Category category, DateTimeOffset now)
     {
         Version = category.Version.Value;
-        ParentCode = category.Content.Parent?.Value;
+        ParentCode = category.Content.Parent.Map(c => c.Value).OrNull();
         Name = Json.Write(category.Content.Name);
         SortOrder = category.Content.SortOrder;
         Active = category.Active;
@@ -117,7 +118,7 @@ internal sealed class CategoryRow
             Persisted.Rehydrate<CategoryCode, string>(Code),
             Persisted.Rehydrate<SourceVersion, long>(Version),
             new CategoryContent(
-                ParentCode is null ? null : Persisted.Rehydrate<CategoryCode, string>(ParentCode),
+                ParentCode.ToMaybe().Map(Persisted.Rehydrate<CategoryCode, string>),
                 Json.Read<CategoryName>(Name),
                 SortOrder),
             Active);

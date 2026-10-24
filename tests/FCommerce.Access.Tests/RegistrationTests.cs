@@ -8,7 +8,7 @@ public sealed class RegistrationTests
     private static readonly DateTimeOffset Now = new(2026, 10, 23, 12, 0, 0, TimeSpan.Zero);
 
     private static UnvalidatedRegistration Input() =>
-        new(" Nowa Firma sp. z o.o. ", "526-104-08-28", "ul. Długa 1", "00950", "Warszawa", "pl", "Jan Kowalski", "Jan@Firma.PL", null, "pl", AcceptedTerms: true);
+        new(" Nowa Firma sp. z o.o. ", "526-104-08-28", "ul. Długa 1", "00950", "Warszawa", "pl", "Jan Kowalski", "Jan@Firma.PL", default, "pl", AcceptedTerms: true);
 
     private static RegistrationRequest Pending()
     {

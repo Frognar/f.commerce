@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Monetary;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
@@ -32,7 +33,7 @@ public sealed record DocumentId : IPersistedValue<DocumentId, string>
 
     public string Value { get; }
 
-    public static Result<DocumentId, Error> Parse(string? raw) =>
+    public static Result<DocumentId, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "document-id", "Document id").Map(value => new DocumentId(value));
 
     static DocumentId IPersistedValue<DocumentId, string>.Rehydrate(string raw) => new(raw);
@@ -42,7 +43,7 @@ public sealed record DocumentId : IPersistedValue<DocumentId, string>
     public override string ToString() => Value;
 }
 
-public sealed record DocumentDates(DateOnly Issued, DateOnly? Sold, DateOnly? Due);
+public sealed record DocumentDates(DateOnly Issued, Maybe<DateOnly> Sold, Maybe<DateOnly> Due);
 
 /// <param name="Paid">What the customer has paid so far, as the ERP knows it.</param>
 public sealed record DocumentAmounts(Currency Currency, decimal Net, decimal Gross, decimal Paid);
@@ -54,29 +55,30 @@ public sealed record DocumentContent(
     DocumentType Type,
     string Number,
     DocumentDates Dates,
-    DocumentAmounts? Amounts,
-    string? OrderNumber);
+    Maybe<DocumentAmounts> Amounts,
+    Maybe<string> OrderNumber);
 
 /// <summary>A customer's document (invoice, correction, delivery note, proforma) as replicated from the ERP.</summary>
 public sealed record Document(DocumentId Id, SourceVersion Version, DocumentContent Content);
 
+/// <summary>A document as received from the ERP; missing required texts arrive as empty, optional fields are absent.</summary>
 public sealed record UnvalidatedDocument(
-    string? Id,
+    string Id,
     long Version,
-    string? CustomerCode,
-    string? Type,
-    string? Number,
-    DateOnly? IssueDate,
-    DateOnly? SaleDate,
-    DateOnly? DueDate,
-    string? Currency,
-    decimal? Net,
-    decimal? Gross,
-    decimal? Paid,
-    string? OrderNumber);
+    string CustomerCode,
+    string Type,
+    string Number,
+    Maybe<DateOnly> IssueDate,
+    Maybe<DateOnly> SaleDate,
+    Maybe<DateOnly> DueDate,
+    Maybe<string> Currency,
+    Maybe<decimal> Net,
+    Maybe<decimal> Gross,
+    Maybe<decimal> Paid,
+    Maybe<string> OrderNumber);
 
 /// <summary>Money still due on one document (see <see cref="Documents.Outstanding"/>).</summary>
-public sealed record OpenItem(Currency Currency, decimal Outstanding, DateOnly? Due);
+public sealed record OpenItem(Currency Currency, decimal Outstanding, Maybe<DateOnly> Due);
 
 /// <summary>What a customer owes in one currency, and how much of it is past its due date.</summary>
 public sealed record Receivable(Currency Currency, decimal Outstanding, decimal Overdue, int OverdueCount);
@@ -103,7 +105,7 @@ public static class Documents
     private static readonly Func<DocumentId, SourceVersion, DocumentContent, Document> Create =
         (id, version, content) => new Document(id, version, content);
 
-    private static readonly Func<string, DocumentType, string, DocumentDates, DocumentAmounts?, string?, DocumentContent> CreateContent =
+    private static readonly Func<string, DocumentType, string, DocumentDates, Maybe<DocumentAmounts>, Maybe<string>, DocumentContent> CreateContent =
         (customer, type, number, dates, amounts, order) => new DocumentContent(customer, type, number, dates, amounts, order);
 
     /// <summary>Validates a document from the ERP, reporting every problem with its field path.</summary>
@@ -119,10 +121,10 @@ public static class Documents
                 .Apply(ValidateAmounts(input))
                 .Apply(SourceCodes.ParseOptional(input.OrderNumber, MaxOrderNumber, "order-number", "Order number").ToValidated("orderNumber"))
                 .EnsureAll(
-                    (content => content.Amounts is not null || !IsPayable(content.Type), Error.Validation("amounts.missing", "Invoices and corrections need their amounts.") with { Field = "gross" }),
-                    (content => content.Type == DocumentType.CorrectionInvoice || content.Amounts is null || (content.Amounts.Net >= 0 && content.Amounts.Gross >= 0), Error.Validation("amount.negative", "Only a correction may have negative amounts.") with { Field = "gross" })));
+                    (content => content.Amounts.Match(_ => true, () => !IsPayable(content.Type)), Error.Validation("amounts.missing", "Invoices and corrections need their amounts.") with { Field = "gross" }),
+                    (content => content.Type == DocumentType.CorrectionInvoice || content.Amounts.Match(amounts => amounts.Net >= 0 && amounts.Gross >= 0, () => true), Error.Validation("amount.negative", "Only a correction may have negative amounts.") with { Field = "gross" })));
 
-    public static Change<Document> Reconcile(Document? stored, Document incoming) =>
+    public static Change<Document> Reconcile(Maybe<Document> stored, Document incoming) =>
         ImportBatch.Reconcile(stored, incoming, d => d.Version, (a, b) => a.Content == b.Content);
 
     /// <summary>Invoices and corrections are paid; other documents only inform.</summary>
@@ -133,10 +135,10 @@ public static class Documents
     /// owes the customer money, so nothing is due on it.
     /// </summary>
     public static decimal Outstanding(DocumentContent content) =>
-        IsPayable(content.Type) && content.Amounts is { } amounts ? Math.Max(amounts.Gross - amounts.Paid, 0m) : 0m;
+        IsPayable(content.Type) ? content.Amounts.Match(amounts => Math.Max(amounts.Gross - amounts.Paid, 0m), () => 0m) : 0m;
 
     /// <summary>The due date itself is still on time; the day after, an unpaid document is overdue.</summary>
-    public static bool IsOverdue(DateOnly? due, DateOnly today) => due < today;
+    public static bool IsOverdue(Maybe<DateOnly> due, DateOnly today) => due.Exists(date => date < today);
 
     public static PaymentStatus StatusOn(DocumentContent content, DateOnly today) =>
         (IsPayable(content.Type), Outstanding(content)) switch
@@ -169,33 +171,35 @@ public static class Documents
             _ => Unit.Value,
         };
 
-    private static Result<DocumentType, Error> ParseType(string? raw) =>
-        raw is not null && TypeNames.TryGetValue(raw.Trim(), out var type)
+    private static Result<DocumentType, Error> ParseType(string raw) =>
+        TypeNames.TryGetValue(raw.Trim(), out var type)
             ? type
             : Error.Validation("type.unknown", $"Unknown document type '{raw}'; expected one of: {string.Join(", ", TypeNames.Keys)}.");
 
     private static Validated<DocumentDates> ValidateDates(UnvalidatedDocument input) =>
-        (input.IssueDate is { } issued
-                ? Validated.Valid(new DocumentDates(issued, input.SaleDate, input.DueDate))
-                : Validated.Invalid<DocumentDates>(Error.Validation("issue-date.missing", "The issue date is required.") with { Field = "issueDate" }))
-            .Ensure(dates => dates.Due is null || dates.Due >= dates.Issued, _ => Error.Validation("due-date.before-issue", "The due date must not be before the issue date.") with { Field = "dueDate" });
+        input.IssueDate.Match(
+                issued => Validated.Valid(new DocumentDates(issued, input.SaleDate, input.DueDate)),
+                () => Validated.Invalid<DocumentDates>(Error.Validation("issue-date.missing", "The issue date is required.") with { Field = "issueDate" }))
+            .Ensure(dates => !dates.Due.Exists(due => due < dates.Issued), _ => Error.Validation("due-date.before-issue", "The due date must not be before the issue date.") with { Field = "dueDate" });
 
     /// <summary>No amount given at all means "no amounts"; otherwise currency, net and gross are required (paid defaults to zero).</summary>
-    private static Validated<DocumentAmounts?> ValidateAmounts(UnvalidatedDocument input) =>
-        input is { Currency: null, Net: null, Gross: null, Paid: null }
-            ? Validated.Valid<DocumentAmounts?>(null)
-            : ((Func<Currency, decimal, decimal, decimal, DocumentAmounts?>)((currency, net, gross, paid) => new DocumentAmounts(currency, net, gross, paid)))
-                .Apply(Currency.Parse(input.Currency).ToValidated("currency"))
+    private static Validated<Maybe<DocumentAmounts>> ValidateAmounts(UnvalidatedDocument input) =>
+        Given(input.Currency) || Given(input.Net) || Given(input.Gross) || Given(input.Paid)
+            ? ((Func<Currency, decimal, decimal, decimal, Maybe<DocumentAmounts>>)((currency, net, gross, paid) => new DocumentAmounts(currency, net, gross, paid)))
+                .Apply(Currency.Parse(input.Currency.ValueOr(string.Empty)).ToValidated("currency"))
                 .Apply(Amount(input.Net).ToValidated("net"))
                 .Apply(Amount(input.Gross).ToValidated("gross"))
-                .Apply(Amount(input.Paid ?? 0m).ToValidated("paid"));
+                .Apply(Amount(input.Paid.Or(0m)).ToValidated("paid"))
+            : Validated.Valid(Maybe<DocumentAmounts>.None);
 
-    private static Result<decimal, Error> Amount(decimal? raw) =>
-        raw switch
-        {
-            null => Error.Validation("amount.missing", "The amount is required."),
-            { } value when Math.Abs(value) >= MaxAmount => Error.Validation("amount.too-large", "The amount is too large."),
-            { } value when Math.Round(value, 2) != value => Error.Validation("amount.precision", "Amounts have at most two decimal places."),
-            { } value => value,
-        };
+    private static bool Given<T>(Maybe<T> raw)
+        where T : notnull =>
+        raw.Match(_ => true, () => false);
+
+    private static Result<decimal, Error> Amount(Maybe<decimal> raw) =>
+        raw.Match(
+            value => Math.Abs(value) >= MaxAmount ? Error.Validation("amount.too-large", "The amount is too large.")
+                : Math.Round(value, 2) != value ? Error.Validation("amount.precision", "Amounts have at most two decimal places.")
+                : Result.Ok<decimal, Error>(value),
+            () => Error.Validation("amount.missing", "The amount is required."));
 }

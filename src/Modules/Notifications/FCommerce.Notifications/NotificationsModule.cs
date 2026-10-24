@@ -5,6 +5,7 @@ using FCommerce.Infrastructure;
 using FCommerce.Notifications.Templates;
 using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace FCommerce.Notifications;
@@ -57,7 +58,7 @@ internal sealed class SendInvitation(IEmailSender sender, NotificationsOptions o
         var email = new ActionEmail(
             EmailRenderer.Text(forOperator ? "InvitationOperatorSubject" : "InvitationCustomerSubject", culture, storeName),
             EmailRenderer.Text("Greeting", culture, invitation.Name),
-            EmailRenderer.Text(forOperator ? "InvitationOperatorBody" : "InvitationCustomerBody", culture, storeName, invitation.CustomerName),
+            EmailRenderer.Text(forOperator ? "InvitationOperatorBody" : "InvitationCustomerBody", culture, storeName, invitation.CustomerName.OrEmpty()),
             EmailRenderer.Text("InvitationAction", culture),
             Links.To(options, culture, "invitation", invitation.Token),
             EmailRenderer.Text("InvitationExpiry", culture));

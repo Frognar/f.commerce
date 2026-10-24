@@ -14,6 +14,7 @@ namespace FCommerce.SharedKernel.Collections;
 /// </remarks>
 [CollectionBuilder(typeof(EquatableArray), nameof(EquatableArray.Create))]
 public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadOnlyList<T>
+    where T : notnull
 {
     private readonly ImmutableArray<T> items;
 
@@ -69,7 +70,11 @@ public readonly struct EquatableArray<T> : IEquatable<EquatableArray<T>>, IReadO
 
 public static class EquatableArray
 {
-    public static EquatableArray<T> Create<T>(params ReadOnlySpan<T> items) => new([.. items]);
+    public static EquatableArray<T> Create<T>(params ReadOnlySpan<T> items)
+        where T : notnull =>
+        new([.. items]);
 
-    public static EquatableArray<T> ToEquatableArray<T>(this IEnumerable<T> items) => new([.. items]);
+    public static EquatableArray<T> ToEquatableArray<T>(this IEnumerable<T> items)
+        where T : notnull =>
+        new([.. items]);
 }

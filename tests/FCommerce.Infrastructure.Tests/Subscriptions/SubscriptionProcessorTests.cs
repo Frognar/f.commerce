@@ -4,6 +4,7 @@ using FCommerce.Application.Subscriptions;
 using FCommerce.Infrastructure.Subscriptions;
 using FCommerce.Infrastructure.Tests.EventStore;
 using FCommerce.Infrastructure.Tests.Fixtures;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -64,13 +65,13 @@ public sealed class SubscriptionProcessorTests(PostgresFixture postgres)
     /// <summary>Steps the subscription until it is caught up (and the optional condition holds).</summary>
     private static async Task DrainAsync(SubscriptionProcessor processor, Func<bool>? until = null)
     {
-        PendingGap? gap = null;
+        var gap = Maybe<PendingGap>.None;
         var deadline = DateTime.UtcNow.AddSeconds(15);
         while (DateTime.UtcNow < deadline)
         {
             var step = await processor.StepAsync(typeof(RecordingSubscription), gap, Token);
             gap = step.Gap;
-            if (step.CaughtUp && step.Gap is null && (until?.Invoke() ?? true))
+            if (step.CaughtUp && step.Gap.Match(_ => false, () => true) && (until?.Invoke() ?? true))
             {
                 return;
             }

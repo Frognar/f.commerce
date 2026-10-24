@@ -2,6 +2,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
@@ -52,28 +53,17 @@ public sealed class IndexModel(
     }
 
     /// <summary>Link to the catalogue with the current search, optionally changing the category or the page.</summary>
-    public string Href(string? category = null, int? page = null, bool keepCategory = true, bool keepFilters = true)
+    public string Href(Maybe<string> category = default, Maybe<int> page = default, bool keepCategory = true, bool keepFilters = true)
     {
         var query = new QueryBuilder();
-        if (!string.IsNullOrWhiteSpace(Query))
-        {
-            query.Add("q", Query);
-        }
-
-        if ((category ?? (keepCategory ? Category : null)) is { } selectedCategory)
-        {
-            query.Add("category", selectedCategory);
-        }
-
+        Query.ToMaybe().Where(text => !string.IsNullOrWhiteSpace(text)).Switch(text => query.Add("q", text), () => { });
+        category.Or(() => Category.ToMaybe().Where(_ => keepCategory)).Switch(code => query.Add("category", code), () => { });
         if (keepFilters && Filters.Count > 0)
         {
             query.Add("f", Filters);
         }
 
-        if (page is > 1)
-        {
-            query.Add("p", page.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
+        page.Where(number => number > 1).Switch(number => query.Add("p", number.ToString(System.Globalization.CultureInfo.InvariantCulture)), () => { });
 
         return Url.CulturePage("/Catalog/Index") + query.ToQueryString();
     }

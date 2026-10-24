@@ -3,6 +3,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -33,15 +34,25 @@ public sealed class IndexModel(
     [BindProperty]
     public string Confirmation { get; set; } = string.Empty;
 
-    public SessionView Session { get; private set; } = null!;
+    private Maybe<SessionView> session;
 
-    public string? Saved { get; private set; }
+    /// <summary>The signed-in account; loaded before every handler (the page requires a session).</summary>
+    public SessionView Session => session.Match(s => s, () => throw new InvalidOperationException("The session is not loaded."));
+
+    public Maybe<string> Saved { get; private set; }
 
     /// <summary>Loads the session before any handler, so every request path (including an unknown handler) can render.</summary>
     public override async Task OnPageHandlerExecutionAsync(PageHandlerExecutingContext context, PageHandlerExecutionDelegate next)
     {
-        Session = (await user.SessionAsync(HttpContext.RequestAborted))!;
-        await next();
+        session = await user.SessionAsync(HttpContext.RequestAborted);
+        if (session.Match(_ => true, () => false))
+        {
+            await next();
+        }
+        else
+        {
+            context.Result = Challenge();
+        }
     }
 
     public void OnGet()
@@ -53,7 +64,7 @@ public sealed class IndexModel(
     public async Task<IActionResult> OnPostProfileAsync(CancellationToken cancellationToken)
     {
         (await changeProfile.HandleAsync(new ChangeProfile(Session.UserId, Name, Culture), cancellationToken)).Switch(
-            _ => Saved = texts["ProfileSaved"],
+            _ => Saved = Maybe.Some<string>(texts["ProfileSaved"]),
             error => ModelState.AddErrors(error, texts));
         return Page();
     }
@@ -74,9 +85,9 @@ public sealed class IndexModel(
         }
 
         // The stamp changed (other sessions end); this one continues with a fresh cookie.
-        var remember = (await HttpContext.AuthenticateAsync()).Properties?.IsPersistent ?? false;
+        var remember = (await HttpContext.AuthenticateAsync()).Properties.ToMaybe().Exists(p => p.IsPersistent);
         await result.Match(signedIn => SessionCookie.SignInAsync(HttpContext, signedIn, remember), _ => Task.CompletedTask);
-        Saved = texts["PasswordChanged"];
+        Saved = Maybe.Some<string>(texts["PasswordChanged"]);
         return Page();
     }
 }

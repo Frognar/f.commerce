@@ -1,5 +1,6 @@
 using System.Globalization;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.Extensions.Options;
 
@@ -23,7 +24,7 @@ public sealed record SupportedCultures(CultureCode Default, IReadOnlyList<Cultur
         from others in settings.SupportedCultures.Traverse(CultureCode.Parse)
         select new SupportedCultures(defaultCulture, [.. others.Prepend(defaultCulture).Distinct()]);
 
-    public bool IsSupported(string? value) =>
+    public bool IsSupported(string value) =>
         CultureCode.Parse(value).Match(All.Contains, _ => false);
 
     /// <summary>Best supported culture for Accept-Language entries; the default culture when none matches.</summary>
@@ -31,8 +32,8 @@ public sealed record SupportedCultures(CultureCode Default, IReadOnlyList<Cultur
         acceptLanguages
             .OrderByDescending(l => l.Quality)
             .SelectMany(l => CultureCode.Parse(l.Value).Match(c => (CultureCode[])[c, c.Language], _ => []))
-            .FirstOrDefault(All.Contains)
-        ?? Default;
+            .FirstOrNone(All.Contains)
+            .ValueOr(Default);
 
     /// <summary>Cultures to resolve content for in the current request: the request culture, then the default.</summary>
     public IReadOnlyList<string> ForRequest() =>

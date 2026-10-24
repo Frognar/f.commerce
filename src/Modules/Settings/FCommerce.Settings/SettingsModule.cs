@@ -9,6 +9,7 @@ using FCommerce.Settings.Contracts;
 using FCommerce.Settings.Domain;
 using FCommerce.Settings.Persistence;
 using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -55,17 +56,16 @@ internal sealed class SettingsLoader(IServiceScopeFactory scopes, SettingsSnapsh
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<SettingsDbContext>();
-        var row = await db.Settings.AsNoTracking().SingleOrDefaultAsync(s => s.Id == SettingsRow.SingletonId, cancellationToken);
-        if (row is null)
-        {
-            var defaults = PlatformSettings.Defaults(snapshot.Available);
-            db.Settings.Add(new SettingsRow { Version = defaults.Version, Document = SettingsDocument.Write(defaults), UpdatedAt = time.GetUtcNow() });
-            await db.SaveChangesAsync(cancellationToken);
-            snapshot.Replace(defaults);
-            return;
-        }
-
-        snapshot.Replace(SettingsDocument.Read(row.Document, row.Version, snapshot.Available));
+        var row = await db.Settings.AsNoTracking().SingleOrNoneAsync(s => s.Id == SettingsRow.SingletonId, cancellationToken);
+        snapshot.Replace(await row.Match(
+            stored => Task.FromResult(SettingsDocument.Read(stored.Document, stored.Version, snapshot.Available)),
+            async () =>
+            {
+                var defaults = PlatformSettings.Defaults(snapshot.Available);
+                db.Settings.Add(new SettingsRow { Version = defaults.Version, Document = SettingsDocument.Write(defaults), UpdatedAt = time.GetUtcNow() });
+                await db.SaveChangesAsync(cancellationToken);
+                return defaults;
+            }));
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -84,9 +84,12 @@ internal sealed class GetPlatformSettingsHandler(SettingsSnapshot snapshot) : IQ
             settings.CatalogVisibility.ToString(),
             [.. Feature.All.Where(f => available.Contains(f.Id)).Select(f => new FeatureView(
                 f.Id.Value, f.Description, settings.EnabledFeatures.Contains(f.Id), features.IsOn(f.Id), [.. f.RequiresAll.Select(r => r.Value)]))],
-            new BrandingView(settings.Branding.StoreName, settings.Branding.AccentColor.Value, settings.Branding.LogoImageId),
-            new ContactView(settings.Contact.SupportEmail?.Value, settings.Contact.SupportPhone, settings.Contact.OperatorNotifications?.Value),
-            settings.Commerce.DefaultPriceListCode,
+            new BrandingView(settings.Branding.StoreName, settings.Branding.AccentColor.Value, settings.Branding.LogoImageId.OrNull()),
+            new ContactView(
+                settings.Contact.SupportEmail.Map(e => e.Value).OrNull(),
+                settings.Contact.SupportPhone.OrNull(),
+                settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull()),
+            settings.Commerce.DefaultPriceListCode.OrNull(),
             settings.Commerce.DefaultContactTemplate);
     }
 }
@@ -105,8 +108,16 @@ internal sealed class UpdatePlatformSettingsHandler(SettingsDbContext db, Outbox
         var before = SettingsDocument.Read(row.Document, row.Version, snapshot.Available);
         var validated = SettingsRules.Validate(
             new UnvalidatedSettings(
-                command.CatalogVisibility, command.EnabledFeatures, command.StoreName, command.AccentColor, command.LogoImageId,
-                command.SupportEmail, command.SupportPhone, command.OperatorNotifications, command.DefaultPriceListCode, command.DefaultContactTemplate),
+                command.CatalogVisibility.OrEmpty(),
+                command.EnabledFeatures.OrEmpty(),
+                command.StoreName.OrEmpty(),
+                command.AccentColor.OrEmpty(),
+                command.LogoImageId.ToMaybe(),
+                command.SupportEmail.ToMaybe(),
+                command.SupportPhone.ToMaybe(),
+                command.OperatorNotifications.ToMaybe(),
+                command.DefaultPriceListCode.ToMaybe(),
+                command.DefaultContactTemplate.OrEmpty()),
             snapshot.Available,
             row.Version).ToResult();
 

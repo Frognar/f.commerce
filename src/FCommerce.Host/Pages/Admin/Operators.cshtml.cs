@@ -3,6 +3,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -42,28 +43,31 @@ public sealed class OperatorsModel(
 
     public IReadOnlyList<OperatorSummary> Operators { get; private set; } = [];
 
-    public string? Saved { get; private set; }
+    public Maybe<string> Saved { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken) =>
         Operators = await operators.HandleAsync(new GetOperators(), cancellationToken);
 
     public Task<IActionResult> OnPostInviteAsync(CancellationToken cancellationToken) =>
-        ExecuteAsync(() => invite.HandleAsync(new InviteOperator(user.UserId!.Value, Form.Email, Form.Name, Form.Culture, Form.ToView()), cancellationToken), "OperatorInvited", cancellationToken);
+        ExecuteAsync(() => invite.HandleAsync(new InviteOperator(user.RequiredUserId, Form.Email, Form.Name, Form.Culture, Form.ToView()), cancellationToken), "OperatorInvited", cancellationToken);
 
     public Task<IActionResult> OnPostChangeAsync(Guid id, CancellationToken cancellationToken) =>
-        ExecuteAsync(() => change.HandleAsync(new ChangeOperator(user.UserId!.Value, id, Form.ToView()), cancellationToken), "Saved", cancellationToken);
+        ExecuteAsync(() => change.HandleAsync(new ChangeOperator(user.RequiredUserId, id, Form.ToView()), cancellationToken), "Saved", cancellationToken);
 
     public Task<IActionResult> OnPostRevokeAsync(Guid id, CancellationToken cancellationToken) =>
-        ExecuteAsync(() => revoke.HandleAsync(new RevokeOperator(user.UserId!.Value, id), cancellationToken), "OperatorRevoked", cancellationToken);
+        ExecuteAsync(() => revoke.HandleAsync(new RevokeOperator(user.RequiredUserId, id), cancellationToken), "OperatorRevoked", cancellationToken);
 
     private async Task<IActionResult> ExecuteAsync<T>(Func<Task<Result<T, Error>>> command, string savedText, CancellationToken cancellationToken)
+        where T : notnull
     {
-        (await command()).Switch(_ => Saved = texts[savedText], error => ModelState.AddErrors(error, texts));
-        if (Saved is not null)
-        {
-            ModelState.Clear();
-            Form = new OperatorForm();
-        }
+        (await command()).Switch(
+            _ =>
+            {
+                Saved = Maybe.Some<string>(texts[savedText]);
+                ModelState.Clear();
+                Form = new OperatorForm();
+            },
+            error => ModelState.AddErrors(error, texts));
 
         await OnGetAsync(cancellationToken);
         return Page();

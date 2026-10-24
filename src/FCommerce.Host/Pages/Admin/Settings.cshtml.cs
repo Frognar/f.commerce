@@ -6,6 +6,7 @@ using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
 using FCommerce.Media.Contracts;
 using FCommerce.Settings.Contracts;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -24,6 +25,8 @@ public sealed class SettingsModel(
 {
     public const long MaxLogoBytes = 5 * 1024 * 1024;
 
+    /// <summary>The form as posted (optional fields arrive empty or missing).</summary>
+    [NullableEdge]
     public sealed class SettingsForm
     {
         public long Version { get; set; }
@@ -57,13 +60,16 @@ public sealed class SettingsModel(
     [BindProperty]
     public IFormFile? Logo { get; set; }
 
-    public PlatformSettingsView Current { get; private set; } = null!;
+    private Maybe<PlatformSettingsView> current;
+
+    /// <summary>The stored settings; loaded by every handler before the page renders.</summary>
+    public PlatformSettingsView Current => current.Match(c => c, () => throw new InvalidOperationException("The settings are not loaded."));
 
     public IReadOnlyList<SettingsChange> History { get; private set; } = [];
 
     public IReadOnlyDictionary<Guid, string> OperatorNames { get; private set; } = new Dictionary<Guid, string>();
 
-    public string? Saved { get; private set; }
+    public Maybe<string> Saved { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
@@ -89,7 +95,7 @@ public sealed class SettingsModel(
         var logo = await LogoAsync(cancellationToken);
         var saved = await logo.BindAsync(logoId => update.HandleAsync(
             new UpdatePlatformSettings(
-                user.UserId!.Value, Form.Version, Form.CatalogVisibility, Form.EnabledFeatures, Form.StoreName, Form.AccentColor, logoId,
+                user.RequiredUserId, Form.Version, Form.CatalogVisibility, Form.EnabledFeatures, Form.StoreName, Form.AccentColor, logoId.OrNull(),
                 Form.SupportEmail, Form.SupportPhone, Form.OperatorNotifications, Form.DefaultPriceListCode, Form.DefaultContactTemplate),
             cancellationToken));
 
@@ -97,7 +103,7 @@ public sealed class SettingsModel(
         {
             ModelState.Clear();
             await OnGetAsync(cancellationToken);
-            Saved = texts["Saved"];
+            Saved = Maybe.Some<string>(texts["Saved"]);
             return Page();
         }
 
@@ -106,31 +112,33 @@ public sealed class SettingsModel(
     }
 
     /// <summary>The logo to keep: a newly uploaded one, none (removed) or the current one.</summary>
-    private async Task<Result<string?, Error>> LogoAsync(CancellationToken cancellationToken)
+    private async Task<Result<Maybe<string>, Error>> LogoAsync(CancellationToken cancellationToken)
     {
         if (Form.RemoveLogo)
         {
-            return Result.Ok<string?, Error>(null);
+            return Result.Ok<Maybe<string>, Error>(Maybe<string>.None);
         }
 
-        if (Logo is null || Logo.Length == 0)
+        return await Logo.ToMaybe().Where(file => file.Length > 0).Match(
+            UploadAsync,
+            () => Task.FromResult(Result.Ok<Maybe<string>, Error>(Form.LogoImageId.ToMaybe())));
+
+        async Task<Result<Maybe<string>, Error>> UploadAsync(IFormFile file)
         {
-            return Form.LogoImageId;
-        }
+            if (file.Length > MaxLogoBytes)
+            {
+                return Error.Validation("image.too-large", "The logo must not exceed 5 MB.") with { Field = "Logo" };
+            }
 
-        if (Logo.Length > MaxLogoBytes)
-        {
-            return Error.Validation("image.too-large", "The logo must not exceed 5 MB.") with { Field = "Logo" };
+            using var buffer = new MemoryStream();
+            await file.CopyToAsync(buffer, cancellationToken);
+            return (await uploadImage.HandleAsync(new UploadImage(buffer.ToArray()), cancellationToken)).Map(image => Maybe.Some(image.Id));
         }
-
-        using var buffer = new MemoryStream();
-        await Logo.CopyToAsync(buffer, cancellationToken);
-        return (await uploadImage.HandleAsync(new UploadImage(buffer.ToArray()), cancellationToken)).Map(image => (string?)image.Id);
     }
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {
-        Current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
+        current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         History = await history.HandleAsync(new GetSettingsHistory(), cancellationToken);
         OperatorNames = (await operators.HandleAsync(new GetOperators(), cancellationToken)).ToDictionary(o => o.UserId, o => o.Name);
     }

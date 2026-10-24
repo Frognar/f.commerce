@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Authorization.Core;
@@ -13,7 +14,7 @@ public static class Grants
     public static Result<MembershipAttributes, Error> Membership(
         Subject grantor,
         string customerCode,
-        MembershipAttributes? current,
+        Maybe<MembershipAttributes> current,
         MembershipAttributes requested,
         int otherAdministrators)
     {
@@ -29,7 +30,7 @@ public static class Grants
             return Error.Forbidden("grant.not-allowed", "You cannot change memberships of this customer.");
         }
 
-        var removesLastAdministrator = current is { CanManageUsers: true } && !requested.CanManageUsers && otherAdministrators == 0;
+        var removesLastAdministrator = current.Exists(c => c.CanManageUsers) && !requested.CanManageUsers && otherAdministrators == 0;
         return removesLastAdministrator
             ? Error.Conflict("grant.last-administrator", "The customer needs at least one user who can manage users.")
             : requested;
@@ -38,7 +39,7 @@ public static class Grants
     /// <summary>Only operators who manage operators change operator attributes; the last such operator keeps the right.</summary>
     public static Result<OperatorAttributes, Error> Operator(
         Subject grantor,
-        OperatorAttributes? current,
+        Maybe<OperatorAttributes> current,
         OperatorAttributes requested,
         int otherOperatorManagers)
     {
@@ -47,7 +48,7 @@ public static class Grants
             return Error.Forbidden("grant.not-allowed", "Only operators who manage operators can change operator rights.");
         }
 
-        var removesLastManager = current is { CanManageOperators: true } && !requested.CanManageOperators && otherOperatorManagers == 0;
+        var removesLastManager = current.Exists(c => c.CanManageOperators) && !requested.CanManageOperators && otherOperatorManagers == 0;
         return removesLastManager
             ? Error.Conflict("grant.last-operator-manager", "At least one operator must be able to manage operators.")
             : requested;

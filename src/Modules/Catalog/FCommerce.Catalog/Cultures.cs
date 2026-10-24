@@ -7,8 +7,8 @@ namespace FCommerce.Catalog;
 internal static class Cultures
 {
     /// <summary>Preference-ordered cultures of a query; at least one is required.</summary>
-    public static Result<EquatableArray<CultureCode>, Error> Parse(IReadOnlyList<string>? raw) =>
-        raw is null or { Count: 0 }
+    public static Result<EquatableArray<CultureCode>, Error> Parse(IReadOnlyList<string> raw) =>
+        raw.Count == 0
             ? Error.Validation("cultures.empty", "At least one culture is required.")
             : raw.Traverse(CultureCode.Parse).Map(codes => codes.ToEquatableArray());
 

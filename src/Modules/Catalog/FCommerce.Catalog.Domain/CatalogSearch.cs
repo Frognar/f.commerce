@@ -1,6 +1,7 @@
 using System.Text;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Catalog.Domain;
 
@@ -11,11 +12,11 @@ namespace FCommerce.Catalog.Domain;
 public sealed record SearchEntry(
     string Id,
     string Sku,
-    string? Gtin,
+    Maybe<string> Gtin,
     string Name,
-    string? Description,
+    Maybe<string> Description,
     string Unit,
-    string? ImageId,
+    Maybe<string> ImageId,
     EquatableArray<string> Categories,
     EquatableArray<string> Facets,
     EquatableArray<string> FacetNames,
@@ -36,10 +37,10 @@ public static class CatalogSearch
 
     public static string FacetToken(string code, string value) => $"{code}{Separator}{value}";
 
-    public static (string Code, string Value)? ParseFacetToken(string token) =>
+    public static Maybe<(string Code, string Value)> ParseFacetToken(string token) =>
         token.IndexOf(Separator, StringComparison.Ordinal) is var at and > 0
             ? (token[..at], token[(at + 1)..])
-            : null;
+            : Maybe<(string Code, string Value)>.None;
 
     public static SearchEntry Entry(Product product, EquatableArray<Category> categoryPath, CultureCode culture, CultureCode fallback)
     {
@@ -53,11 +54,11 @@ public static class CatalogSearch
         return new SearchEntry(
             DocumentId(product.Sku),
             product.Sku.Value,
-            product.Content.Gtin?.Value,
+            product.Content.Gtin.Map(gtin => gtin.Value),
             Text(product.Content.Name.Text),
-            product.Content.Description.IsEmpty ? null : Text(product.Content.Description),
+            product.Content.Description.IsEmpty ? Maybe<string>.None : Text(product.Content.Description),
             product.Content.Unit.Value,
-            product.Content.Images.IsEmpty ? null : product.Content.Images[0].Value,
+            product.Content.Images.Select(image => image.Value).FirstOrNone(),
             categoryPath.Select(c => c.Code.Value).ToEquatableArray(),
             attributes.Select(a => FacetToken(a.Code, a.Value)).Distinct().ToEquatableArray(),
             attributes.Select(a => FacetToken(a.Code, a.Name)).Distinct().ToEquatableArray(),
@@ -74,15 +75,12 @@ public static class CatalogSearch
         IReadOnlySet<(string Code, string Value)> selected)
     {
         var labels = names.Keys
-            .Select(ParseFacetToken)
-            .OfType<(string Code, string Value)>()
+            .Choose(ParseFacetToken)
             .GroupBy(n => n.Code)
             .ToDictionary(g => g.Key, g => g.First().Value);
 
         return valueCounts
-            .Select(pair => (Token: ParseFacetToken(pair.Key), Count: pair.Value))
-            .Where(v => v.Token is not null)
-            .Select(v => (v.Token!.Value.Code, v.Token.Value.Value, v.Count))
+            .Choose(pair => ParseFacetToken(pair.Key).Map(token => (token.Code, token.Value, Count: pair.Value)))
             .Concat(selected.Select(s => (s.Code, s.Value, Count: 0)))
             .GroupBy(v => v.Code)
             .Select(attribute => new Facet(

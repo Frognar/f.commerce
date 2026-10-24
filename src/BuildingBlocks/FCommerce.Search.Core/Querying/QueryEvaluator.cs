@@ -1,5 +1,6 @@
 using FCommerce.Search.Core.Analysis;
 using FCommerce.Search.Core.Index;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Search.Core.Querying;
 
@@ -29,7 +30,7 @@ public static class QueryEvaluator
 
     public static SearchResults Search(IndexSnapshot snapshot, Analyzer analyzer, SearchQuery query)
     {
-        var words = Plan(analyzer, query.Text);
+        var words = Plan(analyzer, query.Text.ValueOr(string.Empty));
         var schema = snapshot.Schema;
         var totalDocs = Math.Max(1, snapshot.Count);
         var documentFrequency = new Dictionary<string, int>(StringComparer.Ordinal);
@@ -45,7 +46,8 @@ public static class QueryEvaluator
         for (var s = 0; s < snapshot.Segments.Length; s++)
         {
             var (segment, live) = (snapshot.Segments[s].Segment, snapshot.Segments[s].Live);
-            var allowed = query.Filter is null ? null : Evaluate(segment, schema, query.Filter);
+            var filtered = query.Filter.Match(_ => true, () => false);
+            var allowed = query.Filter.Match(filter => Evaluate(segment, schema, filter), () => []);
 
             IEnumerable<(int Doc, float Score)> matches = words.Count == 0
                 ? live.Docs().Select(doc => (doc, 0f))
@@ -53,7 +55,7 @@ public static class QueryEvaluator
 
             foreach (var (doc, score) in matches)
             {
-                if (allowed is not null && !allowed.Contains(doc))
+                if (filtered && !allowed.Contains(doc))
                 {
                     continue;
                 }
@@ -80,7 +82,7 @@ public static class QueryEvaluator
         return new SearchResults(hits, candidates.Count, facets.ToDictionary(f => f.Key, f => (IReadOnlyDictionary<string, int>)f.Value));
     }
 
-    private static List<QueryWord> Plan(Analyzer analyzer, string? text)
+    private static List<QueryWord> Plan(Analyzer analyzer, string text)
     {
         var tokens = analyzer.Analyze(text);
         return [.. tokens.Select((token, i) => new QueryWord(

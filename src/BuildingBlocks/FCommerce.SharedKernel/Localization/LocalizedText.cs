@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Persistence;
 
 namespace FCommerce.SharedKernel.Localization;
@@ -36,14 +37,14 @@ public sealed class LocalizedText : IEquatable<LocalizedText>, IPersistedValue<L
 
     /// <summary>
     /// Resolves the best translation: exact culture → its neutral language → any regional variant of
-    /// that language → each fallback culture in order (with the same rules). Null when nothing matches.
+    /// that language → each fallback culture in order (with the same rules). None when nothing matches.
     /// </summary>
-    public string? Resolve(CultureCode culture, params ReadOnlySpan<CultureCode> fallbacks)
+    public Maybe<string> Resolve(CultureCode culture, params ReadOnlySpan<CultureCode> fallbacks)
     {
         var resolved = ResolveSingle(culture);
         foreach (var fallback in fallbacks)
         {
-            resolved ??= ResolveSingle(fallback);
+            resolved = resolved.Or(() => ResolveSingle(fallback));
         }
 
         return resolved;
@@ -51,23 +52,12 @@ public sealed class LocalizedText : IEquatable<LocalizedText>, IPersistedValue<L
 
     /// <summary>Like <see cref="Resolve"/>, but falls back to any translation (empty string when there is none).</summary>
     public string ResolveOrAny(CultureCode culture, params ReadOnlySpan<CultureCode> fallbacks) =>
-        Resolve(culture, fallbacks) ?? Translations.Values.FirstOrDefault() ?? string.Empty;
+        Resolve(culture, fallbacks).Or(() => Translations.Values.FirstOrNone()).ValueOr(string.Empty);
 
-    private string? ResolveSingle(CultureCode culture)
-    {
-        if (Translations.TryGetValue(culture, out var exact))
-        {
-            return exact;
-        }
-
-        if (Translations.TryGetValue(culture.Language, out var neutral))
-        {
-            return neutral;
-        }
-
-        var language = culture.Language;
-        return Translations.FirstOrDefault(t => t.Key.Language == language).Value;
-    }
+    private Maybe<string> ResolveSingle(CultureCode culture) =>
+        Translations.GetValueOrNone(culture)
+            .Or(() => Translations.GetValueOrNone(culture.Language))
+            .Or(() => Translations.FirstOrNone(t => t.Key.Language == culture.Language).Map(t => t.Value));
 
     public bool Equals(LocalizedText? other) =>
         other is not null && Translations.Count == other.Translations.Count
@@ -94,7 +84,8 @@ public sealed class LocalizedText : IEquatable<LocalizedText>, IPersistedValue<L
         Translations.ToDictionary(pair => pair.Key.Value, pair => pair.Value);
 
     private static T Rehydrate<T, TRaw>(TRaw raw)
-        where T : IPersistedValue<T, TRaw> =>
+        where T : IPersistedValue<T, TRaw>
+        where TRaw : notnull =>
         T.Rehydrate(raw);
 
     public override string ToString() => string.Join(", ", Translations.Select(t => $"{t.Key}: {t.Value}"));

@@ -7,8 +7,10 @@ using FCommerce.Infrastructure.Outbox;
 using FCommerce.Media.Contracts;
 using FCommerce.Application.Results;
 using FCommerce.SharedKernel.Messaging;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Catalog.Import;
 
@@ -22,7 +24,7 @@ internal sealed class ImportProductsHandler(
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportProducts command, CancellationToken cancellationToken = default)
     {
-        var validated = ImportBatch.Validate(command.Products, p => p.Sku, p => Product.Validate(ToUnvalidated(p)));
+        var validated = ImportBatch.Validate(command.Products, p => p.Sku.ToMaybe(), p => Product.Validate(ToUnvalidated(p)));
         var referenced = validated.Valid.SelectMany(v => v.Item.Content.Images.Select(i => i.Value)).Distinct().ToList();
         var stored = referenced.Count == 0
             ? new HashSet<string>()
@@ -33,7 +35,7 @@ internal sealed class ImportProductsHandler(
         var rows = await db.Products.Where(p => skus.Contains(p.Sku)).ToDictionaryAsync(p => p.Sku, cancellationToken);
 
         var changes = batch.Valid
-            .Select(v => Reconciliation.Reconcile(rows.GetValueOrDefault(v.Item.Sku.Value)?.ToDomain(), v.Item))
+            .Select(v => Reconciliation.Reconcile(rows.GetValueOrNone(v.Item.Sku.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         var now = time.GetUtcNow();
@@ -76,14 +78,14 @@ internal sealed class ImportProductsHandler(
 
     private static UnvalidatedProduct ToUnvalidated(ProductData data) =>
         new(
-            data.Sku,
+            data.Sku.OrEmpty(),
             data.Version,
-            data.Name,
-            data.Description,
-            data.CategoryCode,
-            data.Unit,
-            data.Gtin,
-            data.ImageIds,
-            data.Attributes?.Select(a => new UnvalidatedAttribute(a.Code, a.Name, a.Value)).ToList(),
+            data.Name.OrEmpty(),
+            data.Description.OrEmpty(),
+            data.CategoryCode.ToMaybe(),
+            data.Unit.OrEmpty(),
+            data.Gtin.ToMaybe(),
+            [.. data.ImageIds.OrEmpty().Select(id => id.OrEmpty())],
+            [.. data.Attributes.OrEmpty().Select(a => new UnvalidatedAttribute(a.Code.OrEmpty(), a.Name.OrEmpty(), a.Value.OrEmpty()))],
             data.Active);
 }

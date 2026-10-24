@@ -15,7 +15,7 @@
     var platform = await Settings.HandleAsync(new FCommerce.Settings.Contracts.GetPlatformSettings());
     var branding = platform.Branding;
     var membership = await CurrentUser.ActiveMembershipAsync();
-    var companies = membership is null ? [] : await CurrentUser.CompaniesAsync();
+    var companies = membership.Match(_ => true, () => false) ? await CurrentUser.CompaniesAsync() : [];
     var canSwitch = companies.Count > 1 && platform.IsOn(FCommerce.SharedKernel.Features.Feature.MultiCustomerAccounts.Value);
 }
 <!DOCTYPE html>
@@ -51,35 +51,35 @@
                 <a asp-page="/Catalog/Index">@T["Catalog"]</a>
             </nav>
             <nav class="user-menu" aria-label="@T["Account"]">
-                @if (session is null)
+                @if (!session.Match(_ => true, () => false))
                 {
                     <a asp-page="/Auth/SignIn">@T["SignIn"]</a>
                 }
-                else
+                @foreach (var signedIn in session.AsEnumerable())
                 {
-                    @if (session.Operator is not null)
+                    @if (signedIn.Operator is not null)
                     {
                         <a asp-page="/Admin/Index">@T["BackOffice"]</a>
                     }
-                    @if (membership is not null && canSwitch)
+                    @foreach (var active in membership.Where(_ => canSwitch).AsEnumerable())
                     {
                         <form class="company-switcher" method="post" asp-page="/Company/Switch">
                             <input type="hidden" name="returnUrl" value="@(Context.Request.Path + Context.Request.QueryString)" />
                             <select name="code" aria-label="@T["SwitchCompany"]" onchange="this.form.requestSubmit()">
                                 @foreach (var company in companies)
                                 {
-                                    <option value="@company.Code" selected="@(company.Code == membership.CustomerCode)">@company.Name</option>
+                                    <option value="@company.Code" selected="@(company.Code == active.CustomerCode)">@company.Name</option>
                                 }
                             </select>
                             <noscript><button class="link" type="submit">@T["SwitchCompany"]</button></noscript>
                         </form>
                         <a asp-page="/Company/Index">@T["MyCompany"]</a>
                     }
-                    else if (membership is not null)
+                    @foreach (var active in membership.Where(_ => !canSwitch).AsEnumerable())
                     {
-                        <a asp-page="/Company/Index">@(companies.FirstOrDefault(c => c.Code == membership.CustomerCode)?.Name ?? T["MyCompany"])</a>
+                        <a asp-page="/Company/Index">@companies.FirstOrNone(c => c.Code == active.CustomerCode).Map(c => c.Name).ValueOr(T["MyCompany"])</a>
                     }
-                    <a asp-page="/Account/Index">@session.Name</a>
+                    <a asp-page="/Account/Index">@signedIn.Name</a>
                     <form method="post" asp-page="/Auth/SignOut">
                         <button class="link" type="submit">@T["SignOut"]</button>
                     </form>

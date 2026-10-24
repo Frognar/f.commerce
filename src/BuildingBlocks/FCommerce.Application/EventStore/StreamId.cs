@@ -36,10 +36,10 @@ public sealed record StreamId
         new(TStream.Category, id.ToString("N"));
 
     /// <summary>Parses a stored key "{category}-{id}", splitting at the first '-'.</summary>
-    public static Result<StreamId, Error> Parse(string? value)
+    public static Result<StreamId, Error> Parse(string value)
     {
-        var separator = value?.IndexOf('-', StringComparison.Ordinal) ?? -1;
-        if (separator <= 0 || separator == value!.Length - 1)
+        var separator = value.IndexOf('-', StringComparison.Ordinal);
+        if (separator <= 0 || separator == value.Length - 1)
         {
             return Error.Validation("stream-id.invalid", $"'{value}' is not a valid stream id.");
         }
@@ -48,8 +48,8 @@ public sealed record StreamId
         return ValidateCategory(category).Map(_ => new StreamId(category, value[(separator + 1)..]));
     }
 
-    public static Result<string, Error> ValidateCategory(string? category) =>
-        category is { Length: > 0 and <= MaxCategoryLength }
+    public static Result<string, Error> ValidateCategory(string category) =>
+        category.Length is > 0 and <= MaxCategoryLength
         && char.IsAsciiLetterLower(category[0])
         && category.All(c => char.IsAsciiLetterLower(c) || char.IsAsciiDigit(c))
             ? category
@@ -59,7 +59,7 @@ public sealed record StreamId
     /// Wraps a stream key that does not follow our naming (e.g. an adapter's own bookkeeping streams) so it can
     /// still be passed through the global log. No <see cref="IStreamType"/> can have the <see cref="ForeignCategory"/>.
     /// </summary>
-    public static StreamId Foreign(string? rawKey) =>
+    public static StreamId Foreign(string rawKey) =>
         new(ForeignCategory, string.IsNullOrWhiteSpace(rawKey) ? "unknown" : rawKey);
 
     public override string ToString() => Value;

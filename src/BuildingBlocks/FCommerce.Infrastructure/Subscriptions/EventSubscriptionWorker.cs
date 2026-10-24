@@ -1,6 +1,7 @@
 using FCommerce.Application.Subscriptions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Subscriptions;
 
@@ -35,16 +36,13 @@ internal sealed partial class EventSubscriptionWorker(
 
     private async Task RunAsync(Type subscriptionType, CancellationToken stoppingToken)
     {
-        PendingGap? gap = null;
+        var gap = Maybe<PendingGap>.None;
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 var step = await processor.StepAsync(subscriptionType, gap, stoppingToken);
-                if (step.Gap is not null && step.Gap != gap)
-                {
-                    LogGap(subscriptionType.Name, step.Gap.Position);
-                }
+                step.Gap.Where(found => step.Gap != gap).Switch(found => LogGap(subscriptionType.Name, found.Position), () => { });
 
                 gap = step.Gap;
                 if (step.CaughtUp)

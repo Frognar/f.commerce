@@ -4,4 +4,8 @@
     <InternalsVisibleTo Include="FCommerce.Search.Core.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.SharedKernel\FCommerce.SharedKernel.csproj" />
+  </ItemGroup>
+
 </Project>

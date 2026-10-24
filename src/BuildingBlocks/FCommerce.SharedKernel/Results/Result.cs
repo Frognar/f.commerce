@@ -5,6 +5,8 @@ namespace FCommerce.SharedKernel.Results;
 /// <see cref="Match{TOut}"/> (and combinators built on it), so a failure can never be read as a success.
 /// </summary>
 public abstract record Result<T, TError>
+    where T : notnull
+    where TError : notnull
 {
     private Result()
     {
@@ -14,7 +16,8 @@ public abstract record Result<T, TError>
 
     public static implicit operator Result<T, TError>(TError error) => new Failure(error);
 
-    public abstract TOut Match<TOut>(Func<T, TOut> onSuccess, Func<TError, TOut> onFailure);
+    public abstract TOut Match<TOut>(Func<T, TOut> onSuccess, Func<TError, TOut> onFailure)
+        where TOut : notnull;
 
     public void Switch(Action<T> onSuccess, Action<TError> onFailure) =>
         Match(
@@ -29,13 +32,16 @@ public abstract record Result<T, TError>
                 return Unit.Value;
             });
 
-    public Result<TOut, TError> Map<TOut>(Func<T, TOut> map) =>
+    public Result<TOut, TError> Map<TOut>(Func<T, TOut> map)
+        where TOut : notnull =>
         Match(value => Result<TOut, TError>.Ok(map(value)), Result<TOut, TError>.Fail);
 
-    public Result<TOut, TError> Bind<TOut>(Func<T, Result<TOut, TError>> bind) =>
+    public Result<TOut, TError> Bind<TOut>(Func<T, Result<TOut, TError>> bind)
+        where TOut : notnull =>
         Match(bind, Result<TOut, TError>.Fail);
 
-    public Result<T, TOut> MapError<TOut>(Func<TError, TOut> map) =>
+    public Result<T, TOut> MapError<TOut>(Func<TError, TOut> map)
+        where TOut : notnull =>
         Match(Result<T, TOut>.Ok, error => Result<T, TOut>.Fail(map(error)));
 
     /// <summary>Keeps the value when it satisfies the predicate, otherwise fails with the given error.</summary>
@@ -66,27 +72,45 @@ public abstract record Result<T, TError>
 
 public static class Result
 {
-    public static Result<T, TError> Ok<T, TError>(T value) => Result<T, TError>.Ok(value);
+    public static Result<T, TError> Ok<T, TError>(T value)
+        where T : notnull
+        where TError : notnull =>
+        Result<T, TError>.Ok(value);
 
-    public static Result<T, TError> Fail<T, TError>(TError error) => Result<T, TError>.Fail(error);
+    public static Result<T, TError> Fail<T, TError>(TError error)
+        where T : notnull
+        where TError : notnull =>
+        Result<T, TError>.Fail(error);
 
     /// <summary>Collects all values, or returns the first error.</summary>
-    public static Result<IReadOnlyList<T>, TError> Sequence<T, TError>(this IEnumerable<Result<T, TError>> results) =>
+    public static Result<IReadOnlyList<T>, TError> Sequence<T, TError>(this IEnumerable<Result<T, TError>> results)
+        where T : notnull
+        where TError : notnull =>
         results.Aggregate(
             Ok<IReadOnlyList<T>, TError>([]),
             (all, next) => all.Bind(values => next.Map(value => (IReadOnlyList<T>)[.. values, value])));
 
     /// <summary>Applies a fallible function to every item; all values or the first error.</summary>
-    public static Result<IReadOnlyList<TOut>, TError> Traverse<T, TOut, TError>(this IEnumerable<T> items, Func<T, Result<TOut, TError>> map) =>
+    public static Result<IReadOnlyList<TOut>, TError> Traverse<T, TOut, TError>(this IEnumerable<T> items, Func<T, Result<TOut, TError>> map)
+        where T : notnull
+        where TOut : notnull
+        where TError : notnull =>
         items.Select(map).Sequence();
 
     // LINQ query syntax: from a in ra from b in rb select f(a, b)
-    public static Result<TOut, TError> Select<T, TOut, TError>(this Result<T, TError> result, Func<T, TOut> map) =>
+    public static Result<TOut, TError> Select<T, TOut, TError>(this Result<T, TError> result, Func<T, TOut> map)
+        where T : notnull
+        where TOut : notnull
+        where TError : notnull =>
         result.Map(map);
 
     public static Result<TOut, TError> SelectMany<T, TNext, TOut, TError>(
         this Result<T, TError> result,
         Func<T, Result<TNext, TError>> bind,
-        Func<T, TNext, TOut> project) =>
+        Func<T, TNext, TOut> project)
+        where T : notnull
+        where TNext : notnull
+        where TOut : notnull
+        where TError : notnull =>
         result.Bind(value => bind(value).Map(next => project(value, next)));
 }

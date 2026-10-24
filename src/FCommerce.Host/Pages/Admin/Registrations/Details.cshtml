@@ -1,23 +1,25 @@
 @page "/admin/registrations/{id:guid}"
 @model FCommerce.Host.Pages.Admin.Registrations.DetailsModel
 @{
-    var request = Model.Registration;
-    ViewData["Title"] = request?.CompanyName ?? T["RegistrationNotFound"];
+    ViewData["Title"] = Model.Found ? Model.Registration.CompanyName : T["RegistrationNotFound"].Value;
 }
 <nav class="breadcrumb">
     <a asp-page="/Admin/Index">@T["BackOffice"]</a>
     <a asp-page="/Admin/Registrations/Index">@T["Registrations"]</a>
 </nav>
-@if (request is null)
+@if (!Model.Found)
 {
     <h1>@T["RegistrationNotFound"]</h1>
     return;
 }
+@{
+    var request = Model.Registration;
+}
 <h1>@request.CompanyName</h1>
 <p class="muted">@T[$"Registration.{request.Status}"] · @T["SubmittedAt"] @request.SubmittedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</p>
-@if (Model.Saved is not null)
+@foreach (var saved in Model.Saved.AsEnumerable())
 {
-    <p class="notice" role="status">@Model.Saved</p>
+    <p class="notice" role="status">@saved</p>
 }
 <div asp-validation-summary="All" class="alert" role="alert"></div>
 

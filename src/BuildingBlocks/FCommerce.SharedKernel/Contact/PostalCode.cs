@@ -10,9 +10,9 @@ public sealed record PostalCode : IPersistedValue<PostalCode, string>
 
     public string Value { get; }
 
-    public static Result<PostalCode, Error> Parse(string? raw, CountryCode country)
+    public static Result<PostalCode, Error> Parse(string raw, CountryCode country)
     {
-        var value = raw?.Trim().ToUpperInvariant() ?? string.Empty;
+        var value = raw.Trim().ToUpperInvariant();
         if (country.Value == "PL")
         {
             var digits = value.Length == 6 && value[2] == '-' ? value.Remove(2, 1) : value;

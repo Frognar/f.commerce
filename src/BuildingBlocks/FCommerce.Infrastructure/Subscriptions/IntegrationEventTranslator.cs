@@ -2,6 +2,7 @@ using FCommerce.Application.EventStore;
 using FCommerce.Application.Messaging;
 using FCommerce.Application.Subscriptions;
 using FCommerce.SharedKernel.Messaging;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Subscriptions;
 
@@ -13,14 +14,14 @@ public abstract class IntegrationEventTranslator(IIntegrationEventPublisher publ
 {
     public abstract string Name { get; }
 
-    /// <summary>Pure mapping; null when the domain event has no public counterpart.</summary>
-    protected abstract IIntegrationEvent? Translate(RecordedEvent recordedEvent);
+    /// <summary>Pure mapping; none when the domain event has no public counterpart.</summary>
+    protected abstract Maybe<IIntegrationEvent> Translate(RecordedEvent recordedEvent);
 
     public abstract bool Accepts(RecordedEvent recordedEvent);
 
     public async Task HandleAsync(RecordedEvent recordedEvent, CancellationToken cancellationToken)
     {
-        if (Translate(recordedEvent) is { } integrationEvent)
+        foreach (var integrationEvent in Translate(recordedEvent).AsEnumerable())
         {
             await publisher.PublishAsync(integrationEvent, cancellationToken);
         }

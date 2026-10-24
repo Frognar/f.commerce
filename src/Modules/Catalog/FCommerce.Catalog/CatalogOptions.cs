@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Catalog;
@@ -23,5 +24,5 @@ internal sealed record CatalogCultures(CultureCode Default, EquatableArray<Cultu
 
     /// <summary>The indexed culture to search in: the first requested one that is indexed (exactly or by language).</summary>
     public CultureCode IndexFor(EquatableArray<CultureCode> requested) =>
-        requested.SelectMany(c => (CultureCode[])[c, c.Language]).FirstOrDefault(All.Contains) ?? Default;
+        requested.SelectMany(c => (CultureCode[])[c, c.Language]).FirstOrNone(All.Contains).ValueOr(Default);
 }

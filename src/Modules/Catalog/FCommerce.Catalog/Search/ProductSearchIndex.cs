@@ -3,6 +3,7 @@ using FCommerce.Catalog.Domain;
 using FCommerce.Catalog.Persistence;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Catalog.Search;
@@ -55,8 +56,7 @@ internal sealed class ProductSearchIndex(ISearchEngine engine, CatalogDbContext 
         var tree = await CategoryTreeAsync(cancellationToken);
 
         var removed = skus.Except(products.Where(p => p.Active).Select(p => p.Sku.Value))
-            .Select(sku => Sku.Parse(sku).Match(s => (string?)CatalogSearch.DocumentId(s), _ => null))
-            .OfType<string>()
+            .Choose(sku => Sku.Parse(sku).ToMaybe().Map(CatalogSearch.DocumentId))
             .ToList();
 
         foreach (var culture in cultures.All)
@@ -90,7 +90,7 @@ internal sealed class ProductSearchIndex(ISearchEngine engine, CatalogDbContext 
     private SearchEntry Entry(Product product, EquatableArray<CategoryNode> tree, CultureCode culture) =>
         CatalogSearch.Entry(
             product,
-            product.Content.Category is { } category ? CategoryTree.PathTo(tree, category) : EquatableArray<Category>.Empty,
+            product.Content.Category.Match(category => CategoryTree.PathTo(tree, category), () => EquatableArray<Category>.Empty),
             culture,
             cultures.Default);
 

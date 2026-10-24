@@ -1,5 +1,6 @@
 using FCommerce.SharedKernel.Imports;
 using FCommerce.Catalog.Domain;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 using static FCommerce.Catalog.Tests.TestProducts;
 
@@ -7,7 +8,7 @@ namespace FCommerce.Catalog.Tests;
 
 public sealed class CatalogSearchTests
 {
-    private static Category Cat(string code, string? parent = null) =>
+    private static Category Cat(string code, Maybe<string> parent = default) =>
         Category.Validate(new UnvalidatedCategory(code, parent, new Dictionary<string, string> { ["pl"] = code.ToUpperInvariant() }, 0, 1, true)).ShouldBeValid();
 
     [Fact]
@@ -75,7 +76,7 @@ public sealed class CatalogSearchTests
 
 public sealed class CategoryTreeTests
 {
-    private static Category Cat(string code, string? parent = null, int sort = 0, bool active = true) =>
+    private static Category Cat(string code, Maybe<string> parent = default, int sort = 0, bool active = true) =>
         Category.Validate(new UnvalidatedCategory(code, parent, new Dictionary<string, string> { ["pl"] = code }, sort, 1, active))
             .ShouldBeValid();
 

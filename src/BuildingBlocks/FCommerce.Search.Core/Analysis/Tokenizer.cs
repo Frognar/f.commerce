@@ -11,7 +11,7 @@ public static class Tokenizer
 {
     public const int MaxTokenLength = 64;
 
-    public static IReadOnlyList<Token> Tokenize(string? text)
+    public static IReadOnlyList<Token> Tokenize(string text)
     {
         if (string.IsNullOrEmpty(text))
         {

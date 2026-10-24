@@ -5,8 +5,10 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Catalog.Domain;
 using FCommerce.Catalog.Persistence;
 using FCommerce.Catalog.Search;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,12 +27,13 @@ internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCulture
         var index = ProductSearchIndex.IndexName(catalogCultures.IndexFor(cultures));
         var page = Math.Max(query.Page, 1);
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
-        var selected = (query.Filters ?? []).Select(f => (f.Code, f.Value)).ToHashSet();
-        var category = string.IsNullOrWhiteSpace(query.CategoryCode) ? null : query.CategoryCode.Trim();
+        var selected = query.Filters.OrEmpty().Select(f => (Code: f.Code.OrEmpty(), Value: f.Value.OrEmpty())).ToHashSet();
+        var category = query.CategoryCode.ToMaybe().Where(code => !string.IsNullOrWhiteSpace(code)).Map(code => code.Trim());
+        var text = query.Text.ToMaybe();
 
         var main = await engine.SearchAsync<ProductSearchDocument>(
             index,
-            new SearchRequest(query.Text, Filter(category, selected, except: null), [ProductSearchIndex.FacetsField, ProductSearchIndex.FacetNamesField], page, pageSize),
+            new SearchRequest(text, Filter(category, selected, except: Maybe<string>.None), [ProductSearchIndex.FacetsField, ProductSearchIndex.FacetNamesField], page, pageSize),
             cancellationToken);
 
         // Disjunctive facets: a selected attribute's own values are counted without its own filter,
@@ -40,9 +43,9 @@ internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCulture
         {
             var others = await engine.SearchAsync<ProductSearchDocument>(
                 index,
-                new SearchRequest(query.Text, Filter(category, selected, except: code), [ProductSearchIndex.FacetsField], 1, 0),
+                new SearchRequest(text, Filter(category, selected, except: code), [ProductSearchIndex.FacetsField], 1, 0),
                 cancellationToken);
-            foreach (var (token, count) in FacetCounts(others, ProductSearchIndex.FacetsField).Where(c => CatalogSearch.ParseFacetToken(c.Key)?.Code == code))
+            foreach (var (token, count) in FacetCounts(others, ProductSearchIndex.FacetsField).Where(c => CatalogSearch.ParseFacetToken(c.Key).Exists(t => t.Code == code)))
             {
                 counts[token] = count;
             }
@@ -50,19 +53,19 @@ internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCulture
 
         var facets = CatalogSearch.Facets(counts, FacetCounts(main, ProductSearchIndex.FacetNamesField), selected);
         return new ProductPage(
-            [.. main.Hits.Select(h => new ProductSummary(h.Sku, h.Name, h.Unit, h.ImageId, h.Categories.Length > 0 ? h.Categories[^1] : null))],
+            [.. main.Hits.Select(h => new ProductSummary(h.Sku, h.Name, h.Unit, h.ImageId, h.Categories.LastOrDefault()))],
             page,
             pageSize,
             main.TotalHits,
             [.. facets.Select(f => new FacetView(f.Code, f.Name, [.. f.Values.Select(v => new FacetValueView(v.Value, v.Count, v.Selected))]))]);
     }
 
-    private static SearchFilter.All Filter(string? category, IReadOnlySet<(string Code, string Value)> selected, string? except) =>
+    private static SearchFilter.All Filter(Maybe<string> category, IReadOnlySet<(string Code, string Value)> selected, Maybe<string> except) =>
         new SearchFilter.All(
         [
-            .. category is null ? [] : new SearchFilter[] { new SearchFilter.Equal(ProductSearchIndex.CategoriesField, category) },
+            .. category.AsEnumerable().Select(code => new SearchFilter.Equal(ProductSearchIndex.CategoriesField, code)),
             .. selected
-                .Where(s => s.Code != except)
+                .Where(s => !except.Exists(code => code == s.Code))
                 .GroupBy(s => s.Code)
                 .Select(attribute => new SearchFilter.AnyOf(
                     ProductSearchIndex.FacetsField,
@@ -70,10 +73,10 @@ internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCulture
         ]);
 
     private static bool IsSelectedAttribute(string token, IReadOnlySet<(string Code, string Value)> selected) =>
-        CatalogSearch.ParseFacetToken(token) is { } parsed && selected.Any(s => s.Code == parsed.Code);
+        CatalogSearch.ParseFacetToken(token).Exists(parsed => selected.Any(s => s.Code == parsed.Code));
 
     private static IReadOnlyDictionary<string, int> FacetCounts(SearchResult<ProductSearchDocument> result, string field) =>
-        result.Facets.GetValueOrDefault(field) ?? new Dictionary<string, int>();
+        result.Facets.GetValueOrNone(field).ValueOr(() => new Dictionary<string, int>());
 }
 
 internal sealed class GetProductHandler(CatalogDbContext db) : IQueryHandler<GetProduct, Result<ProductDetails, Error>>
@@ -86,23 +89,24 @@ internal sealed class GetProductHandler(CatalogDbContext db) : IQueryHandler<Get
 
     private async Task<Result<ProductDetails, Error>> FindAsync(Sku sku, EquatableArray<CultureCode> cultures, CancellationToken cancellationToken)
     {
-        var row = await db.Products.AsNoTracking().SingleOrDefaultAsync(p => p.Sku == sku.Value && p.Active, cancellationToken);
-        if (row is null)
-        {
-            return Error.NotFound("product.not-found", $"Product '{sku}' does not exist.");
-        }
+        var row = await db.Products.AsNoTracking().SingleOrNoneAsync(p => p.Sku == sku.Value && p.Active, cancellationToken);
+        return await row.Match(
+            async stored => Result.Ok<ProductDetails, Error>(await DetailsAsync(stored.ToDomain(), cultures, cancellationToken)),
+            () => Task.FromResult(Result.Fail<ProductDetails, Error>(Error.NotFound("product.not-found", $"Product '{sku}' does not exist."))));
+    }
 
-        var product = row.ToDomain();
-        var path = product.Content.Category is { } category
-            ? CategoryTree.PathTo(CategoryTree.Build((await db.Categories.AsNoTracking().ToListAsync(cancellationToken)).Select(c => c.ToDomain())), category)
-            : EquatableArray<Category>.Empty;
+    private async Task<ProductDetails> DetailsAsync(Product product, EquatableArray<CultureCode> cultures, CancellationToken cancellationToken)
+    {
+        var path = await product.Content.Category.Match(
+            async category => CategoryTree.PathTo(CategoryTree.Build((await db.Categories.AsNoTracking().ToListAsync(cancellationToken)).Select(c => c.ToDomain())), category),
+            () => Task.FromResult(EquatableArray<Category>.Empty));
 
         return new ProductDetails(
             product.Sku.Value,
             product.Content.Name.Text.Resolve(cultures),
             product.Content.Description.IsEmpty ? null : product.Content.Description.Resolve(cultures),
             product.Content.Unit.Value,
-            product.Content.Gtin?.Value,
+            product.Content.Gtin.Map(gtin => gtin.Value).OrNull(),
             [.. product.Content.Images.Select(i => i.Value)],
             [.. product.Content.Attributes.Select(a => new ProductAttributeView(a.Code.Value, a.Name.Resolve(cultures), a.Value.Resolve(cultures)))],
             [.. path.Select(c => new CategoryReference(c.Code.Value, c.Content.Name.Text.Resolve(cultures)))]);

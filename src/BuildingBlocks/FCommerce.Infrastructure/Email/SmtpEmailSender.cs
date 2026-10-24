@@ -2,9 +2,12 @@ using FCommerce.Application.Email;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Email;
 
+/// <summary>Bound from configuration; user name and password are absent for a local mail catcher.</summary>
+[NullableEdge]
 public sealed class SmtpOptions
 {
     public const string Section = "Email";
@@ -32,15 +35,15 @@ internal sealed class SmtpEmailSender(SmtpOptions options) : IEmailSender
     {
         using var mime = new MimeMessage();
         mime.From.Add(new MailboxAddress(options.FromName, options.FromAddress));
-        mime.To.Add(new MailboxAddress(message.ToName ?? string.Empty, message.To.Value));
+        mime.To.Add(new MailboxAddress(message.ToName.ValueOr(string.Empty), message.To.Value));
         mime.Subject = message.Subject;
         mime.Body = new BodyBuilder { HtmlBody = message.Html, TextBody = message.Text }.ToMessageBody();
 
         using var client = new SmtpClient();
         await client.ConnectAsync(options.Host, options.Port, Enum.Parse<SecureSocketOptions>(options.Security, ignoreCase: true), cancellationToken);
-        if (!string.IsNullOrEmpty(options.UserName))
+        foreach (var userName in options.UserName.ToMaybe().Where(name => name.Length > 0).AsEnumerable())
         {
-            await client.AuthenticateAsync(options.UserName, options.Password ?? string.Empty, cancellationToken);
+            await client.AuthenticateAsync(userName, options.Password.OrEmpty(), cancellationToken);
         }
 
         await client.SendAsync(mime, cancellationToken);

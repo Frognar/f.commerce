@@ -3,6 +3,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -27,14 +28,14 @@ public sealed class SignInModel(ICommandHandler<SignInCommand, Result<SignedIn, 
     [BindProperty(SupportsGet = true)]
     public string? ReturnUrl { get; set; }
 
-    public string? Failure { get; private set; }
+    public Maybe<string> Failure { get; private set; }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken) =>
         await (await signIn.HandleAsync(new SignInCommand(Email, Password), cancellationToken)).Match<Task<IActionResult>>(
             async signedIn =>
             {
                 await SessionCookie.SignInAsync(HttpContext, signedIn, Remember);
-                return LocalRedirect(Url.IsLocalUrl(ReturnUrl) ? ReturnUrl! : Url.CulturePage("/Index")!);
+                return LocalRedirect(ReturnUrl.ToMaybe().Where(Url.IsLocalUrl).ValueOr(() => Url.CulturePage("/Index")));
             },
             error =>
             {

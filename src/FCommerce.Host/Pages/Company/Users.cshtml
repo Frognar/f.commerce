@@ -3,11 +3,11 @@
 @{
     ViewData["Title"] = T["CompanyUsers"];
 }
-<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer!.Name</a></nav>
+<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer.Name</a></nav>
 <h1>@T["CompanyUsers"]</h1>
-@if (Model.Saved is not null)
+@foreach (var saved in Model.Saved.AsEnumerable())
 {
-    <p class="notice" role="status">@Model.Saved</p>
+    <p class="notice" role="status">@saved</p>
 }
 <div asp-validation-summary="All" class="alert" role="alert"></div>
 <partial name="_CustomerUsers" model="Model.Users" />

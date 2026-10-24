@@ -10,6 +10,7 @@ namespace FCommerce.SharedKernel.Validation;
 /// The value and the errors are reachable only through <see cref="Match{TOut}"/>.
 /// </summary>
 public abstract record Validated<T>
+    where T : notnull
 {
     private Validated()
     {
@@ -19,16 +20,19 @@ public abstract record Validated<T>
 
     public static implicit operator Validated<T>(Error error) => new Invalid(EquatableArray.Create(error));
 
-    public abstract TOut Match<TOut>(Func<T, TOut> onValid, Func<EquatableArray<Error>, TOut> onInvalid);
+    public abstract TOut Match<TOut>(Func<T, TOut> onValid, Func<EquatableArray<Error>, TOut> onInvalid)
+        where TOut : notnull;
 
-    public Validated<TOut> Map<TOut>(Func<T, TOut> map) =>
+    public Validated<TOut> Map<TOut>(Func<T, TOut> map)
+        where TOut : notnull =>
         Match(value => Validated<TOut>.Succeed(map(value)), Validated<TOut>.Fail);
 
     /// <summary>
     /// Sequential step for rules that need the whole, already valid value (e.g. cross-field rules).
     /// Runs only when valid, so it does not accumulate with earlier errors — use Apply for independent inputs.
     /// </summary>
-    public Validated<TOut> Bind<TOut>(Func<T, Validated<TOut>> bind) =>
+    public Validated<TOut> Bind<TOut>(Func<T, Validated<TOut>> bind)
+        where TOut : notnull =>
         Match(bind, Validated<TOut>.Fail);
 
     /// <summary>Keeps a valid value that satisfies the predicate, otherwise fails with the given error.</summary>

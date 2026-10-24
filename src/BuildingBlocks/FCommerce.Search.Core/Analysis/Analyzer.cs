@@ -24,10 +24,10 @@ public sealed class Analyzer(string language, Func<string, IReadOnlyList<string>
     /// <summary>Folding only; for languages without a stemmer.</summary>
     public static Analyzer Simple(string language) => new(language, word => [word]);
 
-    public IReadOnlyList<AnalyzedToken> Analyze(string? text) =>
+    public IReadOnlyList<AnalyzedToken> Analyze(string text) =>
         [.. Tokenizer.Tokenize(text).Select(token => new AnalyzedToken(token.Text, lemmatize(token.Text), token.Position))];
 
     /// <summary>Tokens without linguistic processing, for exact fields (codes, identifiers).</summary>
-    public static IReadOnlyList<AnalyzedToken> AnalyzeExact(string? text) =>
+    public static IReadOnlyList<AnalyzedToken> AnalyzeExact(string text) =>
         [.. Tokenizer.Tokenize(text).Select(token => new AnalyzedToken(token.Text, [], token.Position))];
 }

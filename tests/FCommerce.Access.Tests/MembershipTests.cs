@@ -1,6 +1,7 @@
 using FCommerce.Access.Domain;
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 
 namespace FCommerce.Access.Tests;
@@ -9,11 +10,11 @@ public sealed class MembershipTests
 {
     private static EmailAddress Email(string value) => EmailAddress.Parse(value).ShouldSucceed();
 
-    private static Account Account(string email, AccountStatus status = AccountStatus.Active, OperatorAttributes? op = null) =>
-        new(Guid.NewGuid(), Email(email), PersonName.Parse("Jan").ShouldSucceed(), Values.Culture("pl"), status, "hash", "stamp", 0, null, op);
+    private static Account Account(string email, AccountStatus status = AccountStatus.Active, Maybe<OperatorAttributes> op = default) =>
+        new(Guid.NewGuid(), Email(email), PersonName.Parse("Jan").ShouldSucceed(), Values.Culture("pl"), status, "hash", "stamp", 0, default, op);
 
-    private static Membership Member(Account account, string customer, MembershipSource source = MembershipSource.Erp, MembershipAttributes? attributes = null) =>
-        new(account.Id, customer, attributes ?? MembershipAttributes.Buyer, source, source == MembershipSource.Erp ? "C1" : null);
+    private static Membership Member(Account account, string customer, MembershipSource source = MembershipSource.Erp, Maybe<MembershipAttributes> attributes = default) =>
+        new(account.Id, customer, attributes.ValueOr(MembershipAttributes.Buyer), source, source == MembershipSource.Erp ? "C1" : Maybe<string>.None);
 
     private static ErpContactSync.Contact Contact(string email, string id = "C1") =>
         new(id, Email(email), PersonName.Parse("Jan Kowalski").ShouldSucceed(), MembershipAttributes.Administrator);
@@ -38,7 +39,7 @@ public sealed class MembershipTests
 
         Assert.Equal("membership.single-customer", MembershipRules.Admit(account, [current], false, Member(account, "K2")).ShouldFail().Code);
         Assert.Equal("K2", MembershipRules.Admit(account, [current], true, Member(account, "K2")).ShouldSucceed().CustomerCode);
-        Assert.Equal("K1", MembershipRules.Admit(null, [], false, Member(account, "K1")).ShouldSucceed().CustomerCode);
+        Assert.Equal("K1", MembershipRules.Admit(default, [], false, Member(account, "K1")).ShouldSucceed().CustomerCode);
     }
 
     [Fact]
@@ -57,7 +58,7 @@ public sealed class MembershipTests
     {
         Assert.Equal(MembershipAttributes.Accounting, MembershipRules.FromTemplate("accounting"));
         Assert.Equal(MembershipAttributes.Buyer, MembershipRules.FromTemplate("king"));
-        Assert.Equal(MembershipAttributes.Buyer, MembershipRules.FromTemplate(null));
+        Assert.Equal(MembershipAttributes.Buyer, MembershipRules.FromTemplate(default));
     }
 
     [Fact]

@@ -1,7 +1,9 @@
+using FCommerce.SharedKernel.Optional;
+
 namespace FCommerce.Application.EventStore;
 
 /// <summary>Context stored with every event, for tracing and audit.</summary>
-public sealed record EventMetadata(string? CorrelationId = null, string? CausationId = null, string? Actor = null)
+public sealed record EventMetadata(Maybe<string> CorrelationId = default, Maybe<string> CausationId = default, Maybe<string> Actor = default)
 {
     public static EventMetadata None { get; } = new();
 }

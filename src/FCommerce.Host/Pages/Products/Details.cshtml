@@ -3,10 +3,9 @@
 @using FCommerce.Media.Contracts
 @model FCommerce.Host.Pages.Products.DetailsModel
 @{
-    var product = Model.Product;
-    ViewData["Title"] = product?.Name ?? T["ProductNotFound"];
+    ViewData["Title"] = Model.Found ? Model.Product.Name : T["ProductNotFound"].Value;
 }
-@if (product is null)
+@if (!Model.Found)
 {
     <section class="hero">
         <h1>@T["ProductNotFound"]</h1>
@@ -15,6 +14,7 @@
 }
 else
 {
+    var product = Model.Product;
     <nav class="breadcrumb" aria-label="@T["Categories"]">
         <a asp-page="/Catalog/Index">@T["Catalog"]</a>
         @foreach (var category in product.CategoryPath)

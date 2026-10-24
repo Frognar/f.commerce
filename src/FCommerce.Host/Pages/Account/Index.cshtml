@@ -5,9 +5,9 @@
     ViewData["Title"] = T["MyAccount"];
 }
 <h1>@T["MyAccount"]</h1>
-@if (Model.Saved is not null)
+@foreach (var saved in Model.Saved.AsEnumerable())
 {
-    <p class="notice" role="status">@Model.Saved</p>
+    <p class="notice" role="status">@saved</p>
 }
 <div asp-validation-summary="All" class="alert" role="alert"></div>
 

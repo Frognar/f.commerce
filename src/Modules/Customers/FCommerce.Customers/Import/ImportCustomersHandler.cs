@@ -3,11 +3,14 @@ using FCommerce.Application.Results;
 using FCommerce.Customers.Contracts;
 using FCommerce.Customers.Domain;
 using FCommerce.Customers.Persistence;
+using FCommerce.Customers.Queries;
 using FCommerce.Infrastructure.Outbox;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Messaging;
+using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.EntityFrameworkCore;
+using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Customers.Import;
 
@@ -17,13 +20,13 @@ internal sealed class ImportCustomersHandler(CustomersDbContext db, Outbox<Custo
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportCustomers command, CancellationToken cancellationToken = default)
     {
-        var batch = ImportBatch.Validate(command.Customers, c => c.Code, c => Domain.Customers.Validate(ToUnvalidated(c)));
+        var batch = ImportBatch.Validate(command.Customers, c => c.Code.ToMaybe(), c => Domain.Customers.Validate(ToUnvalidated(c)));
 
         var codes = batch.Valid.Select(v => v.Item.Code.Value).ToList();
         var rows = await db.Customers.Where(c => codes.Contains(c.Code)).ToDictionaryAsync(c => c.Code, cancellationToken);
 
         var changes = batch.Valid
-            .Select(v => Domain.Customers.Reconcile(rows.GetValueOrDefault(v.Item.Code.Value)?.ToDomain(), v.Item))
+            .Select(v => Domain.Customers.Reconcile(rows.GetValueOrNone(v.Item.Code.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         var now = time.GetUtcNow();
@@ -59,40 +62,40 @@ internal sealed class ImportCustomersHandler(CustomersDbContext db, Outbox<Custo
     private static IEnumerable<IIntegrationEvent> PublicEvents(Change<Customer> change) =>
         change switch
         {
-            Change<Customer>.Created c => Events(null, c.Current),
+            Change<Customer>.Created c => Events(Maybe<Customer>.None, c.Current),
             Change<Customer>.Updated u => Events(u.Previous, u.Current),
             _ => [],
         };
 
-    private static IEnumerable<IIntegrationEvent> Events(Customer? before, Customer after)
+    private static IEnumerable<IIntegrationEvent> Events(Maybe<Customer> before, Customer after)
     {
-        yield return new CustomerChanged(after.Code.Value, after.Active, after.Content.Terms.Blocked, after.Content.Salesperson?.Email?.Value);
+        yield return new CustomerChanged(after.Code.Value, after.Active, after.Content.Terms.Blocked, CustomerViews.SalespersonEmail(after.Content).OrNull());
         if (Domain.Customers.PortalContactsChanged(before, after))
         {
             yield return new PortalContactsChanged(
                 after.Code.Value,
                 [.. after.Content.Contacts
-                    .Where(c => c.PortalAccess && c.Email is not null)
-                    .Select(c => new PortalContact(c.ExternalId, c.Name, c.Email!.Value, c.AttributeTemplate))]);
+                    .Where(c => c.PortalAccess)
+                    .Choose(c => c.Email.Map(email => new PortalContact(c.ExternalId, c.Name, email.Value, c.AttributeTemplate.OrNull())))]);
         }
     }
 
     private static UnvalidatedCustomer ToUnvalidated(CustomerData data) =>
         new(
-            data.Code,
+            data.Code.OrEmpty(),
             data.Version,
-            data.Name,
-            data.TaxId,
-            ToUnvalidated(data.BillingAddress),
-            data.DeliveryAddresses?.Select(a => new UnvalidatedDeliveryAddress(a.Code, a.Name, ToUnvalidated(a.Address), a.IsDefault)).ToList(),
-            data.Contacts?.Select(c => new UnvalidatedContact(c.ExternalId, c.Name, c.Email, c.Phone, c.PortalAccess, c.AttributeTemplate)).ToList(),
-            data.Salesperson is { } s ? new UnvalidatedSalesperson(s.Name, s.Email, s.Phone) : null,
-            data.PriceListCode,
-            data.PaymentTermDays,
-            data.Currency,
+            data.Name.OrEmpty(),
+            data.TaxId.ToMaybe(),
+            ToUnvalidated(data.BillingAddress.ToMaybe()),
+            [.. data.DeliveryAddresses.OrEmpty().Select(a => new UnvalidatedDeliveryAddress(a.Code.OrEmpty(), a.Name.ToMaybe(), ToUnvalidated(a.Address.ToMaybe()), a.IsDefault))],
+            [.. data.Contacts.OrEmpty().Select(c => new UnvalidatedContact(c.ExternalId.OrEmpty(), c.Name.OrEmpty(), c.Email.ToMaybe(), c.Phone.ToMaybe(), c.PortalAccess, c.AttributeTemplate.ToMaybe()))],
+            data.Salesperson.ToMaybe().Map(s => new UnvalidatedSalesperson(s.Name.OrEmpty(), s.Email.ToMaybe(), s.Phone.ToMaybe())),
+            data.PriceListCode.ToMaybe(),
+            data.PaymentTermDays.ToMaybe(),
+            data.Currency.ToMaybe(),
             data.Blocked,
             data.Active);
 
-    private static UnvalidatedAddress? ToUnvalidated(AddressData? address) =>
-        address is null ? null : new UnvalidatedAddress(address.Street, address.PostalCode, address.City, address.Country);
+    private static Maybe<UnvalidatedAddress> ToUnvalidated(Maybe<AddressData> address) =>
+        address.Map(a => new UnvalidatedAddress(a.Street.OrEmpty(), a.PostalCode.OrEmpty(), a.City.OrEmpty(), a.Country.OrEmpty()));
 }

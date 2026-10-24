@@ -2,6 +2,8 @@ using System.Text.Json;
 using FCommerce.Search.Core.Analysis;
 using FCommerce.Search.Core.Index;
 using FCommerce.Search.Core.Querying;
+using FCommerce.SharedKernel.Optional;
+using FCommerce.Testing;
 
 namespace FCommerce.Search.Core.Tests;
 
@@ -13,7 +15,7 @@ public sealed class SearchTests
     private sealed record Doc(string Id, string Sku, string Name, string Description = "", string Category = "", string[]? Tags = null);
 
     private static IndexDocument Read(Doc doc) =>
-        DocumentReader.Read(Schema, JsonSerializer.SerializeToUtf8Bytes(doc with { Tags = doc.Tags ?? [] }, JsonSerializerOptions.Web))!;
+        DocumentReader.Read(Schema, JsonSerializer.SerializeToUtf8Bytes(doc with { Tags = doc.Tags ?? [] }, JsonSerializerOptions.Web)).ShouldBeSome();
 
     private static IndexSnapshot Index(params Doc[] docs) =>
         IndexSnapshot.Empty(Schema).Add(SegmentBuilder.Build(Schema, Polish, [.. docs.Select(Read)]));
@@ -21,7 +23,7 @@ public sealed class SearchTests
     private static List<string> Ids(SearchResults results) =>
         [.. results.Sources.Select(s => JsonDocument.Parse(s).RootElement.GetProperty("id").GetString()!)];
 
-    private static List<string> Find(IndexSnapshot index, string? text, Filter? filter = null) =>
+    private static List<string> Find(IndexSnapshot index, Maybe<string> text, Maybe<Filter> filter = default) =>
         Ids(QueryEvaluator.Search(index, Polish, new SearchQuery(text, filter, [], 1, 50)));
 
     private static readonly IndexSnapshot Catalog = Index(
@@ -97,11 +99,11 @@ public sealed class SearchTests
         var bolts = new Filter.Equal("category", "bolts");
         var threads = new Filter.AnyOf("tags", ["thread:M8", "shank:SDS"]);
 
-        Assert.Equal(["1", "4"], Find(Catalog, null, bolts));
-        Assert.Equal(["1", "2"], Find(Catalog, null, threads));
-        Assert.Equal(["1"], Find(Catalog, null, new Filter.All([bolts, threads])));
+        Assert.Equal(["1", "4"], Find(Catalog, default, bolts));
+        Assert.Equal(["1", "2"], Find(Catalog, default, threads));
+        Assert.Equal(["1"], Find(Catalog, default, new Filter.All([bolts, threads])));
 
-        var results = QueryEvaluator.Search(Catalog, Polish, new SearchQuery(null, null, ["category"], 1, 1));
+        var results = QueryEvaluator.Search(Catalog, Polish, new SearchQuery(default, default, ["category"], 1, 1));
         Assert.Equal(5, results.Total);
         Assert.Single(results.Sources);
         Assert.Equal(2, results.Facets["category"]["bolts"]);
@@ -111,9 +113,9 @@ public sealed class SearchTests
     [Fact]
     public void Pages_follow_score_then_id()
     {
-        var all = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(null, null, [], 1, 2)));
-        var second = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(null, null, [], 2, 2)));
-        var last = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(null, null, [], 3, 2)));
+        var all = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(default, default, [], 1, 2)));
+        var second = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(default, default, [], 2, 2)));
+        var last = Ids(QueryEvaluator.Search(Catalog, Polish, new SearchQuery(default, default, [], 3, 2)));
 
         Assert.Equal(["1", "2", "3", "4", "5"], [.. all, .. second, .. last]);
     }
@@ -140,7 +142,7 @@ public sealed class SearchTests
             snapshot = snapshot.Add(SegmentBuilder.Build(Schema, Polish, [Read(new Doc($"{i}", $"S{i}", $"Śruba numer {i}"))]));
         }
 
-        var plan = Merging.Plan(snapshot)!;
+        var plan = Merging.Plan(snapshot).ShouldBeSome();
         var merged = Merging.Build(snapshot, Polish, plan);
         var concurrent = snapshot.Without([snapshot.Segments[0].Segment.Ids[0]]); // deleted while merging
         var result = Merging.Apply(concurrent, plan, merged);
@@ -148,7 +150,7 @@ public sealed class SearchTests
         Assert.True(result.Segments.Length <= Merging.MaxSegments);
         Assert.Equal(Merging.MaxSegments, result.Count);
         Assert.Equal(Merging.MaxSegments, Find(result, "śruby").Count);
-        Assert.Null(Merging.Plan(IndexSnapshot.Empty(Schema)));
+        Merging.Plan(IndexSnapshot.Empty(Schema)).ShouldBeNone();
     }
 
     [Fact]
@@ -160,7 +162,7 @@ public sealed class SearchTests
             snapshot = snapshot.Add(SegmentBuilder.Build(Schema, Polish, [Read(new Doc($"{i}", $"S{i}", $"Śruba {i}"))]));
         }
 
-        var plan = Merging.Plan(snapshot)!;
+        var plan = Merging.Plan(snapshot).ShouldBeSome();
         var merged = Merging.Build(snapshot, Polish, plan);
         var emptied = snapshot.Without(plan.Segments.SelectMany(s => s.Ids)).Compact();
 
@@ -172,7 +174,7 @@ public sealed class SearchTests
     {
         var english = IndexSnapshot.Empty(Schema).Add(SegmentBuilder.Build(Schema, Analyzer.English(), [Read(new Doc("1", "X", "Hex head bolt"))]));
 
-        Assert.Single(Ids(QueryEvaluator.Search(english, Analyzer.English(), new SearchQuery("bolts", null, [], 1, 10))));
+        Assert.Single(Ids(QueryEvaluator.Search(english, Analyzer.English(), new SearchQuery("bolts", default, [], 1, 10))));
     }
 }
 

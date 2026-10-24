@@ -6,6 +6,7 @@ using JasperFx;
 using JasperFx.Events;
 using Marten;
 using IEventStore = FCommerce.Application.EventStore.IEventStore;
+using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Infrastructure.Postgres.EventStore;
 
@@ -37,12 +38,9 @@ internal sealed class MartenEventStore(IDocumentStore store, MessageTypeRegistry
         CancellationToken cancellationToken)
     {
         await using var session = store.LightweightSession();
-        session.CorrelationId = metadata.CorrelationId;
-        session.CausationId = metadata.CausationId;
-        if (metadata.Actor is not null)
-        {
-            session.SetHeader(ActorHeader, metadata.Actor);
-        }
+        session.CorrelationId = metadata.CorrelationId.OrNull();
+        session.CausationId = metadata.CausationId.OrNull();
+        metadata.Actor.Switch(actor => session.SetHeader(ActorHeader, actor), () => { });
 
         var key = streamId.Value;
         var action = expectedVersion switch
@@ -86,9 +84,10 @@ internal sealed class MartenEventStore(IDocumentStore store, MessageTypeRegistry
     private static RecordedEvent ToRecordedEvent(IEvent e)
     {
         // Marten's own bookkeeping (e.g. tombstones filling failed appends) keeps its position in the log.
+        var key = e.StreamKey.OrEmpty();
         var streamId = e.Data is Tombstone
-            ? StreamId.Foreign(e.StreamKey)
-            : StreamId.Parse(e.StreamKey).ValueOr(_ => StreamId.Foreign(e.StreamKey));
+            ? StreamId.Foreign(key)
+            : StreamId.Parse(key).ValueOr(_ => StreamId.Foreign(key));
         return new RecordedEvent(
             e.Id,
             streamId,
@@ -97,7 +96,7 @@ internal sealed class MartenEventStore(IDocumentStore store, MessageTypeRegistry
             e.EventTypeName,
             e.Data,
             e.Timestamp,
-            new EventMetadata(e.CorrelationId, e.CausationId, e.GetHeader(ActorHeader)?.ToString()));
+            new EventMetadata(e.CorrelationId.ToMaybe(), e.CausationId.ToMaybe(), e.GetHeader(ActorHeader).ToMaybe().Map(actor => actor.ToString() ?? string.Empty)));
     }
 
     private static bool IsConcurrencyFailure(Exception exception) =>

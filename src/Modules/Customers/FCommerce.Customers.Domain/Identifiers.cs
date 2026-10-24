@@ -14,7 +14,7 @@ public sealed record CustomerCode : IPersistedValue<CustomerCode, string>
 
     public string Value { get; }
 
-    public static Result<CustomerCode, Error> Parse(string? raw) =>
+    public static Result<CustomerCode, Error> Parse(string raw) =>
         SourceCodes.Parse(raw, MaxLength, "customer-code", "Customer code").Map(value => new CustomerCode(value));
 
     static CustomerCode IPersistedValue<CustomerCode, string>.Rehydrate(string raw) => new(raw);
