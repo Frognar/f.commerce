@@ -30,6 +30,8 @@ internal sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> op
             document.Property(d => d.Paid).HasColumnName("paid").HasPrecision(15, 2);
             document.Property(d => d.Outstanding).HasColumnName("outstanding").HasPrecision(15, 2);
             document.Property(d => d.OrderNumber).HasColumnName("order_number").HasMaxLength(64);
+            document.Property(d => d.Lines).HasColumnName("lines").HasDefaultValue("[]");
+            document.Property(d => d.ReorderableLines).HasColumnName("reorderable_lines");
             document.Property(d => d.FileSize).HasColumnName("file_size");
             document.Property(d => d.FileUpdatedAt).HasColumnName("file_updated_at");
             document.Property(d => d.UpdatedAt).HasColumnName("updated_at");

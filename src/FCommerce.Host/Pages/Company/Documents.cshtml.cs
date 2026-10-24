@@ -1,16 +1,22 @@
 using System.Globalization;
 using FCommerce.Application.Messaging;
 using FCommerce.Authorization.Core;
+using FCommerce.Cart.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
+using FCommerce.Host.Pages.Cart;
+using FCommerce.Host.Pages.Company.Lists;
 using FCommerce.Host.Security;
+using FCommerce.Settings.Contracts;
+using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Localization;
 
 namespace FCommerce.Host.Pages.Company;
 
@@ -20,7 +26,13 @@ public sealed class DocumentsModel(
     CompanyContext company,
     IQueryHandler<GetCustomerDocuments, Result<DocumentPage, Error>> documents,
     IQueryHandler<GetReceivables, IReadOnlyList<ReceivableView>> receivables,
-    IQueryHandler<OpenDocumentFile, Result<DocumentFile, Error>> files) : PageModel
+    IQueryHandler<OpenDocumentFile, Result<DocumentFile, Error>> files,
+    IQueryHandler<GetDocumentLines, Result<DocumentLines, Error>> lines,
+    IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings,
+    ICommandHandler<AddToCart, Result<CartChange, Error>> addToCart,
+    ICommandHandler<ReplaceCart, Result<CartChange, Error>> replaceCart,
+    CartAccess carts,
+    IStringLocalizer<SharedResource> texts) : PageModel
 {
     public const string ResultsId = "document-results";
 
@@ -52,8 +64,28 @@ public sealed class DocumentsModel(
 
     public DocumentPage Results { get; private set; } = new([], 1, 1, 0);
 
+    /// <summary>Products of documents can go to the cart (feature on, the user may order).</summary>
+    public bool CanReorder { get; private set; }
+
+    /// <summary>What sending a document to the cart did.</summary>
+    public ListOutcome Outcome { get; private set; } = ListOutcome.None;
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         await (await LoadAsync(AccessAction.Read, cancellationToken)).Match(Task.FromResult, () => ListAsync(cancellationToken));
+
+    /// <summary>The products of a document go to the cart, added or replacing it (lines without a SKU are counted, not added).</summary>
+    public async Task<IActionResult> OnPostToCartAsync(string id, bool replace, CancellationToken cancellationToken) =>
+        await (await LoadAsync(AccessAction.Read, cancellationToken)).Match(Task.FromResult, async () =>
+        {
+            var owner = (await carts.OwnerAsync(cancellationToken)).Where(o => CanReorder && o.CustomerCode == Customer.Code);
+            if (!owner.Exists(_ => true))
+            {
+                return NotFound();
+            }
+
+            Outcome = await owner.Match(cartOwner => ToCartAsync(cartOwner, id, replace, cancellationToken), () => Task.FromResult(ListOutcome.None));
+            return await ListAsync(cancellationToken);
+        });
 
     private async Task<IActionResult> ListAsync(CancellationToken cancellationToken)
     {
@@ -116,6 +148,21 @@ public sealed class DocumentsModel(
     public static string Date(Maybe<DateOnly> date) =>
         date.Map(d => d.ToString("d", CultureInfo.CurrentCulture)).ValueOr(string.Empty);
 
+    private async Task<ListOutcome> ToCartAsync(CartOwner owner, string id, bool replace, CancellationToken cancellationToken) =>
+        await (await lines.HandleAsync(new GetDocumentLines(Customer.Code, id), cancellationToken)).Match(
+            async document =>
+            {
+                IReadOnlyList<CartItemData> items = [.. document.Reorderable.Select(l => new CartItemData(l.Sku, l.Quantity))];
+                var change = replace
+                    ? await replaceCart.HandleAsync(new ReplaceCart(owner, items, CartSources.Document), cancellationToken)
+                    : await addToCart.HandleAsync(new AddToCart(owner, items, CartSources.Document), cancellationToken);
+                var outcome = ListOutcome.Of(change, texts);
+                return document.SkippedLines > 0
+                    ? outcome with { NotAdded = [.. outcome.NotAdded, texts["LinesWithoutSku", document.SkippedLines].Value] }
+                    : outcome;
+            },
+            error => Task.FromResult(ListOutcome.Failed(texts.Describe(error))));
+
     /// <summary>Loads the active customer; the result is the denial, none when loaded.</summary>
     private async Task<Maybe<IActionResult>> LoadAsync(AccessAction action, CancellationToken cancellationToken)
     {
@@ -124,6 +171,9 @@ public sealed class DocumentsModel(
             c => company.CanAsync(action, (code, salesperson) => new Resource.CustomerDocuments(code, salesperson), c, cancellationToken),
             () => Task.FromResult(false));
         customer = active.Where(_ => allowed);
+        CanReorder = allowed
+            && (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.ReorderFromDocuments.Value)
+            && (await carts.OwnerAsync(cancellationToken)).Match(_ => true, () => false);
         return allowed ? Maybe<IActionResult>.None : Forbid();
     }
 

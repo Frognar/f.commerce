@@ -29,6 +29,7 @@ public static class DocumentsModule
         services.AddScoped<IQueryHandler<GetCustomerDocuments, Result<DocumentPage, Error>>, GetCustomerDocumentsHandler>();
         services.AddScoped<IQueryHandler<GetReceivables, IReadOnlyList<ReceivableView>>, GetReceivablesHandler>();
         services.AddScoped<IQueryHandler<OpenDocumentFile, Result<DocumentFile, Error>>, OpenDocumentFileHandler>();
+        services.AddScoped<IQueryHandler<GetDocumentLines, Result<DocumentLines, Error>>, GetDocumentLinesHandler>();
         return services;
     }
 }

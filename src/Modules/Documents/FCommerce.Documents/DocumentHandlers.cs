@@ -73,7 +73,9 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClo
             data.Net.ToMaybe(),
             data.Gross.ToMaybe(),
             data.Paid.ToMaybe(),
-            data.OrderNumber.ToMaybe());
+            data.OrderNumber.ToMaybe(),
+            [.. data.Lines.OrEmpty().Select(line => new UnvalidatedDocumentLine(
+                line.Number, line.Sku.ToMaybe(), line.Name.OrEmpty(), line.Quantity, line.Unit.OrEmpty(), line.NetPrice.ToMaybe(), line.NetAmount.ToMaybe()))]);
 }
 
 /// <summary>The file is accepted only for a document whose metadata is already imported; the blob is written first.</summary>
@@ -156,7 +158,8 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             row.Outstanding,
             StatusName(Domain.Documents.StatusOn(content, today)),
             content.OrderNumber.OrNull(),
-            row.FileSize is not null);
+            row.FileSize is not null,
+            row.ReorderableLines);
     }
 
     private static Result<DocumentType, Error> ParseType(string raw) =>
@@ -195,6 +198,25 @@ internal sealed class GetReceivablesHandler(DocumentsDbContext db, DocumentsCloc
         return [.. Domain.Documents.Receivables(open.Choose(d => d.Currency.ToMaybe().Map(code => new OpenItem(Persisted.Rehydrate<Currency, string>(code), d.Outstanding, d.DueDate.ToMaybe()))), clock.Today)
             .Select(r => new ReceivableView(r.Currency.Code, r.Outstanding, r.Overdue, r.OverdueCount))];
     }
+}
+
+/// <summary>The lines of a document of the given customer and what of them can be ordered again.</summary>
+internal sealed class GetDocumentLinesHandler(DocumentsDbContext db) : IQueryHandler<GetDocumentLines, Result<DocumentLines, Error>>
+{
+    public Task<Result<DocumentLines, Error>> HandleAsync(GetDocumentLines query, CancellationToken cancellationToken = default) =>
+        DocumentId.Parse(query.DocumentId.OrEmpty()).BindAsync(async id =>
+            (await db.Documents.AsNoTracking().SingleOrNoneAsync(d => d.Id == id.Value && d.CustomerCode == query.CustomerCode, cancellationToken))
+                .Map(row =>
+                {
+                    var content = row.ToDomain().Content;
+                    var reorderable = Domain.Documents.Reorderable(content);
+                    return new DocumentLines(
+                        content.Number,
+                        [.. content.Lines.Select(l => new DocumentLineView(l.Number, l.Sku.OrNull(), l.Name, l.Quantity, l.Unit, l.NetPrice.OrNull(), l.NetAmount.OrNull()))],
+                        [.. reorderable.Items.Select(i => new ReorderableLine(i.Sku, i.Quantity))],
+                        reorderable.Skipped);
+                })
+                .ToResult(() => Error.NotFound("document.not-found", "The document does not exist.")));
 }
 
 /// <summary>Only a document of the given customer, with a stored file, can be opened.</summary>

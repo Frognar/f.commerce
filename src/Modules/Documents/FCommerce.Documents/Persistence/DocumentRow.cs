@@ -41,6 +41,12 @@ internal sealed class DocumentRow
 
     public string? OrderNumber { get; set; }
 
+    /// <summary>JSON array of the lines ("[]" without lines).</summary>
+    public string Lines { get; set; } = "[]";
+
+    /// <summary>Products that can go to a cart, computed by the domain when written (for the list).</summary>
+    public int ReorderableLines { get; set; }
+
     /// <summary>Size of the stored PDF; null while the ERP has not sent the file.</summary>
     public long? FileSize { get; set; }
 
@@ -78,6 +84,8 @@ internal sealed class DocumentRow
         Paid = content.Amounts.Map(a => a.Paid).OrNull();
         Outstanding = Domain.Documents.Outstanding(content);
         OrderNumber = content.OrderNumber.OrNull();
+        Lines = System.Text.Json.JsonSerializer.Serialize(content.Lines, PersistenceJson.Options);
+        ReorderableLines = Domain.Documents.Reorderable(content).Items.Count;
         UpdatedAt = now;
     }
 
@@ -91,5 +99,6 @@ internal sealed class DocumentRow
                 Number,
                 new DocumentDates(IssueDate, SaleDate.ToMaybe(), DueDate.ToMaybe()),
                 Currency.ToMaybe().Map(code => new DocumentAmounts(Persisted.Rehydrate<SharedKernel.Monetary.Currency, string>(code), Net ?? 0m, Gross ?? 0m, Paid ?? 0m)),
-                OrderNumber.ToMaybe()));
+                OrderNumber.ToMaybe(),
+                System.Text.Json.JsonSerializer.Deserialize<SharedKernel.Collections.EquatableArray<DocumentLine>>(Lines, PersistenceJson.Options)));
 }

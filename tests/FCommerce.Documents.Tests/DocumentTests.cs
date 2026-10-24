@@ -164,4 +164,37 @@ public sealed class DocumentTests
 
         Assert.Equal("file.too-large", Domain.Documents.CheckFile(content).ShouldFail().Code);
     }
+
+    private static UnvalidatedDocumentLine Line(int number, string? sku, decimal quantity, string name = "Śruba M8") =>
+        new(number, sku is null ? Maybe<string>.None : sku, name, quantity, "szt", 1.25m, Math.Round(quantity * 1.25m, 2));
+
+    [Fact]
+    public void Lines_are_validated_with_their_paths()
+    {
+        var valid = Valid(Invoice() with { Lines = [Line(1, " SR-M8 ", 10), Line(2, null, 1, "Transport")] });
+        var errors = Domain.Documents.Validate(Invoice() with { Lines = [Line(0, "A", 1.0001m, " ") with { Unit = "", NetPrice = -1m }] }).ShouldBeInvalid();
+
+        Assert.Equal(["SR-M8", ""], valid.Content.Lines.Select(l => l.Sku.ValueOr("")));
+        Assert.Equal(["lines[0].number", "lines[0].name", "lines[0].quantity", "lines[0].unit", "lines[0].netPrice"], errors.Select(e => e.Field.ValueOr("")));
+    }
+
+    [Fact]
+    public void Reordering_takes_products_with_a_positive_quantity_summed_per_sku()
+    {
+        var document = Valid(Invoice() with { Lines = [Line(1, "A", 10), Line(2, "B", 2.5m), Line(3, "A", 5), Line(4, null, 1, "Transport"), Line(5, "C", -3)] });
+
+        var reorderable = Domain.Documents.Reorderable(document.Content);
+
+        Assert.Equal([("A", 15m), ("B", 2.5m)], reorderable.Items);
+        Assert.Equal(1, reorderable.Skipped);
+    }
+
+    [Fact]
+    public void Changed_lines_make_an_update()
+    {
+        var stored = Valid(Invoice() with { Lines = [Line(1, "A", 10)] });
+        var incoming = Valid(Invoice(version: 2) with { Lines = [Line(1, "A", 12)] });
+
+        Assert.IsType<Change<Document>.Updated>(Domain.Documents.Reconcile(stored, incoming));
+    }
 }

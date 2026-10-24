@@ -30,10 +30,21 @@
                         }
                     </td>
                     <td>@document.OrderNumber</td>
-                    <td>
+                    <td class="actions">
                         @if (document.HasFile)
                         {
                             <a href="@Model.FileHref(document.Id)" download>PDF</a>
+                        }
+                        @if (Model.CanReorder && document.ReorderableLines > 0)
+                        {
+                            <form class="inline-actions" method="post" asp-page="/Company/Documents" asp-page-handler="ToCart" asp-route-id="@document.Id">
+                                <input type="hidden" name="replace" value="false" />
+                                <button class="link" type="submit" title="@T["DocumentToCartHint", document.ReorderableLines]">@T["AddListToCart"]</button>
+                            </form>
+                            <form class="inline-actions" method="post" asp-page="/Company/Documents" asp-page-handler="ToCart" asp-route-id="@document.Id" onsubmit="return confirm('@T["ReplaceCartConfirm"]')">
+                                <input type="hidden" name="replace" value="true" />
+                                <button class="link" type="submit">@T["ReplaceCart"]</button>
+                            </form>
                         }
                     </td>
                 </tr>

@@ -427,4 +427,7 @@
   <data name="Error.shopping-list.too-many-items" xml:space="preserve"><value>Lista może zawierać najwyżej 200 produktów.</value></data>
   <data name="Error.shopping-list.not-found" xml:space="preserve"><value>Nie ma takiej listy zakupowej.</value></data>
   <data name="Error.shopping-list.item-not-found" xml:space="preserve"><value>Tego produktu nie ma na liście.</value></data>
+  <data name="LinesWithoutSku" xml:space="preserve"><value>pozycji bez indeksu (usługi, opisy): {0} — nie trafiły do koszyka</value></data>
+  <data name="DocumentToCartHint" xml:space="preserve"><value>Produktów do przeniesienia: {0}</value></data>
+  <data name="Error.document.not-found" xml:space="preserve"><value>Nie ma takiego dokumentu.</value></data>
 </root>

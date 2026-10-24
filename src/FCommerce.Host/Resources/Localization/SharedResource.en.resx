@@ -427,4 +427,7 @@
   <data name="Error.shopping-list.too-many-items" xml:space="preserve"><value>A list holds at most 200 products.</value></data>
   <data name="Error.shopping-list.not-found" xml:space="preserve"><value>No such shopping list.</value></data>
   <data name="Error.shopping-list.item-not-found" xml:space="preserve"><value>This product is not on the list.</value></data>
+  <data name="LinesWithoutSku" xml:space="preserve"><value>lines without a SKU (services, text): {0} — not added to the cart</value></data>
+  <data name="DocumentToCartHint" xml:space="preserve"><value>Products to add: {0}</value></data>
+  <data name="Error.document.not-found" xml:space="preserve"><value>No such document.</value></data>
 </root>

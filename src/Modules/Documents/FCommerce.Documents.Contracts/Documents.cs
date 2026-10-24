@@ -18,6 +18,7 @@ public sealed record ImportDocuments(IReadOnlyList<DocumentData> Documents) : IC
 /// <param name="Currency">ISO 4217 code; with net and gross required for invoices and corrections.</param>
 /// <param name="Paid">Amount paid so far (zero when absent).</param>
 /// <param name="OrderNumber">The order the document belongs to, if any.</param>
+/// <param name="Lines">The lines (optional): buyers can put the products of a document into their cart.</param>
 public sealed record DocumentData(
     string Id,
     long Version,
@@ -31,7 +32,15 @@ public sealed record DocumentData(
     decimal? Net = null,
     decimal? Gross = null,
     decimal? Paid = null,
-    string? OrderNumber = null);
+    string? OrderNumber = null,
+    IReadOnlyList<DocumentLineData>? Lines = null);
+
+/// <param name="Number">Position on the document, from 1.</param>
+/// <param name="Sku">The product (ERP index); absent for services and free text lines.</param>
+/// <param name="Quantity">At most 3 decimal places; negative on corrections that take goods back.</param>
+/// <param name="NetPrice">Unit net price (at most 4 decimal places).</param>
+/// <param name="NetAmount">Net value of the line (at most 2 decimal places).</param>
+public sealed record DocumentLineData(int Number, string? Sku, string Name, decimal Quantity, string Unit, decimal? NetPrice = null, decimal? NetAmount = null);
 
 /// <summary>Stores the PDF of an imported document, replacing a previous one.</summary>
 public sealed record StoreDocumentFile(string DocumentId, ReadOnlyMemory<byte> Content) : ICommand<Result<Unit, Error>>;
@@ -53,6 +62,17 @@ public sealed record GetCustomerDocuments(
 /// <summary>What the customer owes per currency.</summary>
 public sealed record GetReceivables(string CustomerCode) : IQuery<IReadOnlyList<ReceivableView>>;
 
+/// <summary>The lines of a document of this customer; not found for other customers' documents.</summary>
+public sealed record GetDocumentLines(string CustomerCode, string DocumentId) : IQuery<Result<DocumentLines, Error>>;
+
+/// <param name="Reorderable">Products with a positive quantity, summed per SKU (what can go to a cart).</param>
+/// <param name="SkippedLines">Lines with a positive quantity but no SKU (services, free text).</param>
+public sealed record DocumentLines(string Number, IReadOnlyList<DocumentLineView> Lines, IReadOnlyList<ReorderableLine> Reorderable, int SkippedLines);
+
+public sealed record DocumentLineView(int Number, string? Sku, string Name, decimal Quantity, string Unit, decimal? NetPrice, decimal? NetAmount);
+
+public sealed record ReorderableLine(string Sku, decimal Quantity);
+
 /// <summary>Opens the PDF of a document of this customer; not found for other customers' documents.</summary>
 public sealed record OpenDocumentFile(string CustomerCode, string DocumentId) : IQuery<Result<DocumentFile, Error>>;
 
@@ -62,6 +82,7 @@ public sealed record DocumentPage(IReadOnlyList<DocumentSummary> Items, int Page
 }
 
 /// <param name="Status">"paid", "unpaid", "overdue", or "none" for documents that are not paid (delivery notes, proformas).</param>
+/// <param name="ReorderableLines">Products of the document that can go to a cart (none without lines).</param>
 public sealed record DocumentSummary(
     string Id,
     string Type,
@@ -73,7 +94,8 @@ public sealed record DocumentSummary(
     decimal Outstanding,
     string Status,
     string? OrderNumber,
-    bool HasFile);
+    bool HasFile,
+    int ReorderableLines = 0);
 
 public sealed record ReceivableView(string Currency, decimal Outstanding, decimal Overdue, int OverdueCount);
 

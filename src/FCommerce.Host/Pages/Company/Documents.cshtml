@@ -6,6 +6,7 @@
 }
 <nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer.Name</a></nav>
 <h1>@T["Documents"]</h1>
+<partial name="~/Pages/Company/Lists/_ListOutcome.cshtml" model="Model.Outcome" />
 
 <section class="receivables" aria-label="@T["Receivables"]">
     @if (Model.Receivables.Count == 0)

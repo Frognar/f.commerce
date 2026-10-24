@@ -62,6 +62,13 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Documents
                         .HasColumnType("date")
                         .HasColumnName("issue_date");
 
+                    b.Property<string>("Lines")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("lines");
+
                     b.Property<decimal?>("Net")
                         .HasPrecision(15, 2)
                         .HasColumnType("numeric(15,2)")
@@ -87,6 +94,10 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Documents
                         .HasPrecision(15, 2)
                         .HasColumnType("numeric(15,2)")
                         .HasColumnName("paid");
+
+                    b.Property<int>("ReorderableLines")
+                        .HasColumnType("integer")
+                        .HasColumnName("reorderable_lines");
 
                     b.Property<DateOnly?>("SaleDate")
                         .HasColumnType("date")

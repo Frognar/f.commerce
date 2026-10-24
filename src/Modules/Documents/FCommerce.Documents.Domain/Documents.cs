@@ -1,3 +1,4 @@
+using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
@@ -48,15 +49,21 @@ public sealed record DocumentDates(DateOnly Issued, Maybe<DateOnly> Sold, Maybe<
 /// <param name="Paid">What the customer has paid so far, as the ERP knows it.</param>
 public sealed record DocumentAmounts(Currency Currency, decimal Net, decimal Gross, decimal Paid);
 
+/// <summary>A line of a document as the ERP printed it; the SKU is absent for services and free text lines.</summary>
+/// <param name="Quantity">Negative on corrections that take goods back.</param>
+public sealed record DocumentLine(int Number, Maybe<string> Sku, string Name, decimal Quantity, string Unit, Maybe<decimal> NetPrice, Maybe<decimal> NetAmount);
+
 /// <param name="Amounts">Required for invoices and corrections; optional for other documents.</param>
 /// <param name="OrderNumber">The order the document belongs to, if any.</param>
+/// <param name="Lines">The lines, when the ERP sends them (for ordering the same again).</param>
 public sealed record DocumentContent(
     string CustomerCode,
     DocumentType Type,
     string Number,
     DocumentDates Dates,
     Maybe<DocumentAmounts> Amounts,
-    Maybe<string> OrderNumber);
+    Maybe<string> OrderNumber,
+    EquatableArray<DocumentLine> Lines);
 
 /// <summary>A customer's document (invoice, correction, delivery note, proforma) as replicated from the ERP.</summary>
 public sealed record Document(DocumentId Id, SourceVersion Version, DocumentContent Content);
@@ -75,7 +82,14 @@ public sealed record UnvalidatedDocument(
     Maybe<decimal> Net,
     Maybe<decimal> Gross,
     Maybe<decimal> Paid,
-    Maybe<string> OrderNumber);
+    Maybe<string> OrderNumber,
+    EquatableArray<UnvalidatedDocumentLine> Lines = default);
+
+public sealed record UnvalidatedDocumentLine(int Number, Maybe<string> Sku, string Name, decimal Quantity, string Unit, Maybe<decimal> NetPrice, Maybe<decimal> NetAmount);
+
+/// <summary>What of a document can be ordered again: products with a positive quantity, summed per SKU.</summary>
+/// <param name="Skipped">Lines with a positive quantity but without a SKU (services, free text).</param>
+public sealed record ReorderableItems(EquatableArray<(string Sku, decimal Quantity)> Items, int Skipped);
 
 /// <summary>Money still due on one document (see <see cref="Documents.Outstanding"/>).</summary>
 public sealed record OpenItem(Currency Currency, decimal Outstanding, Maybe<DateOnly> Due);
@@ -93,6 +107,12 @@ public static class Documents
     /// <summary>Amounts are bounded well below what the storage column holds.</summary>
     public const decimal MaxAmount = 1_000_000_000_000m;
 
+    public const int MaxLines = 500;
+    public const int MaxLineName = 300;
+    public const int MaxUnit = 20;
+    public const int MaxSku = 64;
+    public const decimal MaxQuantity = 999_999_999_999.999m;
+
     /// <summary>Names used in the integration API and in filters.</summary>
     public static IReadOnlyDictionary<string, DocumentType> TypeNames { get; } = new Dictionary<string, DocumentType>(StringComparer.OrdinalIgnoreCase)
     {
@@ -105,8 +125,8 @@ public static class Documents
     private static readonly Func<DocumentId, SourceVersion, DocumentContent, Document> Create =
         (id, version, content) => new Document(id, version, content);
 
-    private static readonly Func<string, DocumentType, string, DocumentDates, Maybe<DocumentAmounts>, Maybe<string>, DocumentContent> CreateContent =
-        (customer, type, number, dates, amounts, order) => new DocumentContent(customer, type, number, dates, amounts, order);
+    private static readonly Func<string, DocumentType, string, DocumentDates, Maybe<DocumentAmounts>, Maybe<string>, EquatableArray<DocumentLine>, DocumentContent> CreateContent =
+        (customer, type, number, dates, amounts, order, lines) => new DocumentContent(customer, type, number, dates, amounts, order, lines);
 
     /// <summary>Validates a document from the ERP, reporting every problem with its field path.</summary>
     public static Validated<Document> Validate(UnvalidatedDocument input) =>
@@ -120,12 +140,26 @@ public static class Documents
                 .Apply(ValidateDates(input))
                 .Apply(ValidateAmounts(input))
                 .Apply(SourceCodes.ParseOptional(input.OrderNumber, MaxOrderNumber, "order-number", "Order number").ToValidated("orderNumber"))
+                .Apply(ValidateLines(input.Lines))
                 .EnsureAll(
                     (content => content.Amounts.Match(_ => true, () => !IsPayable(content.Type)), Error.Validation("amounts.missing", "Invoices and corrections need their amounts.") with { Field = "gross" }),
                     (content => content.Type == DocumentType.CorrectionInvoice || content.Amounts.Match(amounts => amounts.Net >= 0 && amounts.Gross >= 0, () => true), Error.Validation("amount.negative", "Only a correction may have negative amounts.") with { Field = "gross" })));
 
     public static Change<Document> Reconcile(Maybe<Document> stored, Document incoming) =>
         ImportBatch.Reconcile(stored, incoming, d => d.Version, (a, b) => a.Content == b.Content);
+
+    /// <summary>Products of the document with a positive quantity, summed per SKU in the order of their first line.</summary>
+    public static ReorderableItems Reorderable(DocumentContent content)
+    {
+        var positive = content.Lines.Where(line => line.Quantity > 0).ToList();
+        return new ReorderableItems(
+            positive
+                .Choose(line => line.Sku.Map(sku => (Sku: sku, line.Quantity)))
+                .GroupBy(line => line.Sku)
+                .Select(group => (group.Key, group.Sum(line => line.Quantity)))
+                .ToEquatableArray(),
+            positive.Count(line => !line.Sku.Exists(_ => true)));
+    }
 
     /// <summary>Invoices and corrections are paid; other documents only inform.</summary>
     public static bool IsPayable(DocumentType type) => type is DocumentType.Invoice or DocumentType.CorrectionInvoice;
@@ -170,6 +204,28 @@ public static class Documents
             _ when !content.StartsWith("%PDF-"u8) => Error.Validation("file.not-pdf", "The file is not a PDF document."),
             _ => Unit.Value,
         };
+
+    private static Validated<EquatableArray<DocumentLine>> ValidateLines(EquatableArray<UnvalidatedDocumentLine> lines) =>
+        lines.Count > MaxLines
+            ? Validated.Invalid<EquatableArray<DocumentLine>>(Error.Validation("lines.too-many", $"At most {MaxLines} lines.") with { Field = "lines" })
+            : lines.Traverse(ValidateLine).Map(valid => valid.ToEquatableArray()).AtField("lines");
+
+    private static Validated<DocumentLine> ValidateLine(UnvalidatedDocumentLine line) =>
+        ((Func<int, Maybe<string>, string, decimal, string, Maybe<decimal>, Maybe<decimal>, DocumentLine>)((number, sku, name, quantity, unit, price, amount) =>
+            new DocumentLine(number, sku, name, quantity, unit, price, amount)))
+            .Apply((line.Number > 0 ? Result.Ok<int, Error>(line.Number) : Error.Validation("line-number.invalid", "Line numbers start at 1.")).ToValidated("number"))
+            .Apply(SourceCodes.ParseOptional(line.Sku, MaxSku, "sku", "SKU").ToValidated("sku"))
+            .Apply(SourceCodes.Parse(line.Name, MaxLineName, "line-name", "Line name").ToValidated("name"))
+            .Apply((Math.Abs(line.Quantity) > MaxQuantity ? Error.Validation("quantity.too-large", "The quantity is too large.")
+                : decimal.Round(line.Quantity, 3) != line.Quantity ? Error.Validation("quantity.precision", "Quantities have at most 3 decimal places.")
+                : Result.Ok<decimal, Error>(line.Quantity)).ToValidated("quantity"))
+            .Apply(SourceCodes.Parse(line.Unit, MaxUnit, "unit", "Unit").ToValidated("unit"))
+            .Apply(line.NetPrice.Match(
+                price => (price < 0 || price >= MaxAmount ? Error.Validation("net-price.invalid", "The net price must be zero or more.")
+                    : decimal.Round(price, 4) != price ? Error.Validation("net-price.precision", "Net prices have at most 4 decimal places.")
+                    : Result.Ok<Maybe<decimal>, Error>(price)).ToValidated("netPrice"),
+                () => Validated.Valid(Maybe<decimal>.None)))
+            .Apply(line.NetAmount.Match(amount => Amount(amount).Map(Maybe.Some).ToValidated("netAmount"), () => Validated.Valid(Maybe<decimal>.None)));
 
     private static Result<DocumentType, Error> ParseType(string raw) =>
         TypeNames.TryGetValue(raw.Trim(), out var type)
