@@ -5,7 +5,8 @@ namespace FCommerce.DemoSeeder;
 
 /// <summary>
 /// Warehouses in Wrocław and Poznań (visible to buyers) and a service warehouse (hidden). Stock is deterministic per
-/// SKU: about 15% out of stock with a delivery in 3–14 days, about 20% low, some products only in one warehouse.
+/// SKU: about 15% out of stock with a delivery in 3–14 days, about 20% low, some products only in one warehouse;
+/// discontinued products have a few left (or none) and no deliveries.
 /// </summary>
 internal static class DemoInventory
 {
@@ -30,7 +31,12 @@ internal static class DemoInventory
         {
             var hash = DemoHash.Of($"{product.Sku}/stock");
             var bucket = hash % 100;
-            if (bucket < 15)
+            if (product.Discontinued)
+            {
+                wroclaw.Add(new StockData(product.Sku, version, hash % 4));
+                poznan.Add(new StockData(product.Sku, version, 0));
+            }
+            else if (bucket < 15)
             {
                 var delivery = today.AddDays(3 + (int)(hash / 100 % 12));
                 wroclaw.Add(new StockData(product.Sku, version, 0, delivery, 50 + (hash / 7 % 10 * 25)));

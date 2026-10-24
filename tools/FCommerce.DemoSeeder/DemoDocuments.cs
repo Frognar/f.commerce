@@ -5,9 +5,11 @@ using FCommerce.Documents.Contracts;
 
 namespace FCommerce.DemoSeeder;
 
-internal sealed record DemoLine(string Name, string Unit, decimal Quantity, decimal UnitPrice)
+internal sealed record DemoLine(string Sku, string Name, string Unit, decimal Quantity, decimal UnitPrice)
 {
     public decimal Net => Math.Round(Quantity * UnitPrice, 2, MidpointRounding.AwayFromZero);
+
+    public DocumentLineData Data(int number) => new(number, Sku, Name, Quantity, Unit, UnitPrice, Net);
 }
 
 /// <summary>A document's metadata for the ERP import and what its PDF shows.</summary>
@@ -51,7 +53,7 @@ internal static class DemoDocuments
                 var order = $"ZAM/{Year(issued)}/{number}";
                 documents.Add(Invoice($"DEMO-FV-{customer.Code}-{i}", customer, "invoice", $"FV/{Year(issued)}/{number}", issued, due, lines, paid, order, today));
                 documents.Add(new DemoDocument(
-                    new DocumentData($"DEMO-WZ-{customer.Code}-{i}", today.DayNumber, customer.Code, "delivery-note", $"WZ/{Year(issued)}/{number}", issued, issued, OrderNumber: order),
+                    new DocumentData($"DEMO-WZ-{customer.Code}-{i}", today.DayNumber, customer.Code, "delivery-note", $"WZ/{Year(issued)}/{number}", issued, issued, OrderNumber: order, Lines: Lines(lines)),
                     customer,
                     lines));
 
@@ -79,9 +81,11 @@ internal static class DemoDocuments
 
     private static DemoDocument Invoice(string id, CustomerData customer, string type, string number, DateOnly issued, DateOnly due, IReadOnlyList<DemoLine> lines, decimal paid, string? order, DateOnly today) =>
         new(
-            new DocumentData(id, today.DayNumber, customer.Code, type, number, issued, issued, due, "PLN", NetTotal(lines), Gross(lines), paid, order),
+            new DocumentData(id, today.DayNumber, customer.Code, type, number, issued, issued, due, "PLN", NetTotal(lines), Gross(lines), paid, order, Lines(lines)),
             customer,
             lines);
+
+    private static IReadOnlyList<DocumentLineData> Lines(IReadOnlyList<DemoLine> lines) => [.. lines.Select((line, index) => line.Data(index + 1))];
 
     /// <summary>Two to four catalog products in deterministic quantities, at retail prices.</summary>
     private static List<DemoLine> Lines(IReadOnlyList<ProductData> products, string seed)
@@ -91,6 +95,7 @@ internal static class DemoDocuments
             .Select(n => products[(int)(((hash / 7) + ((ulong)n * 37)) % (ulong)products.Count)])
             .DistinctBy(p => p.Sku)
             .Select((product, n) => new DemoLine(
+                product.Sku,
                 product.Name["pl"],
                 product.Unit,
                 10 * (1 + (decimal)((hash >> (n * 5)) % 20)),

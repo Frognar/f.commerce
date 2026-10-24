@@ -23,6 +23,9 @@ internal static class DemoCatalog
         Category("safety", null, "BHP", "Safety", 4),
     ];
 
+    /// <summary>Products no longer replenished (sold while stock lasts): ordering more than is on hand is refused.</summary>
+    public static IReadOnlySet<string> Discontinued { get; } = new HashSet<string> { "SR-M6x80-ZN", "SR-M6x80-A2", "NR-MIARA-5", "BHP-OKUL" };
+
     public static IReadOnlyList<ProductData> Products { get; } =
     [
         .. Bolts(),
@@ -153,7 +156,7 @@ internal static class DemoCatalog
         params (string Code, string NamePl, string NameEn, string ValuePl, string ValueEn)[] attributes) =>
         new(
             sku,
-            Version: 2,
+            Version: 3,
             new Dictionary<string, string> { ["pl"] = namePl, ["en"] = nameEn },
             new Dictionary<string, string> { ["pl"] = descriptionPl, ["en"] = descriptionEn },
             category,
@@ -163,7 +166,8 @@ internal static class DemoCatalog
             [.. attributes.Select(a => new AttributeData(
                 a.Code,
                 new Dictionary<string, string> { ["pl"] = a.NamePl, ["en"] = a.NameEn },
-                new Dictionary<string, string> { ["pl"] = a.ValuePl, ["en"] = a.ValueEn }))]);
+                new Dictionary<string, string> { ["pl"] = a.ValuePl, ["en"] = a.ValueEn }))],
+            Discontinued: Discontinued.Contains(sku));
 
     /// <summary>Stable EAN-13 in the Polish GS1 prefix (590), derived from the SKU, with a valid check digit.</summary>
     private static string Ean13(string sku)
