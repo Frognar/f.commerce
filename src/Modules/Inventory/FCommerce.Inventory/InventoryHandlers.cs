@@ -1,0 +1,204 @@
+using FCommerce.Application.Messaging;
+using FCommerce.Application.Results;
+using FCommerce.Inventory.Contracts;
+using FCommerce.Inventory.Domain;
+using FCommerce.Inventory.Persistence;
+using FCommerce.Settings.Contracts;
+using FCommerce.SharedKernel.Contracts;
+using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Optional;
+using FCommerce.SharedKernel.Results;
+using Microsoft.EntityFrameworkCore;
+
+namespace FCommerce.Inventory;
+
+/// <summary>"Today" for deliveries: the date in the seller's time zone.</summary>
+internal sealed class InventoryClock(TimeProvider time, InventoryOptions options)
+{
+    private readonly TimeZoneInfo zone = TimeZoneInfo.FindSystemTimeZoneById(options.TimeZone);
+
+    public DateTimeOffset Now => time.GetUtcNow();
+
+    public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone).DateTime);
+}
+
+/// <summary>Validate every item (pure) → reconcile with stored warehouses (pure) → store the changes.</summary>
+internal sealed class ImportWarehousesHandler(InventoryDbContext db, InventoryClock clock) : ICommandHandler<ImportWarehouses, Result<ImportReport, Error>>
+{
+    public async Task<Result<ImportReport, Error>> HandleAsync(ImportWarehouses command, CancellationToken cancellationToken = default)
+    {
+        var batch = ImportBatch.Validate(
+            command.Warehouses,
+            w => w.Code.ToMaybe(),
+            w => Stock.Validate(new UnvalidatedWarehouse(w.Code.OrEmpty(), w.Version, w.Name.OrEmpty(), w.Visible, w.SortOrder, w.Active)));
+
+        var codes = batch.Valid.Select(v => v.Item.Code.Value).ToList();
+        var rows = await db.Warehouses.Where(w => codes.Contains(w.Code)).ToDictionaryAsync(w => w.Code, cancellationToken);
+        var changes = batch.Valid
+            .Select(v => Stock.Reconcile(rows.GetValueOrNone(v.Item.Code.Value).Map(row => row.ToDomain()), v.Item))
+            .ToList();
+
+        foreach (var change in changes)
+        {
+            switch (change)
+            {
+                case Change<Warehouse>.Created created:
+                    db.Warehouses.Add(WarehouseRow.From(created.Current, clock.Now));
+                    break;
+                case Change<Warehouse>.Updated updated:
+                    rows[updated.Current.Code.Value].Apply(updated.Current, clock.Now);
+                    break;
+                case Change<Warehouse>.Unchanged unchanged:
+                    rows[unchanged.Current.Code.Value].Version = unchanged.Current.Version.Value;
+                    break;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return ImportReport.From(command.Warehouses.Count, changes, batch.Rejected);
+    }
+}
+
+/// <summary>Stock of one imported warehouse, keyed by SKU; the same pattern as the warehouses.</summary>
+internal sealed class ImportStockHandler(InventoryDbContext db, InventoryClock clock) : ICommandHandler<ImportStock, Result<ImportReport, Error>>
+{
+    public Task<Result<ImportReport, Error>> HandleAsync(ImportStock command, CancellationToken cancellationToken = default) =>
+        WarehouseCode.Parse(command.WarehouseCode.OrEmpty()).BindAsync(async code =>
+            await db.Warehouses.AnyAsync(w => w.Code == code.Value, cancellationToken)
+                ? Result.Ok<ImportReport, Error>(await ImportAsync(code, command.Stock, cancellationToken))
+                : Error.NotFound("warehouse.not-found", $"Warehouse '{code}' has not been imported."));
+
+    private async Task<ImportReport> ImportAsync(WarehouseCode code, IReadOnlyList<StockData> stock, CancellationToken cancellationToken)
+    {
+        var batch = ImportBatch.Validate(
+            stock,
+            s => s.Sku.ToMaybe(),
+            s => Stock.Validate(new UnvalidatedStock(s.Sku.OrEmpty(), s.Version, s.Quantity, s.NextDeliveryDate.ToMaybe(), s.NextDeliveryQuantity.ToMaybe())));
+
+        var skus = batch.Valid.Select(v => v.Item.Sku).ToList();
+        var rows = await db.Stock.Where(s => s.WarehouseCode == code.Value && skus.Contains(s.Sku)).ToDictionaryAsync(s => s.Sku, cancellationToken);
+        var changes = batch.Valid
+            .Select(v => Stock.Reconcile(rows.GetValueOrNone(v.Item.Sku).Map(row => row.ToDomain()), v.Item))
+            .ToList();
+
+        foreach (var change in changes)
+        {
+            switch (change)
+            {
+                case Change<StockEntry>.Created created:
+                    db.Stock.Add(StockRow.From(code, created.Current, clock.Now));
+                    break;
+                case Change<StockEntry>.Updated updated:
+                    rows[updated.Current.Sku].Apply(updated.Current, clock.Now);
+                    break;
+                case Change<StockEntry>.Unchanged unchanged:
+                    rows[unchanged.Current.Sku].Version = unchanged.Current.Version.Value;
+                    break;
+            }
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return ImportReport.From(stock.Count, changes, batch.Rejected);
+    }
+}
+
+/// <summary>How stock is shown, from the settings; none when the "stock-levels" feature is off.</summary>
+internal static class StockSettings
+{
+    public static async Task<Maybe<StockPolicy>> PolicyAsync(IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings, CancellationToken cancellationToken)
+    {
+        var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
+        return platform.IsOn(Feature.StockLevels.Value)
+            ? new StockPolicy(Enum.TryParse<StockDisplayMode>(platform.StockDisplay, out var mode) ? mode : StockDisplayMode.Levels, platform.LowStockThreshold)
+            : Maybe<StockPolicy>.None;
+    }
+
+    public static string DisplayName(StockPolicy policy) =>
+        policy.Mode == StockDisplayMode.Exact ? StockDisplays.Exact : StockDisplays.Levels;
+
+    public static string StatusName(StockStatus status) =>
+        status switch
+        {
+            StockStatus.Available => StockStatuses.Available,
+            StockStatus.Low => StockStatuses.Low,
+            _ => StockStatuses.None,
+        };
+
+    public static Maybe<DeliveryView> Delivery(Maybe<Delivery> delivery) =>
+        delivery.Map(d => new DeliveryView(d.Date, d.Quantity.OrNull()));
+}
+
+/// <summary>Validate the SKUs → settings → stock in visible warehouses (one query) → pure sums and presentation.</summary>
+internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryClock clock, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IQueryHandler<GetStockSummaries, Result<StockOverview, Error>>
+{
+    public Task<Result<StockOverview, Error>> HandleAsync(GetStockSummaries query, CancellationToken cancellationToken = default) =>
+        ValidateSkus(query.Skus.OrEmpty()).MapAsync(async skus =>
+            await (await StockSettings.PolicyAsync(settings, cancellationToken)).Match(
+                policy => OverviewAsync(skus, policy, cancellationToken),
+                () => Task.FromResult(new StockOverview(StockDisplays.Hidden, []))));
+
+    private static Result<IReadOnlyList<string>, Error> ValidateSkus(IReadOnlyList<string> skus) =>
+        skus.Count > GetStockSummaries.MaxSkus
+            ? Error.Validation("stock.too-many-skus", $"At most {GetStockSummaries.MaxSkus} SKUs per query.")
+            : skus.Traverse(sku => SourceCodes.Parse(sku.OrEmpty(), Stock.MaxSku, "sku", "SKU"));
+
+    private async Task<StockOverview> OverviewAsync(IReadOnlyList<string> skus, StockPolicy policy, CancellationToken cancellationToken)
+    {
+        var wanted = skus.Distinct().ToList();
+        var rows = await (
+                from stock in db.Stock.AsNoTracking()
+                join warehouse in db.Warehouses on stock.WarehouseCode equals warehouse.Code
+                where warehouse.Visible && warehouse.Active && wanted.Contains(stock.Sku)
+                select stock)
+            .ToListAsync(cancellationToken);
+        var today = clock.Today;
+        var bySku = rows.ToLookup(r => r.Sku, r => Stock.Figure(r.Content(), today));
+
+        return new StockOverview(
+            StockSettings.DisplayName(policy),
+            [.. skus.Select(sku =>
+            {
+                var shown = Stock.Present(Stock.Total(bySku[sku]), policy);
+                return new StockSummary(sku, StockSettings.StatusName(shown.Status), shown.Quantity.OrNull(), StockSettings.Delivery(shown.NextDelivery).OrNull());
+            })]);
+    }
+}
+
+/// <summary>Stock of one product in every visible warehouse (also those without it) and in total.</summary>
+internal sealed class GetProductStockHandler(InventoryDbContext db, InventoryClock clock, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IQueryHandler<GetProductStock, Result<ProductStock, Error>>
+{
+    public Task<Result<ProductStock, Error>> HandleAsync(GetProductStock query, CancellationToken cancellationToken = default) =>
+        SourceCodes.Parse(query.Sku.OrEmpty(), Stock.MaxSku, "sku", "SKU").MapAsync(async sku =>
+            await (await StockSettings.PolicyAsync(settings, cancellationToken)).Match(
+                policy => ProductAsync(sku, policy, cancellationToken),
+                () => Task.FromResult(new ProductStock(StockDisplays.Hidden, null, []))));
+
+    private async Task<ProductStock> ProductAsync(string sku, StockPolicy policy, CancellationToken cancellationToken)
+    {
+        var warehouses = await db.Warehouses.AsNoTracking()
+            .Where(w => w.Visible && w.Active)
+            .OrderBy(w => w.SortOrder).ThenBy(w => w.Name)
+            .ToListAsync(cancellationToken);
+        var codes = warehouses.Select(w => w.Code).ToList();
+        var stock = await db.Stock.AsNoTracking()
+            .Where(s => s.Sku == sku && codes.Contains(s.WarehouseCode))
+            .ToDictionaryAsync(s => s.WarehouseCode, cancellationToken);
+        var today = clock.Today;
+        var figures = warehouses
+            .Select(w => (Warehouse: w, Figure: stock.GetValueOrNone(w.Code).Match(row => Stock.Figure(row.Content(), today), () => StockFigure.Empty)))
+            .ToList();
+
+        var total = Stock.Present(Stock.Total(figures.Select(f => f.Figure)), policy);
+        return new ProductStock(
+            StockSettings.DisplayName(policy),
+            new StockSummary(sku, StockSettings.StatusName(total.Status), total.Quantity.OrNull(), StockSettings.Delivery(total.NextDelivery).OrNull()),
+            [.. figures.Select(f =>
+            {
+                var shown = Stock.Present(f.Figure, policy);
+                return new WarehouseStock(f.Warehouse.Code, f.Warehouse.Name, StockSettings.StatusName(shown.Status), shown.Quantity.OrNull(), StockSettings.Delivery(shown.NextDelivery).OrNull());
+            })]);
+    }
+}

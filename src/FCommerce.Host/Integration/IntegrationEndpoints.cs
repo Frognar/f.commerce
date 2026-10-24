@@ -4,6 +4,7 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Host.Http;
+using FCommerce.Inventory.Contracts;
 using FCommerce.Pricing.Contracts;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
@@ -49,6 +50,14 @@ internal static class IntegrationEndpoints
         integration.MapPut("/pricing/price-lists/{code}/prices", (string code, PriceBatch? body, ICommandHandler<ImportPrices, Result<ImportReport, Error>> handler, CancellationToken ct) =>
                 Batch(body.ToMaybe(), b => b.Prices, b => handler.HandleAsync(new ImportPrices(Uri.UnescapeDataString(code), b.Prices), ct)))
             .WithSummary("Upserts prices of an imported price list (net price, VAT rate, quantity breaks), keyed by SKU.");
+
+        integration.MapPut("/inventory/warehouses", (ImportWarehouses? command, ICommandHandler<ImportWarehouses, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.Warehouses, c => handler.HandleAsync(c, ct)))
+            .WithSummary("Upserts warehouses (code, name, visibility for buyers, order); their stock is imported per warehouse.");
+
+        integration.MapPut("/inventory/warehouses/{code}/stock", (string code, StockBatch? body, ICommandHandler<ImportStock, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(body.ToMaybe(), b => b.Stock, b => handler.HandleAsync(new ImportStock(Uri.UnescapeDataString(code), b.Stock), ct)))
+            .WithSummary("Upserts stock of an imported warehouse (quantity, next delivery), keyed by SKU; send zero instead of deleting.");
 
         integration.MapPut("/documents/{id}/file", StoreDocumentFileAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxDocumentFileRequestBytes))
