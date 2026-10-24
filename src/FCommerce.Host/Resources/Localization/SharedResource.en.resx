@@ -125,6 +125,9 @@
   <data name="CommerceDefaults" xml:space="preserve"><value>Commerce defaults</value></data>
   <data name="DefaultPriceList" xml:space="preserve"><value>Default price list (ERP code)</value></data>
   <data name="DefaultPriceListHint" xml:space="preserve"><value>Customers without their own price list see these prices; visitors who are not signed in see them when “Prices for visitors” is on. Empty — only customers with their own price list see prices.</value></data>
+  <data name="NoDefaultPriceList" xml:space="preserve"><value>— none —</value></data>
+  <data name="PriceListNotImported" xml:space="preserve"><value>{0} (not imported)</value></data>
+  <data name="Inactive" xml:space="preserve"><value>inactive</value></data>
   <data name="PricesAndStock" xml:space="preserve"><value>Prices and stock</value></data>
   <data name="StockDisplay" xml:space="preserve"><value>How stock is shown</value></data>
   <data name="StockDisplay.Levels" xml:space="preserve"><value>Levels (available / low / out of stock)</value></data>

@@ -6,6 +6,7 @@ using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.Host.Security;
 using FCommerce.Media.Contracts;
+using FCommerce.Pricing.Contracts;
 using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
@@ -22,6 +23,7 @@ public sealed class SettingsModel(
     IQueryHandler<GetSettingsHistory, IReadOnlyList<SettingsChange>> history,
     IQueryHandler<GetOperators, IReadOnlyList<OperatorSummary>> operators,
     ICommandHandler<UploadImage, Result<UploadedImage, Error>> uploadImage,
+    IQueryHandler<GetPriceLists, IReadOnlyList<PriceListSummary>> priceLists,
     IStringLocalizer<SharedResource> texts) : PageModel
 {
     public const long MaxLogoBytes = 5 * 1024 * 1024;
@@ -74,6 +76,9 @@ public sealed class SettingsModel(
     public IReadOnlyList<SettingsChange> History { get; private set; } = [];
 
     public IReadOnlyDictionary<Guid, string> OperatorNames { get; private set; } = new Dictionary<Guid, string>();
+
+    /// <summary>Imported price lists to choose the default one from.</summary>
+    public IReadOnlyList<PriceListSummary> PriceLists { get; private set; } = [];
 
     public Maybe<string> Saved { get; private set; }
 
@@ -161,6 +166,7 @@ public sealed class SettingsModel(
         current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         History = await history.HandleAsync(new GetSettingsHistory(), cancellationToken);
         OperatorNames = (await operators.HandleAsync(new GetOperators(), cancellationToken)).ToDictionary(o => o.UserId, o => o.Name);
+        PriceLists = await priceLists.HandleAsync(new GetPriceLists(), cancellationToken);
     }
 
     /// <summary>A history entry in words: "feature+documents" → "Włączono: Dokumenty".</summary>

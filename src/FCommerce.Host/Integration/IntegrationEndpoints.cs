@@ -4,6 +4,7 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Host.Http;
+using FCommerce.Pricing.Contracts;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using Microsoft.AspNetCore.Mvc;
@@ -40,6 +41,14 @@ internal static class IntegrationEndpoints
         integration.MapPut("/documents", (ImportDocuments? command, ICommandHandler<ImportDocuments, Result<ImportReport, Error>> handler, CancellationToken ct) =>
                 Batch(command.ToMaybe(), c => c.Documents, c => handler.HandleAsync(c, ct)))
             .WithSummary("Upserts document metadata (invoices, corrections, delivery notes, proformas); items are validated independently and reported.");
+
+        integration.MapPut("/pricing/price-lists", (ImportPriceLists? command, ICommandHandler<ImportPriceLists, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(command.ToMaybe(), c => c.PriceLists, c => handler.HandleAsync(c, ct)))
+            .WithSummary("Upserts price lists (code, name, currency); their prices are imported per price list.");
+
+        integration.MapPut("/pricing/price-lists/{code}/prices", (string code, PriceBatch? body, ICommandHandler<ImportPrices, Result<ImportReport, Error>> handler, CancellationToken ct) =>
+                Batch(body.ToMaybe(), b => b.Prices, b => handler.HandleAsync(new ImportPrices(Uri.UnescapeDataString(code), b.Prices), ct)))
+            .WithSummary("Upserts prices of an imported price list (net price, VAT rate, quantity breaks), keyed by SKU.");
 
         integration.MapPut("/documents/{id}/file", StoreDocumentFileAsync)
             .WithMetadata(new RequestSizeLimitAttribute(MaxDocumentFileRequestBytes))

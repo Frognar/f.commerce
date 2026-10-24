@@ -125,6 +125,9 @@
   <data name="CommerceDefaults" xml:space="preserve"><value>Ustawienia handlowe</value></data>
   <data name="DefaultPriceList" xml:space="preserve"><value>Cennik domyślny (kod z ERP)</value></data>
   <data name="DefaultPriceListHint" xml:space="preserve"><value>Ceny z tego cennika widzą kontrahenci bez własnego cennika, a niezalogowani — gdy włączona jest funkcja „Ceny dla niezalogowanych”. Pusty — ceny widzą tylko kontrahenci z własnym cennikiem.</value></data>
+  <data name="NoDefaultPriceList" xml:space="preserve"><value>— brak —</value></data>
+  <data name="PriceListNotImported" xml:space="preserve"><value>{0} (nie zaimportowany)</value></data>
+  <data name="Inactive" xml:space="preserve"><value>nieaktywny</value></data>
   <data name="PricesAndStock" xml:space="preserve"><value>Ceny i stany</value></data>
   <data name="StockDisplay" xml:space="preserve"><value>Jak pokazywać stany</value></data>
   <data name="StockDisplay.Levels" xml:space="preserve"><value>Poziomy (dostępny / mało / brak)</value></data>

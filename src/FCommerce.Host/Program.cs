@@ -4,6 +4,7 @@ using FCommerce.Customers;
 using FCommerce.Documents;
 using FCommerce.Host.Security;
 using FCommerce.Notifications;
+using FCommerce.Pricing;
 using FCommerce.Settings;
 using FCommerce.SharedKernel.Features;
 using System.Collections.Immutable;
@@ -66,6 +67,7 @@ builder.Services.AddNotificationsModule(new NotificationsOptions
 builder.Services.AddMediaModule();
 builder.Services.AddCustomersModule();
 builder.Services.AddDocumentsModule(new DocumentsOptions { TimeZone = builder.Configuration["Platform:TimeZone"] ?? "Europe/Warsaw" });
+builder.Services.AddPricingModule();
 builder.Services.AddCatalogModule(options =>
 {
     options.DefaultCulture = localization.DefaultCulture;

@@ -81,7 +81,19 @@
     <section class="card">
         <h2>@T["PricesAndStock"]</h2>
         <div class="stack">
-            <label>@T["DefaultPriceList"] <input asp-for="Form.DefaultPriceListCode" maxlength="64" /></label>
+            <label>@T["DefaultPriceList"]
+                <select asp-for="Form.DefaultPriceListCode">
+                    <option value="">@T["NoDefaultPriceList"]</option>
+                    @if (!string.IsNullOrWhiteSpace(Model.Form.DefaultPriceListCode) && Model.PriceLists.All(l => l.Code != Model.Form.DefaultPriceListCode))
+                    {
+                        <option value="@Model.Form.DefaultPriceListCode">@T["PriceListNotImported", Model.Form.DefaultPriceListCode]</option>
+                    }
+                    @foreach (var list in Model.PriceLists)
+                    {
+                        <option value="@list.Code">@list.Code — @list.Name (@list.Currency)@(list.Active ? "" : $" — {T["Inactive"].Value}")</option>
+                    }
+                </select>
+            </label>
             <p class="muted">@T["DefaultPriceListHint"]</p>
             <fieldset class="checks">
                 <legend>@T["StockDisplay"]</legend>
