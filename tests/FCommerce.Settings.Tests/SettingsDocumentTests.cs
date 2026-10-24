@@ -22,9 +22,12 @@ public sealed class SettingsDocumentTests
         var settings = SettingsDocument.Read(SavedBeforeStock, 3, Everything);
 
         Assert.Equal(StockDisplay.Default, settings.Stock);
+        // The two stored features, plus every feature on by default that the code gained since (M3 and later).
         Assert.Equal(
-            [Feature.CustomerAccounts, Feature.Documents, Feature.PublicPrices, Feature.StockLevels],
+            [Feature.CustomerAccounts, Feature.Documents, .. Feature.All.Skip(6).Where(f => f.EnabledByDefault).Select(f => f.Id)],
             Feature.All.Select(f => f.Id).Where(settings.EnabledFeatures.Contains));
+        Assert.Contains(Feature.PublicPrices, settings.EnabledFeatures);
+        Assert.DoesNotContain(Feature.SelfRegistration, settings.EnabledFeatures);
     }
 
     [Fact]

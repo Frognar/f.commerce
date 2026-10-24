@@ -157,6 +157,10 @@
   <data name="Feature.documents" xml:space="preserve"><value>Documents (invoices, delivery notes)</value></data>
   <data name="Feature.public-prices" xml:space="preserve"><value>Prices for visitors</value></data>
   <data name="Feature.stock-levels" xml:space="preserve"><value>Stock levels</value></data>
+  <data name="Feature.cart" xml:space="preserve"><value>Cart</value></data>
+  <data name="Feature.quick-order" xml:space="preserve"><value>Quick order</value></data>
+  <data name="Feature.shopping-lists" xml:space="preserve"><value>Shopping lists</value></data>
+  <data name="Feature.reorder-from-documents" xml:space="preserve"><value>Cart from a document</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Customers sign in to the customer area.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>A user can act for several companies.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Company administrators invite their colleagues.</value></data>
@@ -165,6 +169,10 @@
   <data name="FeatureHint.documents" xml:space="preserve"><value>Customers see invoices and other ERP documents.</value></data>
   <data name="FeatureHint.public-prices" xml:space="preserve"><value>Visitors who are not signed in see the default price list.</value></data>
   <data name="FeatureHint.stock-levels" xml:space="preserve"><value>The storefront shows product availability and upcoming deliveries.</value></data>
+  <data name="FeatureHint.cart" xml:space="preserve"><value>People with the right to order collect products in a cart.</value></data>
+  <data name="FeatureHint.quick-order" xml:space="preserve"><value>Adding to the cart by SKU and pasting a list of lines.</value></data>
+  <data name="FeatureHint.shopping-lists" xml:space="preserve"><value>Saving the cart as a list and adding it back later.</value></data>
+  <data name="FeatureHint.reorder-from-documents" xml:space="preserve"><value>Lines of an invoice or delivery note go to the cart in one click.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Someone changed the settings in the meantime. Reload the page and try again.</value></data>
   <data name="Error.settings.stock-display" xml:space="preserve"><value>Choose how stock is shown.</value></data>
   <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>The threshold must be a number of zero or more, with at most 3 decimal places.</value></data>
@@ -335,4 +343,6 @@
   <data name="StockQuantity.none" xml:space="preserve"><value>Out of stock</value></data>
   <data name="NextDeliveryOn" xml:space="preserve"><value>Delivery {0}</value></data>
   <data name="NextDeliveryWithQuantity" xml:space="preserve"><value>Delivery {0}: {1} {2}</value></data>
+  <data name="Discontinued" xml:space="preserve"><value>Discontinued</value></data>
+  <data name="DiscontinuedHint" xml:space="preserve"><value>Sold only while stock lasts.</value></data>
 </root>

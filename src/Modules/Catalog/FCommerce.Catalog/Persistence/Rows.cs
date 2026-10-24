@@ -34,6 +34,8 @@ internal sealed class ProductRow
 
     public bool Active { get; set; }
 
+    public bool Discontinued { get; set; }
+
     public DateTimeOffset UpdatedAt { get; set; }
 
     public static ProductRow From(Product product, DateTimeOffset now)
@@ -62,6 +64,7 @@ internal sealed class ProductRow
         Images = Json.Write(product.Content.Images);
         Attributes = Json.Write(product.Content.Attributes);
         Active = product.Active;
+        Discontinued = product.Content.Discontinued;
         UpdatedAt = now;
     }
 
@@ -76,7 +79,8 @@ internal sealed class ProductRow
                 Persisted.Rehydrate<UnitCode, string>(Unit),
                 Gtin.ToMaybe().Map(Persisted.Rehydrate<Domain.Gtin, string>),
                 Json.Read<EquatableArray<ImageId>>(Images),
-                Json.Read<EquatableArray<ProductAttribute>>(Attributes)),
+                Json.Read<EquatableArray<ProductAttribute>>(Attributes),
+                Discontinued),
             Active);
 }
 

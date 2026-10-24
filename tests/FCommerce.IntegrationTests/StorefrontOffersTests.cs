@@ -17,8 +17,7 @@ public sealed partial class StorefrontOffersTests(CommerceHostFixture host) : IC
     private static readonly SemaphoreSlim Sequential = new(1, 1);
     private static readonly DateOnly Today = DateOnly.FromDateTime(DateTime.UtcNow);
 
-    private static readonly string[] DefaultFeatures =
-        ["customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "erp-contact-invitations", "documents", "public-prices", "stock-levels"];
+    private static IReadOnlyList<string> DefaultFeatures => HostFixture.DefaultFeatures;
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 

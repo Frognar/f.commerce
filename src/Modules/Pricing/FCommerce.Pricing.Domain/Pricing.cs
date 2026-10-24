@@ -181,6 +181,49 @@ public static class Prices
         Enumerable.Range(0, 28).First(places => decimal.Round(value, places) == value);
 }
 
+/// <summary>The value of one priced line.</summary>
+public sealed record QuotedValue(Currency Currency, VatRate Vat, decimal UnitNet, decimal UnitGross, decimal NetAmount);
+
+public sealed record RateTotal(VatRate Vat, decimal Net, decimal VatAmount);
+
+public sealed record CurrencyTotal(Currency Currency, EquatableArray<RateTotal> Rates, decimal Net, decimal VatAmount, decimal Gross);
+
+/// <summary>Values of lines and totals, the way an invoice computes them.</summary>
+public static class Quotes
+{
+    /// <summary>The unit price of the tier for the quantity; the line value is net × quantity rounded to 2 places.</summary>
+    public static QuotedValue Line(Currency currency, PriceContent price, decimal quantity)
+    {
+        var unit = price.Tiers.For(quantity).Net;
+        return new QuotedValue(currency, price.Vat, unit, Prices.GrossUnit(unit, price.Vat), Round(unit * quantity));
+    }
+
+    /// <summary>
+    /// Per currency (alphabetically): VAT of each rate from the sum of its net values (rounded half away from zero),
+    /// gross = net + VAT. Rates in ascending order.
+    /// </summary>
+    public static EquatableArray<CurrencyTotal> Total(IEnumerable<QuotedValue> lines) =>
+        [.. lines
+            .GroupBy(line => line.Currency)
+            .OrderBy(group => group.Key.Code, StringComparer.Ordinal)
+            .Select(currency =>
+            {
+                EquatableArray<RateTotal> rates = [.. currency
+                    .GroupBy(line => line.Vat)
+                    .OrderBy(rate => rate.Key.Percent)
+                    .Select(rate =>
+                    {
+                        var net = rate.Sum(line => line.NetAmount);
+                        return new RateTotal(rate.Key, net, Round(net * rate.Key.Percent / 100));
+                    })];
+                var net = rates.Sum(r => r.Net);
+                var vat = rates.Sum(r => r.VatAmount);
+                return new CurrencyTotal(currency.Key, rates, net, vat, net + vat);
+            })];
+
+    private static decimal Round(decimal amount) => Math.Round(amount, 2, MidpointRounding.AwayFromZero);
+}
+
 /// <summary>An active price list a viewer may be priced from.</summary>
 public sealed record ActivePriceList(PriceListCode Code, Currency Currency);
 

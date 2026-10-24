@@ -87,5 +87,6 @@ internal sealed class ImportProductsHandler(
             data.Gtin.ToMaybe(),
             [.. data.ImageIds.OrEmpty().Select(id => id.OrEmpty())],
             [.. data.Attributes.OrEmpty().Select(a => new UnvalidatedAttribute(a.Code.OrEmpty(), a.Name.OrEmpty(), a.Value.OrEmpty()))],
-            data.Active);
+            data.Active,
+            data.Discontinued);
 }

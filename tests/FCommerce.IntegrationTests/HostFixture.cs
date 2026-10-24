@@ -25,6 +25,10 @@ public partial class HostFixture : IAsyncLifetime
     private WebApplicationFactory<Program>? factory;
 
     public const string IntegrationApiKey = "test-integration-key";
+
+    /// <summary>Features on by default: what the settings form posts to restore the defaults.</summary>
+    public static IReadOnlyList<string> DefaultFeatures { get; } =
+        [.. FCommerce.SharedKernel.Features.Feature.All.Where(f => f.EnabledByDefault).Select(f => f.Id.Value)];
     public const string AdminEmail = "admin@platform.test";
 
     /// <summary>E-mails the host sent (instead of SMTP).</summary>

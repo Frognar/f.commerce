@@ -20,7 +20,9 @@ public static class PricingModule
 
         services.AddScoped<ICommandHandler<ImportPriceLists, Result<ImportReport, Error>>, ImportPriceListsHandler>();
         services.AddScoped<ICommandHandler<ImportPrices, Result<ImportReport, Error>>, ImportPricesHandler>();
+        services.AddScoped<PriceResolver>();
         services.AddScoped<IQueryHandler<GetPrices, Result<IReadOnlyList<ProductPrice>, Error>>, GetPricesHandler>();
+        services.AddScoped<IQueryHandler<QuoteLines, Result<Quote, Error>>, QuoteLinesHandler>();
         services.AddScoped<IQueryHandler<GetPriceLists, IReadOnlyList<PriceListSummary>>, GetPriceListsHandler>();
         return services;
     }

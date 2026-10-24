@@ -2,7 +2,10 @@ using FCommerce.SharedKernel.Imports;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
+using FCommerce.SharedKernel.Results;
+using Microsoft.Extensions.DependencyInjection;
 using FCommerce.Media.Contracts;
 using SkiaSharp;
 using FCommerce.SharedKernel.Contracts;
@@ -346,5 +349,22 @@ public sealed class CatalogTests(HostFixture host)
         }
 
         Assert.Equal([new ProductChanged(sku, true), new ProductChanged(sku, false)], host.Events.ProductChanges.Where(e => e.Sku == sku));
+    }
+
+    [Fact]
+    public async Task Products_by_sku_skip_unknown_and_inactive_ones_and_discontinued_ones_are_marked()
+    {
+        var (current, discontinued, inactive) = (Unique("CUR"), Unique("DIS"), Unique("OFF"));
+        await ImportAsync(Product(current), Product(discontinued) with { Discontinued = true }, Product(inactive) with { Active = false });
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetProductsBySku, Result<IReadOnlyList<ProductSummary>, Error>>>();
+
+        var found = (await handler.HandleAsync(new GetProductsBySku(["pl"], [discontinued, Unique("NONE"), current, inactive]), Token))
+            .Match(products => products, error => throw new InvalidOperationException(error.Message));
+        var page = (await host.NewBrowser().GetAsync($"/pl/products/{discontinued}")).Html;
+
+        Assert.Equal([(discontinued, true), (current, false)], found.Select(p => (p.Sku, p.Discontinued)));
+        Assert.Equal(("Śruba M8x40", "szt"), (found[0].Name, found[0].Unit));
+        Assert.Contains("Sprzedaż do wyczerpania zapasów.", page, StringComparison.Ordinal);
     }
 }

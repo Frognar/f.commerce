@@ -72,6 +72,35 @@ public static class PriceStatuses
     public const string OnRequest = "on-request";
 }
 
+/// <summary>
+/// Values of lines for a viewer (cart, order): the unit price of the tier for each quantity, the net value of each
+/// line and totals per currency with VAT per rate. Lines without a price have no value and are left out of totals.
+/// </summary>
+public sealed record QuoteLines(PriceViewer Viewer, IReadOnlyList<PriceLine> Lines) : IQuery<Result<Quote, Error>>
+{
+    public const int MaxLines = 500;
+}
+
+public sealed record Quote(IReadOnlyList<QuotedLine> Lines, IReadOnlyList<QuoteTotal> Totals);
+
+/// <param name="Status">See <see cref="PriceStatuses"/>; the price fields are set only when priced.</param>
+/// <param name="NetAmount">Unit net price × quantity, rounded half away from zero to 2 decimal places.</param>
+public sealed record QuotedLine(
+    string Sku,
+    decimal Quantity,
+    string Status,
+    string? PriceListCode,
+    string? Currency,
+    decimal? VatRate,
+    decimal? UnitNet,
+    decimal? UnitGross,
+    decimal? NetAmount);
+
+/// <summary>Totals of one currency: VAT is calculated per rate from the sum of net values of that rate.</summary>
+public sealed record QuoteTotal(string Currency, decimal Net, IReadOnlyList<VatAmount> Rates, decimal Vat, decimal Gross);
+
+public sealed record VatAmount(decimal Rate, decimal Net, decimal Vat);
+
 /// <summary>Imported price lists by code (for choosing the default one in the back-office).</summary>
 public sealed record GetPriceLists : IQuery<IReadOnlyList<PriceListSummary>>;
 

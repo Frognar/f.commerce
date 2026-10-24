@@ -112,4 +112,19 @@ public sealed class InventoryTests(HostFixture host)
         Assert.Null(ours[1].NextDelivery); // yesterday's delivery is not shown
         Assert.Equal(StockStatuses.Available, stock.Total!.Status);
     }
+
+    [Fact]
+    public async Task Availability_for_ordering_sums_visible_warehouses_whatever_the_display()
+    {
+        var (visible, hidden) = (Unique("V"), Unique("H"));
+        var (sku, empty) = (Unique("SKU"), Unique("SKU"));
+        await ImportWarehousesAsync(new WarehouseData(visible, 1, "Widoczny"), new WarehouseData(hidden, 1, "Ukryty", Visible: false));
+        await ImportStockAsync(visible, new StockData(sku, 1, 7.5m), new StockData(empty, 1, -3m, Today.AddDays(4), 10m));
+        await ImportStockAsync(hidden, new StockData(sku, 1, 100m));
+
+        var availability = await QueryAsync<GetAvailability, IReadOnlyList<Availability>>(new GetAvailability([sku, empty, Unique("SKU")]));
+
+        Assert.Equal([new Availability(sku, 7.5m, null), new Availability(empty, 0m, Today.AddDays(4))], availability.Take(2));
+        Assert.Equal(0m, availability[2].Available);
+    }
 }

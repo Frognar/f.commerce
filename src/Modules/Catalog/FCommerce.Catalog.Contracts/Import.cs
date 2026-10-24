@@ -16,6 +16,7 @@ public sealed record ImportProducts(IReadOnlyList<ProductData> Products) : IComm
 /// <param name="Name">Translations by culture, e.g. { "pl": "Śruba M8", "en": "M8 bolt" }.</param>
 /// <param name="ImageIds">Ids returned by the media upload (POST /integration/v1/media/images), in display order.</param>
 /// <param name="Active">False hides the product from the catalog.</param>
+/// <param name="Discontinued">No longer replenished: sold only while stock lasts (ordering more than is available is refused).</param>
 public sealed record ProductData(
     string Sku,
     long Version,
@@ -26,7 +27,8 @@ public sealed record ProductData(
     string? Gtin,
     IReadOnlyList<string>? ImageIds,
     IReadOnlyList<AttributeData>? Attributes,
-    bool Active = true);
+    bool Active = true,
+    bool Discontinued = false);
 
 public sealed record AttributeData(string Code, IReadOnlyDictionary<string, string> Name, IReadOnlyDictionary<string, string> Value);
 

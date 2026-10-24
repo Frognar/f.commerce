@@ -30,7 +30,7 @@ public sealed partial class RegistrationHostFixture : HostFixture
                     new("Form.AccentColor", "#1f5eff"),
                     new("Form.OperatorNotifications", OperatorMailbox),
                     new("Form.DefaultContactTemplate", "buyer"),
-                    .. new[] { "customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "erp-contact-invitations", "documents", "self-registration", "public-prices", "stock-levels" }
+                    .. HostFixture.DefaultFeatures.Append("self-registration")
                         .Select(f => new KeyValuePair<string, string>("Form.EnabledFeatures", f)),
                 ];
                 var (_, html, _) = await admin.SubmitAsync("/pl/admin/settings", form);

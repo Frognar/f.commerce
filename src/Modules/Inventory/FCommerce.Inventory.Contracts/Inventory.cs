@@ -35,6 +35,18 @@ public sealed record GetStockSummaries(IReadOnlyList<string> Skus) : IQuery<Resu
     public const int MaxSkus = 500;
 }
 
+/// <summary>
+/// What can be ordered from stock: the sum over visible warehouses (never below zero) and the next delivery, whatever
+/// the stock display settings. For ordering rules (cart, orders), not for showing quantities to buyers.
+/// </summary>
+public sealed record GetAvailability(IReadOnlyList<string> Skus) : IQuery<Result<IReadOnlyList<Availability>, Error>>
+{
+    public const int MaxSkus = 500;
+}
+
+/// <param name="NextDelivery">The earliest delivery from today on, if any.</param>
+public sealed record Availability(string Sku, decimal Available, DateOnly? NextDelivery);
+
 /// <param name="Display">See <see cref="StockDisplays"/>; "hidden" has no items.</param>
 public sealed record StockOverview(string Display, IReadOnlyList<StockSummary> Items);
 

@@ -25,6 +25,16 @@ public sealed class ReconciliationTests
     }
 
     [Fact]
+    public void Discontinuing_a_product_is_an_update()
+    {
+        var stored = Valid(version: 1);
+        var incoming = Product.Validate(Input(version: 2) with { Discontinued = true }).ShouldBeValid();
+
+        Assert.True(incoming.Content.Discontinued);
+        Assert.Equal(new Change<Product>.Updated(stored, incoming), Reconciliation.Reconcile(stored, incoming));
+    }
+
+    [Fact]
     public void Deactivation_is_an_update()
     {
         var stored = Valid(version: 1);

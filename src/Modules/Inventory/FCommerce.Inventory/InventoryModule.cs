@@ -27,6 +27,7 @@ public static class InventoryModule
         services.AddScoped<ICommandHandler<ImportStock, Result<ImportReport, Error>>, ImportStockHandler>();
         services.AddScoped<IQueryHandler<GetStockSummaries, Result<StockOverview, Error>>, GetStockSummariesHandler>();
         services.AddScoped<IQueryHandler<GetProductStock, Result<ProductStock, Error>>, GetProductStockHandler>();
+        services.AddScoped<IQueryHandler<GetAvailability, Result<IReadOnlyList<Availability>, Error>>, GetAvailabilityHandler>();
         return services;
     }
 }

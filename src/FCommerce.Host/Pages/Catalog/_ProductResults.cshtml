@@ -43,6 +43,10 @@ else
                     <span class="product-name">@product.Name</span>
                 </a>
                 <span class="muted">@T["Sku"]: @product.Sku · @product.Unit</span>
+                @if (product.Discontinued)
+                {
+                    <span class="badge discontinued">@T["Discontinued"]</span>
+                }
                 @foreach (var price in Model.Offers.PriceOf(product.Sku).AsEnumerable())
                 {
                     <partial name="_PriceTag" model="new PriceTag(price, product.Unit, Model.SignInHref, Detailed: false)" />

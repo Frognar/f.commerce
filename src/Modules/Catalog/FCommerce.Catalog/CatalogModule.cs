@@ -42,6 +42,7 @@ public static class CatalogModule
         services.AddScoped<ICommandHandler<ImportCategories, Result<ImportReport, Error>>, ImportCategoriesHandler>();
         services.AddScoped<IQueryHandler<SearchProducts, Result<ProductPage, Error>>, SearchProductsHandler>();
         services.AddScoped<IQueryHandler<GetProduct, Result<ProductDetails, Error>>, GetProductHandler>();
+        services.AddScoped<IQueryHandler<GetProductsBySku, Result<IReadOnlyList<ProductSummary>, Error>>, GetProductsBySkuHandler>();
         services.AddScoped<IQueryHandler<GetCategoryTree, Result<IReadOnlyList<CategoryView>, Error>>, GetCategoryTreeHandler>();
         return services;
     }

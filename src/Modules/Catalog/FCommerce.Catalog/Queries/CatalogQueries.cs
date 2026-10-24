@@ -53,7 +53,7 @@ internal sealed class SearchProductsHandler(ISearchEngine engine, CatalogCulture
 
         var facets = CatalogSearch.Facets(counts, FacetCounts(main, ProductSearchIndex.FacetNamesField), selected);
         return new ProductPage(
-            [.. main.Hits.Select(h => new ProductSummary(h.Sku, h.Name, h.Unit, h.ImageId, h.Categories.LastOrDefault()))],
+            [.. main.Hits.Select(h => new ProductSummary(h.Sku, h.Name, h.Unit, h.ImageId, h.Categories.LastOrDefault(), h.Discontinued))],
             page,
             pageSize,
             main.TotalHits,
@@ -109,8 +109,38 @@ internal sealed class GetProductHandler(CatalogDbContext db) : IQueryHandler<Get
             product.Content.Gtin.Map(gtin => gtin.Value).OrNull(),
             [.. product.Content.Images.Select(i => i.Value)],
             [.. product.Content.Attributes.Select(a => new ProductAttributeView(a.Code.Value, a.Name.Resolve(cultures), a.Value.Resolve(cultures)))],
-            [.. path.Select(c => new CategoryReference(c.Code.Value, c.Content.Name.Text.Resolve(cultures)))]);
+            [.. path.Select(c => new CategoryReference(c.Code.Value, c.Content.Name.Text.Resolve(cultures)))],
+            product.Content.Discontinued);
     }
+}
+
+internal sealed class GetProductsBySkuHandler(CatalogDbContext db) : IQueryHandler<GetProductsBySku, Result<IReadOnlyList<ProductSummary>, Error>>
+{
+    public Task<Result<IReadOnlyList<ProductSummary>, Error>> HandleAsync(GetProductsBySku query, CancellationToken cancellationToken = default) =>
+        (from cultures in Cultures.Parse(query.Cultures)
+         from skus in Skus(query.Skus.OrEmpty())
+         select (cultures, skus))
+        .MapAsync(async input =>
+        {
+            var wanted = input.skus.Select(s => s.Value).Distinct().ToList();
+            var found = (await db.Products.AsNoTracking().Where(p => wanted.Contains(p.Sku) && p.Active).ToListAsync(cancellationToken))
+                .ToDictionary(p => p.Sku, p => p.ToDomain());
+            return (IReadOnlyList<ProductSummary>)[.. input.skus.Select(s => s.Value).Distinct().Choose(sku => found.GetValueOrNone(sku)).Select(p => Summary(p, input.cultures))];
+        });
+
+    private static Result<IReadOnlyList<Sku>, Error> Skus(IReadOnlyList<string> skus) =>
+        skus.Count > GetProductsBySku.MaxSkus
+            ? Error.Validation("products.too-many-skus", $"At most {GetProductsBySku.MaxSkus} SKUs per query.")
+            : skus.Traverse(sku => Sku.Parse(sku.OrEmpty()));
+
+    private static ProductSummary Summary(Product product, EquatableArray<CultureCode> cultures) =>
+        new(
+            product.Sku.Value,
+            product.Content.Name.Text.Resolve(cultures),
+            product.Content.Unit.Value,
+            product.Content.Images.Select(i => i.Value).FirstOrNone().OrNull(),
+            product.Content.Category.Map(c => c.Value).OrNull(),
+            product.Content.Discontinued);
 }
 
 internal sealed class GetCategoryTreeHandler(CatalogDbContext db) : IQueryHandler<GetCategoryTree, Result<IReadOnlyList<CategoryView>, Error>>

@@ -26,7 +26,14 @@ public sealed record FacetView(string Code, string Name, IReadOnlyList<FacetValu
 
 public sealed record FacetValueView(string Value, int Count, bool Selected);
 
-public sealed record ProductSummary(string Sku, string Name, string Unit, string? ImageId, string? CategoryCode);
+/// <param name="Discontinued">No longer replenished: sold only while stock lasts.</param>
+public sealed record ProductSummary(string Sku, string Name, string Unit, string? ImageId, string? CategoryCode, bool Discontinued = false);
+
+/// <summary>Active products by SKU (at most <see cref="MaxSkus"/>), in the order requested; unknown or inactive SKUs are left out.</summary>
+public sealed record GetProductsBySku(IReadOnlyList<string> Cultures, IReadOnlyList<string> Skus) : IQuery<Result<IReadOnlyList<ProductSummary>, Error>>
+{
+    public const int MaxSkus = 500;
+}
 
 /// <summary>Active product details; not found for unknown or inactive products.</summary>
 public sealed record GetProduct(IReadOnlyList<string> Cultures, string Sku) : IQuery<Result<ProductDetails, Error>>;
@@ -39,7 +46,8 @@ public sealed record ProductDetails(
     string? Gtin,
     IReadOnlyList<string> ImageIds,
     IReadOnlyList<ProductAttributeView> Attributes,
-    IReadOnlyList<CategoryReference> CategoryPath);
+    IReadOnlyList<CategoryReference> CategoryPath,
+    bool Discontinued = false);
 
 public sealed record ProductAttributeView(string Code, string Name, string Value);
 

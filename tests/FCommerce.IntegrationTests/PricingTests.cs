@@ -133,4 +133,25 @@ public sealed class PricingTests(HostFixture host)
 
         Assert.Contains($"<option value=\"{list}\">{list} — Do wyboru (EUR)</option>", page, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task A_quote_values_lines_at_their_tiers_and_totals_vat_per_rate()
+    {
+        var list = Unique("Q");
+        var (bolt, tool, unpriced) = (Unique("SKU"), Unique("SKU"), Unique("SKU"));
+        await ImportListsAsync(new PriceListData(list, 1, "Hurt", "PLN"));
+        await ImportPricesAsync(list, new PriceData(bolt, 1, 1.01m, 23m, [new PriceBreakData(100, 0.9m)]), new PriceData(tool, 1, 10m, 8m));
+        var customer = await CustomerAsync(list);
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var handler = scope.ServiceProvider.GetRequiredService<IQueryHandler<QuoteLines, Result<Quote, Error>>>();
+
+        var quote = (await handler.HandleAsync(new QuoteLines(new PriceViewer(true, customer), [new PriceLine(bolt, 3), new PriceLine(tool, 2), new PriceLine(unpriced, 1), new PriceLine(bolt, 100)]), Token))
+            .Match(q => q, error => throw new InvalidOperationException(error.Message));
+
+        Assert.Equal([3.03m, 20m, null, 90m], quote.Lines.Select(l => l.NetAmount));
+        Assert.Equal(PriceStatuses.OnRequest, quote.Lines[2].Status);
+        var total = Assert.Single(quote.Totals);
+        Assert.Equal([new VatAmount(8m, 20m, 1.60m), new VatAmount(23m, 93.03m, 21.40m)], total.Rates);
+        Assert.Equal(("PLN", 113.03m, 23.00m, 136.03m), (total.Currency, total.Net, total.Vat, total.Gross));
+    }
 }

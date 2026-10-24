@@ -157,6 +157,10 @@
   <data name="Feature.documents" xml:space="preserve"><value>Dokumenty (faktury, WZ)</value></data>
   <data name="Feature.public-prices" xml:space="preserve"><value>Ceny dla niezalogowanych</value></data>
   <data name="Feature.stock-levels" xml:space="preserve"><value>Stany magazynowe</value></data>
+  <data name="Feature.cart" xml:space="preserve"><value>Koszyk</value></data>
+  <data name="Feature.quick-order" xml:space="preserve"><value>Szybkie zamawianie</value></data>
+  <data name="Feature.shopping-lists" xml:space="preserve"><value>Listy zakupowe</value></data>
+  <data name="Feature.reorder-from-documents" xml:space="preserve"><value>Koszyk z dokumentu</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Klienci logują się do strefy klienta.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>Użytkownik może działać w imieniu kilku firm.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Administratorzy firm sami zapraszają współpracowników.</value></data>
@@ -165,6 +169,10 @@
   <data name="FeatureHint.documents" xml:space="preserve"><value>Klienci widzą faktury i inne dokumenty z ERP.</value></data>
   <data name="FeatureHint.public-prices" xml:space="preserve"><value>Niezalogowani widzą ceny z cennika domyślnego.</value></data>
   <data name="FeatureHint.stock-levels" xml:space="preserve"><value>Sklep pokazuje dostępność produktów i najbliższe dostawy.</value></data>
+  <data name="FeatureHint.cart" xml:space="preserve"><value>Osoby z prawem zamawiania zbierają produkty w koszyku.</value></data>
+  <data name="FeatureHint.quick-order" xml:space="preserve"><value>Dodawanie do koszyka po indeksie i wklejanie listy pozycji.</value></data>
+  <data name="FeatureHint.shopping-lists" xml:space="preserve"><value>Zapisywanie koszyka jako listy i ponowne dodawanie z listy.</value></data>
+  <data name="FeatureHint.reorder-from-documents" xml:space="preserve"><value>Pozycje faktury lub WZ trafiają do koszyka jednym kliknięciem.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Ktoś zmienił ustawienia w międzyczasie. Odśwież stronę i spróbuj ponownie.</value></data>
   <data name="Error.settings.stock-display" xml:space="preserve"><value>Wybierz, jak pokazywać stany.</value></data>
   <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>Próg musi być liczbą nie mniejszą od zera, z najwyżej 3 miejscami po przecinku.</value></data>
@@ -335,4 +343,6 @@
   <data name="StockQuantity.none" xml:space="preserve"><value>Brak</value></data>
   <data name="NextDeliveryOn" xml:space="preserve"><value>Dostawa {0}</value></data>
   <data name="NextDeliveryWithQuantity" xml:space="preserve"><value>Dostawa {0}: {1} {2}</value></data>
+  <data name="Discontinued" xml:space="preserve"><value>Wycofany</value></data>
+  <data name="DiscontinuedHint" xml:space="preserve"><value>Sprzedaż do wyczerpania zapasów.</value></data>
 </root>

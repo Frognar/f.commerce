@@ -20,7 +20,8 @@ public sealed record SearchEntry(
     EquatableArray<string> Categories,
     EquatableArray<string> Facets,
     EquatableArray<string> FacetNames,
-    EquatableArray<string> AttributeValues);
+    EquatableArray<string> AttributeValues,
+    bool Discontinued);
 
 /// <summary>A facet (attribute) with the values found in the current results.</summary>
 public sealed record Facet(string Code, string Name, EquatableArray<FacetValue> Values);
@@ -62,7 +63,8 @@ public static class CatalogSearch
             categoryPath.Select(c => c.Code.Value).ToEquatableArray(),
             attributes.Select(a => FacetToken(a.Code, a.Value)).Distinct().ToEquatableArray(),
             attributes.Select(a => FacetToken(a.Code, a.Name)).Distinct().ToEquatableArray(),
-            attributes.Select(a => a.Value).Distinct().ToEquatableArray());
+            attributes.Select(a => a.Value).Distinct().ToEquatableArray(),
+            product.Content.Discontinued);
     }
 
     /// <summary>

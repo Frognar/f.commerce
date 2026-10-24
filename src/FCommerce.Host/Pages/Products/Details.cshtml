@@ -72,6 +72,10 @@ else
         }
         <div class="product-info">
             <h1>@product.Name</h1>
+            @if (product.Discontinued)
+            {
+                <p class="discontinued-note"><span class="badge discontinued">@T["Discontinued"]</span> @T["DiscontinuedHint"]</p>
+            }
             <dl class="facts">
                 <dt>@T["Sku"]</dt><dd>@product.Sku</dd>
                 <dt>@T["Unit"]</dt><dd>@product.Unit</dd>

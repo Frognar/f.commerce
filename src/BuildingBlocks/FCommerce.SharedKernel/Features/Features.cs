@@ -31,6 +31,10 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
     public static readonly FeatureId Documents = FeatureId.Define("documents");
     public static readonly FeatureId PublicPrices = FeatureId.Define("public-prices");
     public static readonly FeatureId StockLevels = FeatureId.Define("stock-levels");
+    public static readonly FeatureId Cart = FeatureId.Define("cart");
+    public static readonly FeatureId QuickOrder = FeatureId.Define("quick-order");
+    public static readonly FeatureId ShoppingLists = FeatureId.Define("shopping-lists");
+    public static readonly FeatureId ReorderFromDocuments = FeatureId.Define("reorder-from-documents");
 
     /// <summary>The feature catalog. Modules add their features here (one list, so dependencies can be checked).</summary>
     public static ImmutableArray<Feature> All { get; } =
@@ -43,6 +47,10 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
         new(Documents, "Customers see invoices and other documents from the ERP.", true, [CustomerAccounts]),
         new(PublicPrices, "Visitors who are not signed in see the default price list.", true, []),
         new(StockLevels, "The storefront shows stock levels and upcoming deliveries.", true, []),
+        new(Cart, "Customer users with the right to order collect products in a cart.", true, [CustomerAccounts]),
+        new(QuickOrder, "Products are added to the cart by SKU or by pasting a list.", true, [Cart]),
+        new(ShoppingLists, "Carts are saved as shopping lists and added back to the cart.", true, [Cart]),
+        new(ReorderFromDocuments, "Lines of an invoice or delivery note are added to the cart.", true, [Cart, Documents]),
     ];
 }
 

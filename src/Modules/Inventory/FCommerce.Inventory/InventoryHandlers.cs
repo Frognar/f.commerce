@@ -129,22 +129,15 @@ internal static class StockSettings
         delivery.Map(d => new DeliveryView(d.Date, d.Quantity.OrNull()));
 }
 
-/// <summary>Validate the SKUs → settings → stock in visible warehouses (one query) → pure sums and presentation.</summary>
-internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryClock clock, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
-    : IQueryHandler<GetStockSummaries, Result<StockOverview, Error>>
+/// <summary>Stock in visible, active warehouses of the given SKUs as figures for today.</summary>
+internal static class VisibleStock
 {
-    public Task<Result<StockOverview, Error>> HandleAsync(GetStockSummaries query, CancellationToken cancellationToken = default) =>
-        ValidateSkus(query.Skus.OrEmpty()).MapAsync(async skus =>
-            await (await StockSettings.PolicyAsync(settings, cancellationToken)).Match(
-                policy => OverviewAsync(skus, policy, cancellationToken),
-                () => Task.FromResult(new StockOverview(StockDisplays.Hidden, []))));
-
-    private static Result<IReadOnlyList<string>, Error> ValidateSkus(IReadOnlyList<string> skus) =>
-        skus.Count > GetStockSummaries.MaxSkus
-            ? Error.Validation("stock.too-many-skus", $"At most {GetStockSummaries.MaxSkus} SKUs per query.")
+    public static Result<IReadOnlyList<string>, Error> ValidateSkus(IReadOnlyList<string> skus, int max) =>
+        skus.Count > max
+            ? Error.Validation("stock.too-many-skus", $"At most {max} SKUs per query.")
             : skus.Traverse(sku => SourceCodes.Parse(sku.OrEmpty(), Stock.MaxSku, "sku", "SKU"));
 
-    private async Task<StockOverview> OverviewAsync(IReadOnlyList<string> skus, StockPolicy policy, CancellationToken cancellationToken)
+    public static async Task<ILookup<string, StockFigure>> FiguresAsync(InventoryDbContext db, IReadOnlyList<string> skus, DateOnly today, CancellationToken cancellationToken)
     {
         var wanted = skus.Distinct().ToList();
         var rows = await (
@@ -153,8 +146,23 @@ internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryC
                 where warehouse.Visible && warehouse.Active && wanted.Contains(stock.Sku)
                 select stock)
             .ToListAsync(cancellationToken);
-        var today = clock.Today;
-        var bySku = rows.ToLookup(r => r.Sku, r => Stock.Figure(r.Content(), today));
+        return rows.ToLookup(r => r.Sku, r => Stock.Figure(r.Content(), today));
+    }
+}
+
+/// <summary>Validate the SKUs → settings → stock in visible warehouses (one query) → pure sums and presentation.</summary>
+internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryClock clock, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
+    : IQueryHandler<GetStockSummaries, Result<StockOverview, Error>>
+{
+    public Task<Result<StockOverview, Error>> HandleAsync(GetStockSummaries query, CancellationToken cancellationToken = default) =>
+        VisibleStock.ValidateSkus(query.Skus.OrEmpty(), GetStockSummaries.MaxSkus).MapAsync(async skus =>
+            await (await StockSettings.PolicyAsync(settings, cancellationToken)).Match(
+                policy => OverviewAsync(skus, policy, cancellationToken),
+                () => Task.FromResult(new StockOverview(StockDisplays.Hidden, []))));
+
+    private async Task<StockOverview> OverviewAsync(IReadOnlyList<string> skus, StockPolicy policy, CancellationToken cancellationToken)
+    {
+        var bySku = await VisibleStock.FiguresAsync(db, skus, clock.Today, cancellationToken);
 
         return new StockOverview(
             StockSettings.DisplayName(policy),
@@ -164,6 +172,21 @@ internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryC
                 return new StockSummary(sku, StockSettings.StatusName(shown.Status), shown.Quantity.OrNull(), StockSettings.Delivery(shown.NextDelivery).OrNull());
             })]);
     }
+}
+
+/// <summary>Ordering availability: totals over visible warehouses, regardless of how stock is shown.</summary>
+internal sealed class GetAvailabilityHandler(InventoryDbContext db, InventoryClock clock) : IQueryHandler<GetAvailability, Result<IReadOnlyList<Availability>, Error>>
+{
+    public Task<Result<IReadOnlyList<Availability>, Error>> HandleAsync(GetAvailability query, CancellationToken cancellationToken = default) =>
+        VisibleStock.ValidateSkus(query.Skus.OrEmpty(), GetAvailability.MaxSkus).MapAsync(async skus =>
+        {
+            var bySku = await VisibleStock.FiguresAsync(db, skus, clock.Today, cancellationToken);
+            return (IReadOnlyList<Availability>)[.. skus.Select(sku =>
+            {
+                var total = Stock.Total(bySku[sku]);
+                return new Availability(sku, total.Quantity, total.NextDelivery.Map(d => d.Date).OrNull());
+            })];
+        });
 }
 
 /// <summary>Stock of one product in every visible warehouse (also those without it) and in total.</summary>

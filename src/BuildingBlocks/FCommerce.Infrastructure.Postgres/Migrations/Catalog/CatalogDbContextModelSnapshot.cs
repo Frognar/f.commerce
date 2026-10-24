@@ -87,6 +87,10 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Catalog
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<bool>("Discontinued")
+                        .HasColumnType("boolean")
+                        .HasColumnName("discontinued");
+
                     b.Property<string>("Gtin")
                         .HasMaxLength(14)
                         .HasColumnType("character varying(14)")

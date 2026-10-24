@@ -16,7 +16,8 @@ internal sealed record ProductSearchDocument(
     string[] Categories,
     string[] Facets,
     string[] FacetNames,
-    string[] AttributeValues)
+    string[] AttributeValues,
+    bool Discontinued = false)
 {
     public static ProductSearchDocument From(SearchEntry entry) =>
         new(
@@ -30,5 +31,6 @@ internal sealed record ProductSearchDocument(
             [.. entry.Categories],
             [.. entry.Facets],
             [.. entry.FacetNames],
-            [.. entry.AttributeValues]);
+            [.. entry.AttributeValues],
+            entry.Discontinued);
 }

@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using FCommerce.Customers.Contracts;
 using System.Text.RegularExpressions;
+using FCommerce.SharedKernel.Features;
 using Microsoft.AspNetCore.Hosting;
 using SkiaSharp;
 
@@ -14,13 +15,10 @@ namespace FCommerce.IntegrationTests;
 public sealed class IsolatedHostFixture : HostFixture
 {
     protected override IWebHostBuilder Configure(IWebHostBuilder host) =>
-        host.UseSetting("Features:Available:0", "customer-accounts")
-            .UseSetting("Features:Available:1", "multi-customer-accounts")
-            .UseSetting("Features:Available:2", "customer-admin-invitations")
-            .UseSetting("Features:Available:3", "erp-contact-invitations")
-            .UseSetting("Features:Available:4", "documents")
-            .UseSetting("Features:Available:5", "public-prices")
-            .UseSetting("Features:Available:6", "stock-levels");
+        Feature.All
+            .Where(f => f.Id != Feature.SelfRegistration)
+            .Select((f, index) => (f.Id.Value, index))
+            .Aggregate(host, (builder, f) => builder.UseSetting($"Features:Available:{f.index}", f.Value));
 }
 
 public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixture<IsolatedHostFixture>
@@ -30,8 +28,7 @@ public sealed partial class SettingsTests(IsolatedHostFixture host) : IClassFixt
     private static async Task<long> VersionAsync(Browser admin) =>
         long.Parse(VersionField().Match((await admin.GetAsync("/pl/admin/settings")).Html).Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
 
-    private static readonly string[] AllFeatures =
-        ["customer-accounts", "multi-customer-accounts", "customer-admin-invitations", "erp-contact-invitations", "documents", "public-prices", "stock-levels"];
+    private static readonly IReadOnlyList<string> AllFeatures = HostFixture.DefaultFeatures;
 
     private static List<KeyValuePair<string, string>> Form(
         long version, string visibility = "Public", string storeName = "f.commerce", string accent = "#1f5eff", string priceList = "",

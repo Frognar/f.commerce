@@ -325,3 +325,10 @@ table.data .number { text-align: right; white-space: nowrap; }
     .stock-low { color: #f0c36a; }
     .stock-none { color: #f19a9a; }
 }
+
+/* Discontinued products */
+.badge.discontinued { background: #f1e3ff; color: #5b2a86; align-self: start; }
+.discontinued-note { margin: 0 0 .75rem; color: var(--color-muted); }
+@media (prefers-color-scheme: dark) {
+    .badge.discontinued { background: #3a2a4d; color: #e2c8ff; }
+}

@@ -21,7 +21,8 @@ public sealed record UnvalidatedProduct(
     Maybe<string> Gtin,
     IReadOnlyList<string> ImageIds,
     IReadOnlyList<UnvalidatedAttribute> Attributes,
-    bool Active);
+    bool Active,
+    bool Discontinued = false);
 
 public sealed record UnvalidatedAttribute(
     string Code,
@@ -31,6 +32,7 @@ public sealed record UnvalidatedAttribute(
 public sealed record ProductAttribute(AttributeCode Code, LocalizedText Name, LocalizedText Value);
 
 /// <summary>Everything about a product that buyers see; compared to detect real changes.</summary>
+/// <param name="Discontinued">No longer replenished: sold only while stock lasts.</param>
 public sealed record ProductContent(
     ProductName Name,
     LocalizedText Description,
@@ -38,7 +40,8 @@ public sealed record ProductContent(
     UnitCode Unit,
     Maybe<Gtin> Gtin,
     EquatableArray<ImageId> Images,
-    EquatableArray<ProductAttribute> Attributes);
+    EquatableArray<ProductAttribute> Attributes,
+    bool Discontinued);
 
 /// <summary>A catalog product. Built only from validated parts, so it is always valid.</summary>
 public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Content, bool Active)
@@ -52,7 +55,7 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
         (sku, version, content) => active => new Product(sku, version, content, active);
 
     private static readonly Func<ProductName, LocalizedText, Maybe<CategoryCode>, UnitCode, Maybe<Gtin>, EquatableArray<ImageId>, EquatableArray<ProductAttribute>, ProductContent> CreateContent =
-        (name, description, category, unit, gtin, images, attributes) => new ProductContent(name, description, category, unit, gtin, images, attributes);
+        (name, description, category, unit, gtin, images, attributes) => new ProductContent(name, description, category, unit, gtin, images, attributes, Discontinued: false);
 
     private static readonly Func<AttributeCode, LocalizedText, LocalizedText, ProductAttribute> CreateAttribute =
         (code, name, value) => new ProductAttribute(code, name, value);
@@ -73,7 +76,8 @@ public sealed record Product(Sku Sku, SourceVersion Version, ProductContent Cont
             .Apply(UnitCode.Parse(input.Unit).ToValidated("unit"))
             .Apply(Maybe.ParseOptional(input.Gtin, Domain.Gtin.Parse).ToValidated("gtin"))
             .Apply(Bounded(input.ImageIds, MaxImages, "imageIds", id => ImageId.Parse(id).ToValidated()))
-            .Apply(Bounded(input.Attributes, MaxAttributes, "attributes", ValidateAttribute));
+            .Apply(Bounded(input.Attributes, MaxAttributes, "attributes", ValidateAttribute))
+            .Map(content => content with { Discontinued = input.Discontinued });
 
     private static Validated<ProductAttribute> ValidateAttribute(UnvalidatedAttribute input) =>
         CreateAttribute
