@@ -1,0 +1,42 @@
+@page "/company/lists"
+@using System.Globalization
+@model FCommerce.Host.Pages.Company.Lists.IndexModel
+@{
+    ViewData["Title"] = T["ShoppingLists"];
+}
+<nav class="breadcrumb"><a asp-page="/Company/Index">@T["MyCompany"]</a></nav>
+<h1>@T["ShoppingLists"]</h1>
+<partial name="_ListOutcome" model="Model.Outcome" />
+@if (Model.Lists.Count == 0)
+{
+    <p class="empty">@T["NoShoppingLists"] <a asp-page="/Cart/Index">@T["Cart"]</a></p>
+}
+else
+{
+    <table class="data shopping-lists">
+        <thead>
+            <tr>
+                <th scope="col">@T["ListName"]</th>
+                <th scope="col" class="number">@T["Products"]</th>
+                <th scope="col">@T["Changed"]</th>
+                <th scope="col"><span class="visually-hidden">@T["Actions"]</span></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var list in Model.Lists)
+            {
+                <tr>
+                    <td><a asp-page="/Company/Lists/Details" asp-route-id="@list.Id">@list.Name</a></td>
+                    <td class="number">@list.ItemCount</td>
+                    <td>@list.UpdatedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</td>
+                    <td class="actions">
+                        <partial name="_ToCartButtons" model="list.Id" />
+                        <form class="inline-actions" method="post" asp-page="/Company/Lists/Index" asp-page-handler="Delete" asp-route-id="@list.Id" onsubmit="return confirm('@T["DeleteListConfirm"]')">
+                            <button class="link" type="submit">@T["Delete"]</button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

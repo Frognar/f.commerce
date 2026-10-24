@@ -399,4 +399,32 @@
   <data name="Error.cart.item-not-found" xml:space="preserve"><value>Tego produktu nie ma już w koszyku.</value></data>
   <data name="Error.sku.empty" xml:space="preserve"><value>podaj indeks</value></data>
   <data name="Error.sku.too-long" xml:space="preserve"><value>za długi indeks</value></data>
+  <data name="ShoppingLists" xml:space="preserve"><value>Listy zakupowe</value></data>
+  <data name="YourShoppingLists" xml:space="preserve"><value>Twoje listy zakupowe</value></data>
+  <data name="NoShoppingLists" xml:space="preserve"><value>Nie masz jeszcze list zakupowych. Zapisz koszyk jako listę:</value></data>
+  <data name="ListName" xml:space="preserve"><value>Nazwa listy</value></data>
+  <data name="Products" xml:space="preserve"><value>Produkty</value></data>
+  <data name="Changed" xml:space="preserve"><value>Zmieniona</value></data>
+  <data name="Delete" xml:space="preserve"><value>Usuń</value></data>
+  <data name="DeleteList" xml:space="preserve"><value>Usuń listę</value></data>
+  <data name="DeleteListConfirm" xml:space="preserve"><value>Usunąć tę listę zakupową?</value></data>
+  <data name="AddListToCart" xml:space="preserve"><value>Dodaj do koszyka</value></data>
+  <data name="ReplaceCart" xml:space="preserve"><value>Zastąp koszyk</value></data>
+  <data name="ReplaceCartConfirm" xml:space="preserve"><value>Zastąpić całą zawartość koszyka?</value></data>
+  <data name="Rename" xml:space="preserve"><value>Zmień nazwę</value></data>
+  <data name="SaveAsList" xml:space="preserve"><value>Zapisz jako listę</value></data>
+  <data name="GoToCart" xml:space="preserve"><value>Przejdź do koszyka</value></data>
+  <data name="ListAddedToCart" xml:space="preserve"><value>Dodano do koszyka pozycji: {0}. W koszyku jest teraz {1} produktów.</value></data>
+  <data name="ShoppingListDeleted" xml:space="preserve"><value>Lista została usunięta.</value></data>
+  <data name="ShoppingListRenamed" xml:space="preserve"><value>Zmieniono nazwę listy.</value></data>
+  <data name="ShoppingListChanged" xml:space="preserve"><value>Zapisano zmianę.</value></data>
+  <data name="Error.shopping-list.name-empty" xml:space="preserve"><value>Podaj nazwę listy.</value></data>
+  <data name="Error.shopping-list.name-too-long" xml:space="preserve"><value>Nazwa może mieć najwyżej 100 znaków.</value></data>
+  <data name="Error.shopping-list.name-invalid" xml:space="preserve"><value>Nazwa zawiera niedozwolone znaki.</value></data>
+  <data name="Error.shopping-list.name-taken" xml:space="preserve"><value>Masz już listę o tej nazwie.</value></data>
+  <data name="Error.shopping-list.too-many" xml:space="preserve"><value>Możesz mieć najwyżej 50 list zakupowych.</value></data>
+  <data name="Error.shopping-list.empty" xml:space="preserve"><value>Lista musi zawierać co najmniej jeden produkt.</value></data>
+  <data name="Error.shopping-list.too-many-items" xml:space="preserve"><value>Lista może zawierać najwyżej 200 produktów.</value></data>
+  <data name="Error.shopping-list.not-found" xml:space="preserve"><value>Nie ma takiej listy zakupowej.</value></data>
+  <data name="Error.shopping-list.item-not-found" xml:space="preserve"><value>Tego produktu nie ma na liście.</value></data>
 </root>

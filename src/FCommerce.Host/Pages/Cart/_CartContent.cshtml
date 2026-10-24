@@ -148,7 +148,18 @@
                   hx-confirm="@T["ClearCartConfirm"]">
                 <button class="link" type="submit">@T["ClearCart"]</button>
             </form>
+            @if (Model.ShoppingLists)
+            {
+                <form class="save-list" method="post" asp-page="/Cart/Index" asp-page-handler="SaveList">
+                    <label>@T["ListName"] <input name="name" maxlength="100" required /></label>
+                    <button class="button secondary" type="submit">@T["SaveAsList"]</button>
+                </form>
+            }
         </div>
+    }
+    @if (Model.ShoppingLists)
+    {
+        <p><a asp-page="/Company/Lists/Index">@T["YourShoppingLists"]</a></p>
     }
 
     @if (Model.QuickOrder)

@@ -376,3 +376,11 @@ table.data .number { text-align: right; white-space: nowrap; }
     .cart-issues .blocks, .add-to-cart-result .not-added { color: #f19a9a; }
     .cart-issues .info { color: #f0c36a; }
 }
+
+/* Shopping lists */
+.inline-actions { display: inline; }
+.shopping-lists td.actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.save-list, .inline-form { display: flex; flex-wrap: wrap; align-items: end; gap: .5rem; }
+.save-list label, .inline-form label { display: grid; gap: .3rem; font-size: .9rem; color: var(--color-muted); }
+.save-list input, .inline-form input { padding: .35rem .5rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text); font: inherit; }
+.list-settings { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: var(--space); margin-top: var(--space); }

@@ -1,0 +1,26 @@
+@model FCommerce.Host.Pages.Company.Lists.ListOutcome
+@foreach (var message in Model.Message.AsEnumerable())
+{
+    <p class="notice" role="status">@message
+        @if (Model.ToCart)
+        {
+            <a asp-page="/Cart/Index">@T["GoToCart"]</a>
+        }
+    </p>
+}
+@foreach (var failure in Model.Failure.AsEnumerable())
+{
+    <p class="alert" role="alert">@failure</p>
+}
+@if (Model.NotAdded.Count > 0)
+{
+    <div class="alert" role="alert">
+        <p>@T["NotAdded"]</p>
+        <ul>
+            @foreach (var line in Model.NotAdded)
+            {
+                <li>@line</li>
+            }
+        </ul>
+    </div>
+}

@@ -1,7 +1,9 @@
 using FCommerce.Application.Messaging;
 using FCommerce.Cart.Contracts;
 using FCommerce.Cart.Domain;
+using FCommerce.Cart.Persistence;
 using FCommerce.Infrastructure;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,7 +18,7 @@ public sealed class CartOptions
 /// <summary>
 /// Carts as event streams (one per user and customer). Reads products, prices, availability, customers and settings
 /// through their contracts (requires the Catalog, Pricing, Inventory, Customers and Settings modules) and an
-/// <see cref="Application.EventStore.IEventStore"/>.
+/// <see cref="Application.EventStore.IEventStore"/>. Shopping lists are rows in the module's own schema.
 /// </summary>
 public static class CartModule
 {
@@ -37,6 +39,16 @@ public static class CartModule
         services.AddScoped<ICommandHandler<ClearCart, Result<CartChange, Error>>, ClearCartHandler>();
         services.AddScoped<IQueryHandler<GetCartSize, int>, GetCartSizeHandler>();
         services.AddScoped<IQueryHandler<GetCart, CartView>, GetCartHandler>();
+
+        services.AddModuleDbContext<CartDbContext>(CartDbContext.Schema);
+        services.AddScoped<ShoppingListStore>();
+        services.AddScoped<ICommandHandler<SaveCartAsShoppingList, Result<Guid, Error>>, SaveCartAsShoppingListHandler>();
+        services.AddScoped<ICommandHandler<RenameShoppingList, Result<Unit, Error>>, RenameShoppingListHandler>();
+        services.AddScoped<ICommandHandler<DeleteShoppingList, Result<Unit, Error>>, DeleteShoppingListHandler>();
+        services.AddScoped<ICommandHandler<ChangeShoppingListItem, Result<Unit, Error>>, ChangeShoppingListItemHandler>();
+        services.AddScoped<ICommandHandler<ShoppingListToCart, Result<CartChange, Error>>, ShoppingListToCartHandler>();
+        services.AddScoped<IQueryHandler<GetShoppingLists, IReadOnlyList<ShoppingListSummary>>, GetShoppingListsHandler>();
+        services.AddScoped<IQueryHandler<GetShoppingList, Result<ShoppingListView, Error>>, GetShoppingListHandler>();
         return services;
     }
 }

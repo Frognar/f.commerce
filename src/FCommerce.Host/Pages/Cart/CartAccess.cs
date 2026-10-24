@@ -12,23 +12,33 @@ namespace FCommerce.Host.Pages.Cart;
 /// </summary>
 public sealed class CartAccess(CurrentUser user, AccessControl access, IQueryHandler<GetCartSize, int> size)
 {
-    private Maybe<Maybe<CartOwner>> owner;
+    private Maybe<Maybe<CartOwner>> cartOwner;
+    private Maybe<Maybe<CartOwner>> listsOwner;
 
+    /// <summary>The owner of the cart; none when the user may not order for the active customer.</summary>
     public async Task<Maybe<CartOwner>> OwnerAsync(CancellationToken cancellationToken = default)
     {
-        var known = await owner.Match(
-            Task.FromResult,
-            async () =>
-            {
-                var session = await user.SessionAsync(cancellationToken);
-                var membership = await user.ActiveMembershipAsync(cancellationToken);
-                var candidate = from s in session from m in membership select new CartOwner(s.UserId, m.CustomerCode);
-                return await candidate.Match(
-                    async c => await access.CanAsync(AccessAction.Manage, new Resource.Cart(c.CustomerCode), cancellationToken) ? Maybe.Some(c) : Maybe<CartOwner>.None,
-                    () => Task.FromResult(Maybe<CartOwner>.None));
-            });
-        owner = Maybe.Some(known);
+        var known = await cartOwner.Match(Task.FromResult, () => PermittedAsync(code => new Resource.Cart(code), cancellationToken));
+        cartOwner = Maybe.Some(known);
         return known;
+    }
+
+    /// <summary>The owner of shopping lists (the same person and customer, with the shopping lists feature on).</summary>
+    public async Task<Maybe<CartOwner>> ShoppingListsOwnerAsync(CancellationToken cancellationToken = default)
+    {
+        var known = await listsOwner.Match(Task.FromResult, () => PermittedAsync(code => new Resource.ShoppingLists(code), cancellationToken));
+        listsOwner = Maybe.Some(known);
+        return known;
+    }
+
+    private async Task<Maybe<CartOwner>> PermittedAsync(Func<string, Resource> resource, CancellationToken cancellationToken)
+    {
+        var session = await user.SessionAsync(cancellationToken);
+        var membership = await user.ActiveMembershipAsync(cancellationToken);
+        var candidate = from s in session from m in membership select new CartOwner(s.UserId, m.CustomerCode);
+        return await candidate.Match(
+            async c => await access.CanAsync(AccessAction.Manage, resource(c.CustomerCode), cancellationToken) ? Maybe.Some(c) : Maybe<CartOwner>.None,
+            () => Task.FromResult(Maybe<CartOwner>.None));
     }
 
     /// <summary>Products in the cart, for the header; none when the user has no cart.</summary>

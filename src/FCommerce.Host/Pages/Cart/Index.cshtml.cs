@@ -30,6 +30,7 @@ public sealed class IndexModel(
     ICommandHandler<ChangeCartQuantity, Result<CartChange, Error>> change,
     ICommandHandler<RemoveFromCart, Result<CartChange, Error>> remove,
     ICommandHandler<ClearCart, Result<CartChange, Error>> clear,
+    ICommandHandler<SaveCartAsShoppingList, Result<Guid, Error>> saveList,
     SupportedCultures cultures,
     IStringLocalizer<SharedResource> texts) : PageModel
 {
@@ -46,6 +47,9 @@ public sealed class IndexModel(
     public Maybe<string> Failure { get; private set; }
 
     public bool QuickOrder { get; private set; }
+
+    /// <summary>The cart can be saved as a shopping list (feature and access).</summary>
+    public bool ShoppingLists { get; private set; }
 
     /// <summary>Pasted text that had unreadable lines, offered again for correcting.</summary>
     public string PastedText { get; private set; } = string.Empty;
@@ -112,6 +116,26 @@ public sealed class IndexModel(
     public Task<IActionResult> OnPostClearAsync(CancellationToken cancellationToken) =>
         ChangeAsync(owner => clear.HandleAsync(new ClearCart(owner), cancellationToken), quickOrder: false, cancellationToken);
 
+    /// <summary>Saves the cart as a new shopping list and opens it.</summary>
+    public Task<IActionResult> OnPostSaveListAsync(string? name, CancellationToken cancellationToken) =>
+        WithOwnerAsync(async owner =>
+        {
+            var listsOwner = await carts.ShoppingListsOwnerAsync(cancellationToken);
+            if (!listsOwner.Exists(o => o == owner))
+            {
+                return NotFound();
+            }
+
+            return await (await saveList.HandleAsync(new SaveCartAsShoppingList(owner, name ?? string.Empty), cancellationToken)).Match<Task<IActionResult>>(
+                id => Task.FromResult<IActionResult>(LocalRedirect(Url.CulturePage("/Company/Lists/Details", new { id }))),
+                async error =>
+                {
+                    Failure = texts.Describe(error.Details.IsEmpty ? error : error.Details[0]);
+                    await LoadAsync(owner, cancellationToken);
+                    return Page();
+                });
+        }, cancellationToken);
+
     /// <summary>A rejected line in words: "Wiersz 3 (SR-M8 dużo): …".</summary>
     public string Rejection(CartRejection rejection)
     {
@@ -147,6 +171,7 @@ public sealed class IndexModel(
     {
         Cart = await getCart.HandleAsync(new GetCart(owner, cultures.ForRequest()), cancellationToken);
         QuickOrder = await QuickOrderOnAsync(cancellationToken);
+        ShoppingLists = (await carts.ShoppingListsOwnerAsync(cancellationToken)).Match(_ => true, () => false);
     }
 
     private async Task<bool> QuickOrderOnAsync(CancellationToken cancellationToken) =>

@@ -1,0 +1,9 @@
+@model Guid
+<form class="inline-actions" method="post" asp-page="/Company/Lists/Index" asp-page-handler="ToCart" asp-route-id="@Model">
+    <input type="hidden" name="replace" value="false" />
+    <button class="button" type="submit">@T["AddListToCart"]</button>
+</form>
+<form class="inline-actions" method="post" asp-page="/Company/Lists/Index" asp-page-handler="ToCart" asp-route-id="@Model" onsubmit="return confirm('@T["ReplaceCartConfirm"]')">
+    <input type="hidden" name="replace" value="true" />
+    <button class="button secondary" type="submit">@T["ReplaceCart"]</button>
+</form>

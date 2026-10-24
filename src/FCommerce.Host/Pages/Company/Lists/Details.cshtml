@@ -1,0 +1,75 @@
+@page "/company/lists/{id:guid}"
+@using FCommerce.Host.Media
+@using FCommerce.Media.Contracts
+@model FCommerce.Host.Pages.Company.Lists.DetailsModel
+@{
+    var list = Model.List;
+    ViewData["Title"] = list.Name;
+}
+<nav class="breadcrumb">
+    <a asp-page="/Company/Index">@T["MyCompany"]</a> <span aria-hidden="true">/</span>
+    <a asp-page="/Company/Lists/Index">@T["ShoppingLists"]</a>
+</nav>
+<h1>@list.Name</h1>
+<partial name="_ListOutcome" model="Model.Outcome" />
+<p class="actions"><partial name="_ToCartButtons" model="list.Id" /></p>
+
+<table class="data cart-lines">
+    <thead>
+        <tr>
+            <th scope="col">@T["Product"]</th>
+            <th scope="col">@T["Quantity"]</th>
+            <th scope="col"><span class="visually-hidden">@T["Actions"]</span></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in list.Items)
+        {
+            <tr>
+                <td class="cart-product">
+                    <img src="@(item.ImageId is null ? "/img/placeholder.svg" : MediaEndpoints.ImageUrl(item.ImageId, ImageVariantNames.Thumbnail))" alt="" loading="lazy" />
+                    <div>
+                        @if (item.Name is not null)
+                        {
+                            <a asp-page="/Products/Details" asp-route-sku="@item.Sku">@item.Name</a>
+                        }
+                        else
+                        {
+                            <span>@item.Sku</span>
+                            <span class="cart-issues"><span class="blocks">@T["Issue.unavailable"]</span></span>
+                        }
+                        <span class="muted">@T["Sku"]: @item.Sku</span>
+                    </div>
+                </td>
+                <td>
+                    <form class="cart-quantity" method="post" asp-page="/Company/Lists/Details" asp-page-handler="Quantity" asp-route-id="@list.Id">
+                        <input type="hidden" name="sku" value="@item.Sku" />
+                        <input name="quantity" value="@Formats.Quantity(item.Quantity)" inputmode="decimal" size="6" maxlength="12" aria-label="@T["QuantityOf", item.Name ?? item.Sku]" />
+                        <span class="unit">@item.Unit</span>
+                        <button class="link" type="submit">@T["Change"]</button>
+                    </form>
+                </td>
+                <td>
+                    @if (list.Items.Count > 1)
+                    {
+                        <form method="post" asp-page="/Company/Lists/Details" asp-page-handler="Quantity" asp-route-id="@list.Id">
+                            <input type="hidden" name="sku" value="@item.Sku" />
+                            <input type="hidden" name="quantity" value="0" />
+                            <button class="link" type="submit">@T["Remove"]</button>
+                        </form>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<section class="card list-settings">
+    <form class="inline-form" method="post" asp-page="/Company/Lists/Details" asp-page-handler="Rename" asp-route-id="@list.Id">
+        <label>@T["ListName"] <input name="name" value="@list.Name" maxlength="100" required /></label>
+        <button class="button secondary" type="submit">@T["Rename"]</button>
+    </form>
+    <form method="post" asp-page="/Company/Lists/Details" asp-page-handler="Delete" asp-route-id="@list.Id" onsubmit="return confirm('@T["DeleteListConfirm"]')">
+        <button class="link" type="submit">@T["DeleteList"]</button>
+    </form>
+</section>

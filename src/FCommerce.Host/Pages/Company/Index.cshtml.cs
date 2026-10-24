@@ -17,6 +17,8 @@ public sealed class IndexModel(CompanyContext company) : PageModel
 
     public bool CanSeeDocuments { get; private set; }
 
+    public bool CanSeeShoppingLists { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken) =>
         await (await company.ActiveCustomerAsync(cancellationToken)).Match(customer => ShowAsync(customer, cancellationToken), () => Task.FromResult<IActionResult>(Page()));
 
@@ -30,6 +32,7 @@ public sealed class IndexModel(CompanyContext company) : PageModel
         Customer = customer;
         CanSeeUsers = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerUsers(code, salesperson), customer, cancellationToken);
         CanSeeDocuments = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerDocuments(code, salesperson), customer, cancellationToken);
+        CanSeeShoppingLists = await company.CanAsync(AccessAction.Read, (code, _) => new Resource.ShoppingLists(code), customer, cancellationToken);
         return Page();
     }
 }

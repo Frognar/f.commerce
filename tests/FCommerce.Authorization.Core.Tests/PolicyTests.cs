@@ -149,6 +149,10 @@ public sealed class PolicyTests
         AssertDenied(Decide(Subject.Anonymous, AccessAction.Read, new Resource.Cart("C1")), "no-applicable-policy");
         AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C1"), Environment(customerActive: false)), "customer-inactive");
         AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.Cart("C1"), Environment(off: Feature.Cart)), "feature-off:cart");
+        Assert.True(Decide(Buyer, AccessAction.Manage, new Resource.ShoppingLists("C1")).IsPermitted);
+        AssertDenied(Decide(Accountant, AccessAction.Read, new Resource.ShoppingLists("C1")), "cannot-order");
+        AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.ShoppingLists("C2")), "other-customer");
+        AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.ShoppingLists("C1"), Environment(off: Feature.ShoppingLists)), "feature-off:shopping-lists");
     }
 }
 

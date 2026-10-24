@@ -399,4 +399,32 @@
   <data name="Error.cart.item-not-found" xml:space="preserve"><value>This product is no longer in the cart.</value></data>
   <data name="Error.sku.empty" xml:space="preserve"><value>enter a SKU</value></data>
   <data name="Error.sku.too-long" xml:space="preserve"><value>the SKU is too long</value></data>
+  <data name="ShoppingLists" xml:space="preserve"><value>Shopping lists</value></data>
+  <data name="YourShoppingLists" xml:space="preserve"><value>Your shopping lists</value></data>
+  <data name="NoShoppingLists" xml:space="preserve"><value>You have no shopping lists yet. Save your cart as a list:</value></data>
+  <data name="ListName" xml:space="preserve"><value>List name</value></data>
+  <data name="Products" xml:space="preserve"><value>Products</value></data>
+  <data name="Changed" xml:space="preserve"><value>Changed</value></data>
+  <data name="Delete" xml:space="preserve"><value>Delete</value></data>
+  <data name="DeleteList" xml:space="preserve"><value>Delete the list</value></data>
+  <data name="DeleteListConfirm" xml:space="preserve"><value>Delete this shopping list?</value></data>
+  <data name="AddListToCart" xml:space="preserve"><value>Add to cart</value></data>
+  <data name="ReplaceCart" xml:space="preserve"><value>Replace the cart</value></data>
+  <data name="ReplaceCartConfirm" xml:space="preserve"><value>Replace everything in the cart?</value></data>
+  <data name="Rename" xml:space="preserve"><value>Rename</value></data>
+  <data name="SaveAsList" xml:space="preserve"><value>Save as a list</value></data>
+  <data name="GoToCart" xml:space="preserve"><value>Go to the cart</value></data>
+  <data name="ListAddedToCart" xml:space="preserve"><value>Lines added to the cart: {0}. The cart now has {1} products.</value></data>
+  <data name="ShoppingListDeleted" xml:space="preserve"><value>The list was deleted.</value></data>
+  <data name="ShoppingListRenamed" xml:space="preserve"><value>The list was renamed.</value></data>
+  <data name="ShoppingListChanged" xml:space="preserve"><value>The change was saved.</value></data>
+  <data name="Error.shopping-list.name-empty" xml:space="preserve"><value>Name the list.</value></data>
+  <data name="Error.shopping-list.name-too-long" xml:space="preserve"><value>At most 100 characters.</value></data>
+  <data name="Error.shopping-list.name-invalid" xml:space="preserve"><value>The name contains characters that are not allowed.</value></data>
+  <data name="Error.shopping-list.name-taken" xml:space="preserve"><value>You already have a list with this name.</value></data>
+  <data name="Error.shopping-list.too-many" xml:space="preserve"><value>You can have at most 50 shopping lists.</value></data>
+  <data name="Error.shopping-list.empty" xml:space="preserve"><value>A list needs at least one product.</value></data>
+  <data name="Error.shopping-list.too-many-items" xml:space="preserve"><value>A list holds at most 200 products.</value></data>
+  <data name="Error.shopping-list.not-found" xml:space="preserve"><value>No such shopping list.</value></data>
+  <data name="Error.shopping-list.item-not-found" xml:space="preserve"><value>This product is not on the list.</value></data>
 </root>
