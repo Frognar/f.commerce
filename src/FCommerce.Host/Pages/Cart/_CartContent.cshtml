@@ -1,0 +1,178 @@
+@using FCommerce.Host.Media
+@using FCommerce.Media.Contracts
+@using FCommerce.Pricing.Contracts
+@model FCommerce.Host.Pages.Cart.IndexModel
+@{
+    var cart = Model.Cart;
+    var cartHref = Url.CulturePage("/Cart/Index");
+}
+<div id="@FCommerce.Host.Pages.Cart.IndexModel.ContentId" class="cart" aria-live="polite">
+    @if (Context.Request.Headers["HX-Request"] == "true")
+    {
+        <partial name="_CartLink" model="new FCommerce.Host.Pages.Cart.CartLink(cart.Lines.Count, OutOfBand: true)" />
+    }
+    @foreach (var message in Model.Message.AsEnumerable())
+    {
+        <p class="notice" role="status">@message</p>
+    }
+    @foreach (var failure in Model.Failure.AsEnumerable())
+    {
+        <p class="alert" role="alert">@failure</p>
+    }
+    @if (Model.Rejected.Count > 0)
+    {
+        <div class="alert" role="alert">
+            <p>@T["NotAdded"]</p>
+            <ul>
+                @foreach (var rejection in Model.Rejected)
+                {
+                    <li>@Model.Rejection(rejection)</li>
+                }
+            </ul>
+        </div>
+    }
+
+    @if (cart.Lines.Count == 0)
+    {
+        <p class="empty">@T["CartEmpty"] <a asp-page="/Catalog/Index">@T["BrowseCatalog"]</a></p>
+    }
+    else
+    {
+        <table class="data cart-lines">
+            <thead>
+                <tr>
+                    <th scope="col">@T["Product"]</th>
+                    <th scope="col" class="number">@T["UnitNetPrice"]</th>
+                    <th scope="col">@T["Quantity"]</th>
+                    <th scope="col" class="number">@T["NetValue"]</th>
+                    <th scope="col"><span class="visually-hidden">@T["Actions"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in cart.Lines)
+                {
+                    var unit = line.Unit ?? string.Empty;
+                    <tr class="@(line.Blocking ? "blocking" : null)">
+                        <td class="cart-product">
+                            @if (line.Name is not null)
+                            {
+                                <img src="@(line.ImageId is null ? "/img/placeholder.svg" : MediaEndpoints.ImageUrl(line.ImageId, ImageVariantNames.Thumbnail))" alt="" loading="lazy" />
+                                <div>
+                                    <a asp-page="/Products/Details" asp-route-sku="@line.Sku">@line.Name</a>
+                                    <span class="muted">@T["Sku"]: @line.Sku</span>
+                                    @if (line.Discontinued)
+                                    {
+                                        <span class="badge discontinued">@T["Discontinued"]</span>
+                                    }
+                                    <partial name="_CartLineIssues" model="(line, unit)" />
+                                </div>
+                            }
+                            else
+                            {
+                                <div>
+                                    <span>@line.Sku</span>
+                                    <partial name="_CartLineIssues" model="(line, unit)" />
+                                </div>
+                            }
+                        </td>
+                        <td class="number">
+                            @if (line.PriceStatus == PriceStatuses.Priced && line.UnitNet is { } unitNet)
+                            {
+                                <span>@Formats.Money(unitNet, line.Currency ?? string.Empty)</span>
+                                <span class="muted">@T["GrossPrice", Formats.Money(line.UnitGross ?? 0, line.Currency ?? string.Empty)]</span>
+                            }
+                            else
+                            {
+                                <span class="price-on-request">@T["PriceOnRequest"]</span>
+                            }
+                        </td>
+                        <td>
+                            <form class="cart-quantity" method="post" asp-page="/Cart/Index" asp-page-handler="Quantity"
+                                  hx-post="@Url.CulturePageHandler("/Cart/Index", "Quantity")" hx-target="#@FCommerce.Host.Pages.Cart.IndexModel.ContentId" hx-swap="outerHTML" hx-trigger="change">
+                                <input type="hidden" name="sku" value="@line.Sku" />
+                                <input name="quantity" value="@Formats.Quantity(line.Quantity)" inputmode="decimal" size="6" maxlength="12" aria-label="@T["QuantityOf", line.Name ?? line.Sku]" />
+                                <span class="unit">@unit</span>
+                                <noscript><button class="link" type="submit">@T["Change"]</button></noscript>
+                            </form>
+                        </td>
+                        <td class="number">
+                            @if (line.NetAmount is { } amount)
+                            {
+                                @Formats.Money(amount, line.Currency ?? string.Empty)
+                            }
+                        </td>
+                        <td>
+                            <form method="post" asp-page="/Cart/Index" asp-page-handler="Remove"
+                                  hx-post="@Url.CulturePageHandler("/Cart/Index", "Remove")" hx-target="#@FCommerce.Host.Pages.Cart.IndexModel.ContentId" hx-swap="outerHTML">
+                                <input type="hidden" name="sku" value="@line.Sku" />
+                                <button class="link" type="submit" aria-label="@T["RemoveFromCartOf", line.Name ?? line.Sku]">@T["Remove"]</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="cart-summary">
+            @foreach (var total in cart.Totals)
+            {
+                <dl class="cart-totals">
+                    <dt>@T["NetTotal"]</dt><dd>@Formats.Money(total.Net, total.Currency)</dd>
+                    @foreach (var rate in total.Rates)
+                    {
+                        <dt>@T["VatAt", Formats.Percent(rate.Rate)]</dt><dd>@Formats.Money(rate.Vat, total.Currency)</dd>
+                    }
+                    <dt class="gross">@T["GrossTotal"]</dt><dd class="gross">@Formats.Money(total.Gross, total.Currency)</dd>
+                </dl>
+            }
+            @if (cart.Lines.Any(l => l.PriceStatus != PriceStatuses.Priced))
+            {
+                <p class="muted">@T["TotalsWithoutUnpriced"]</p>
+            }
+
+            @if (cart.Issues.Contains("customer-blocked"))
+            {
+                <p class="alert">@T["CartCustomerBlocked"]</p>
+            }
+            @if (cart.CanOrder)
+            {
+                <p class="notice ready">@T["CartReady"]</p>
+            }
+            else if (cart.Lines.Any(l => l.Blocking))
+            {
+                <p class="alert">@T["CartNotReady"]</p>
+            }
+
+            <form method="post" asp-page="/Cart/Index" asp-page-handler="Clear"
+                  hx-post="@Url.CulturePageHandler("/Cart/Index", "Clear")" hx-target="#@FCommerce.Host.Pages.Cart.IndexModel.ContentId" hx-swap="outerHTML"
+                  hx-confirm="@T["ClearCartConfirm"]">
+                <button class="link" type="submit">@T["ClearCart"]</button>
+            </form>
+        </div>
+    }
+
+    @if (Model.QuickOrder)
+    {
+        <section class="card quick-order">
+            <h2>@T["QuickOrder"]</h2>
+            <form class="quick-add" method="post" asp-page="/Cart/Index" asp-page-handler="QuickAdd"
+                  hx-post="@Url.CulturePageHandler("/Cart/Index", "QuickAdd")" hx-target="#@FCommerce.Host.Pages.Cart.IndexModel.ContentId" hx-swap="outerHTML">
+                <label>@T["SkuOrName"]
+                    <input name="sku" list="cart-suggestions" autocomplete="off" required maxlength="64"
+                           hx-get="@Url.CulturePageHandler("/Cart/Index", "Suggest")" hx-trigger="input changed delay:250ms" hx-target="#cart-suggestions" hx-swap="innerHTML" />
+                </label>
+                <datalist id="cart-suggestions"></datalist>
+                <label>@T["Quantity"] <input name="quantity" value="1" inputmode="decimal" size="6" maxlength="12" /></label>
+                <button class="button" type="submit">@T["AddToCart"]</button>
+            </form>
+            <form class="paste" method="post" asp-page="/Cart/Index" asp-page-handler="Paste"
+                  hx-post="@Url.CulturePageHandler("/Cart/Index", "Paste")" hx-target="#@FCommerce.Host.Pages.Cart.IndexModel.ContentId" hx-swap="outerHTML">
+                <label>@T["PasteList"]
+                    <textarea name="text" rows="5" placeholder="SR-M8x40-ZN 100&#10;NK-M8-ZN;50">@Model.PastedText</textarea>
+                </label>
+                <p class="muted">@T["PasteListHint"]</p>
+                <button class="button" type="submit">@T["AddLines"]</button>
+            </form>
+        </section>
+    }
+</div>

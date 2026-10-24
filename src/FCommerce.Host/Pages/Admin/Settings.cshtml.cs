@@ -105,7 +105,7 @@ public sealed class SettingsModel(
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
-        var threshold = Quantity(Form.LowStockThreshold);
+        var threshold = FormNumbers.Decimal(Form.LowStockThreshold, "settings.low-stock-threshold", "lowStockThreshold");
         var logo = await LogoAsync(cancellationToken);
         var saved = await threshold.Bind(t => logo.Map(l => (Threshold: t, LogoId: l))).BindAsync(form => update.HandleAsync(
             new UpdatePlatformSettings(
@@ -150,16 +150,6 @@ public sealed class SettingsModel(
             return (await uploadImage.HandleAsync(new UploadImage(buffer.ToArray()), cancellationToken)).Map(image => Maybe.Some(image.Id));
         }
     }
-
-    /// <summary>A quantity typed with a decimal comma or point; its range is checked by the settings rules.</summary>
-    private static Result<decimal, Error> Quantity(string raw) =>
-        decimal.TryParse(
-            raw.Trim().Replace(',', '.'),
-            NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite | NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
-            CultureInfo.InvariantCulture,
-            out var quantity)
-            ? quantity
-            : Error.Validation("settings.low-stock-threshold", "The threshold must be a number.") with { Field = "lowStockThreshold" };
 
     private async Task LoadAsync(CancellationToken cancellationToken)
     {

@@ -1,0 +1,14 @@
+@model FCommerce.Host.Pages.Cart.AddToCartForm
+<form class="add-to-cart" method="post" asp-page="/Cart/Index" asp-page-handler="Add"
+      hx-post="@Url.CulturePageHandler("/Cart/Index", "Add")" hx-target="find .add-to-cart-result" hx-swap="innerHTML">
+    <input type="hidden" name="sku" value="@Model.Sku" />
+    <input type="hidden" name="source" value="@Model.Source" />
+    <input type="hidden" name="returnUrl" value="@Model.ReturnUrl" />
+    <label class="quantity">
+        <span class="visually-hidden">@T["Quantity"]</span>
+        <input name="quantity" value="1" inputmode="decimal" size="5" maxlength="12" aria-label="@T["Quantity"]" />
+        <span class="unit">@Model.Unit</span>
+    </label>
+    <button class="button" type="submit">@T["AddToCart"]</button>
+    <span class="add-to-cart-result" role="status" aria-live="polite"></span>
+</form>

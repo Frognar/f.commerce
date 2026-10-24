@@ -47,6 +47,7 @@ builder.Services.AddScoped<AccessControl>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Shared.CustomerUsersActions>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Company.CompanyContext>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Catalog.CatalogOffers>();
+builder.Services.AddScoped<FCommerce.Host.Pages.Cart.CartAccess>();
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
 builder.Services.AddAbacAuthorization();
@@ -114,6 +115,7 @@ builder.Services.AddRazorPages(options =>
         options.Conventions.AuthorizePage("/Products/Details", Policies.CatalogRead);
         options.Conventions.AuthorizeFolder("/Account", Policies.OwnAccount);
         options.Conventions.AuthorizeFolder("/Company", Policies.OwnAccount);
+        options.Conventions.AuthorizeFolder("/Cart", Policies.OwnAccount);
         options.Conventions.AuthorizeFolder("/Admin", Policies.BackOffice);
         options.Conventions.AuthorizePage("/Admin/Operators", Policies.OperatorsManage);
         options.Conventions.AuthorizePage("/Admin/Settings", Policies.SettingsManage);

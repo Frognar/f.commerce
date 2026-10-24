@@ -55,6 +55,10 @@ else
                 {
                     <partial name="_StockBadge" model="stock" />
                 }
+                @if (Model.CanAddToCart)
+                {
+                    <partial name="_AddToCart" model="new FCommerce.Host.Pages.Cart.AddToCartForm(product.Sku, product.Unit, FCommerce.Cart.Contracts.CartSources.Catalog, Model.Href(page: results.Page))" />
+                }
             </li>
         }
     </ul>

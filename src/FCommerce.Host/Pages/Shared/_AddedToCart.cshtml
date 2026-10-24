@@ -1,0 +1,6 @@
+@model FCommerce.Host.Pages.Cart.AddedToCart
+<span class="@(Model.Success ? "added" : "not-added")">@Model.Message</span>
+@foreach (var count in Model.Count.AsEnumerable())
+{
+    <partial name="_CartLink" model="new FCommerce.Host.Pages.Cart.CartLink(count, OutOfBand: true)" />
+}

@@ -1,0 +1,2 @@
+@model FCommerce.Host.Pages.Cart.CartLink
+<a id="cart-link" class="cart-link" asp-page="/Cart/Index" hx-swap-oob="@(Model.OutOfBand ? "true" : null)">@T["Cart"] <span class="cart-count" aria-label="@T["CartCount", Model.Count]">@Model.Count</span></a>

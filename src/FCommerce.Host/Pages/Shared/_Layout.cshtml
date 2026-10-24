@@ -3,6 +3,7 @@
 @inject IAntiforgery Antiforgery
 @inject SupportedCultures Cultures
 @inject FCommerce.Host.Security.CurrentUser CurrentUser
+@inject FCommerce.Host.Pages.Cart.CartAccess CartAccess
 @inject FCommerce.Application.Messaging.IQueryHandler<FCommerce.Settings.Contracts.GetPlatformSettings, FCommerce.Settings.Contracts.PlatformSettingsView> Settings
 @{
     var culture = CultureInfo.CurrentUICulture.Name;
@@ -17,6 +18,7 @@
     var membership = await CurrentUser.ActiveMembershipAsync();
     var companies = membership.Match(_ => true, () => false) ? await CurrentUser.CompaniesAsync() : [];
     var canSwitch = companies.Count > 1 && platform.IsOn(FCommerce.SharedKernel.Features.Feature.MultiCustomerAccounts.Value);
+    var cartSize = await CartAccess.SizeAsync();
 }
 <!DOCTYPE html>
 <html lang="@culture">
@@ -78,6 +80,10 @@
                     @foreach (var active in membership.Where(_ => !canSwitch).AsEnumerable())
                     {
                         <a asp-page="/Company/Index">@companies.FirstOrNone(c => c.Code == active.CustomerCode).Map(c => c.Name).ValueOr(T["MyCompany"])</a>
+                    }
+                    @foreach (var count in cartSize.AsEnumerable())
+                    {
+                        <partial name="_CartLink" model="new FCommerce.Host.Pages.Cart.CartLink(count, OutOfBand: false)" />
                     }
                     <a asp-page="/Account/Index">@signedIn.Name</a>
                     <form method="post" asp-page="/Auth/SignOut">

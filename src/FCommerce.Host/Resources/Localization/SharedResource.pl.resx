@@ -345,4 +345,58 @@
   <data name="NextDeliveryWithQuantity" xml:space="preserve"><value>Dostawa {0}: {1} {2}</value></data>
   <data name="Discontinued" xml:space="preserve"><value>Wycofany</value></data>
   <data name="DiscontinuedHint" xml:space="preserve"><value>Sprzedaż do wyczerpania zapasów.</value></data>
+  <data name="Cart" xml:space="preserve"><value>Koszyk</value></data>
+  <data name="CartCount" xml:space="preserve"><value>Produktów w koszyku: {0}</value></data>
+  <data name="AddToCart" xml:space="preserve"><value>Do koszyka</value></data>
+  <data name="AddedToCart" xml:space="preserve"><value>Dodano do koszyka.</value></data>
+  <data name="Quantity" xml:space="preserve"><value>Ilość</value></data>
+  <data name="QuantityOf" xml:space="preserve"><value>Ilość: {0}</value></data>
+  <data name="AddedItems" xml:space="preserve"><value>Dodano do koszyka pozycji: {0}.</value></data>
+  <data name="NotAdded" xml:space="preserve"><value>Nie dodano:</value></data>
+  <data name="RejectedLine" xml:space="preserve"><value>wiersz {0} ({1}): {2}</value></data>
+  <data name="RejectedItem" xml:space="preserve"><value>{0}: {1}</value></data>
+  <data name="CartEmpty" xml:space="preserve"><value>Koszyk jest pusty.</value></data>
+  <data name="BrowseCatalog" xml:space="preserve"><value>Przejdź do katalogu</value></data>
+  <data name="Product" xml:space="preserve"><value>Produkt</value></data>
+  <data name="UnitNetPrice" xml:space="preserve"><value>Cena netto</value></data>
+  <data name="NetValue" xml:space="preserve"><value>Wartość netto</value></data>
+  <data name="Actions" xml:space="preserve"><value>Akcje</value></data>
+  <data name="Change" xml:space="preserve"><value>Zmień</value></data>
+  <data name="Remove" xml:space="preserve"><value>Usuń</value></data>
+  <data name="RemoveFromCartOf" xml:space="preserve"><value>Usuń z koszyka: {0}</value></data>
+  <data name="NetTotal" xml:space="preserve"><value>Razem netto</value></data>
+  <data name="VatAt" xml:space="preserve"><value>VAT {0}</value></data>
+  <data name="GrossTotal" xml:space="preserve"><value>Razem brutto</value></data>
+  <data name="TotalsWithoutUnpriced" xml:space="preserve"><value>Sumy nie obejmują pozycji bez ceny.</value></data>
+  <data name="CartCustomerBlocked" xml:space="preserve"><value>Konto firmy jest zablokowane — zamówienia są wstrzymane. Skontaktuj się z opiekunem.</value></data>
+  <data name="CartReady" xml:space="preserve"><value>Koszyk jest gotowy do zamówienia.</value></data>
+  <data name="CartNotReady" xml:space="preserve"><value>Zamówienia nie da się złożyć, dopóki w koszyku są oznaczone pozycje.</value></data>
+  <data name="ClearCart" xml:space="preserve"><value>Wyczyść koszyk</value></data>
+  <data name="ClearCartConfirm" xml:space="preserve"><value>Usunąć wszystkie pozycje z koszyka?</value></data>
+  <data name="QuickOrder" xml:space="preserve"><value>Szybkie zamawianie</value></data>
+  <data name="SkuOrName" xml:space="preserve"><value>Indeks lub nazwa</value></data>
+  <data name="PasteList" xml:space="preserve"><value>Wklej listę</value></data>
+  <data name="PasteListHint" xml:space="preserve"><value>Każdy wiersz: indeks i ilość, np. skopiowane z arkusza (tabulator, średnik, spacja lub przecinek).</value></data>
+  <data name="AddLines" xml:space="preserve"><value>Dodaj pozycje</value></data>
+  <data name="SignInToOrder" xml:space="preserve"><value>Zaloguj się, aby zamawiać</value></data>
+  <data name="Issue.unavailable" xml:space="preserve"><value>Produkt nie jest już dostępny w katalogu — usuń go z koszyka.</value></data>
+  <data name="Issue.no-price" xml:space="preserve"><value>Brak ceny dla Twojej firmy — bez niej zamówienia nie da się złożyć. Skontaktuj się z opiekunem.</value></data>
+  <data name="Issue.discontinued-shortage" xml:space="preserve"><value>Towar wycofany — ilość przekracza dostępny zapas.</value></data>
+  <data name="Issue.discontinued-shortage.available" xml:space="preserve"><value>Towar wycofany — dostępne tylko {0} {1}.</value></data>
+  <data name="Issue.backorder" xml:space="preserve"><value>Brak pełnej ilości — realizacja po najbliższej dostawie.</value></data>
+  <data name="Issue.backorder.on" xml:space="preserve"><value>Brak pełnej ilości — realizacja po dostawie ({0}).</value></data>
+  <data name="Issue.backorder.available" xml:space="preserve"><value>Od ręki {0} {1}, reszta po najbliższej dostawie.</value></data>
+  <data name="Issue.backorder.available-on" xml:space="preserve"><value>Od ręki {0} {1}, reszta po dostawie ({2}).</value></data>
+  <data name="Error.product.unknown" xml:space="preserve"><value>nie ma takiego produktu w katalogu</value></data>
+  <data name="Error.paste.quantity" xml:space="preserve"><value>niepoprawna ilość</value></data>
+  <data name="Error.paste.format" xml:space="preserve"><value>oczekiwano indeksu i ilości</value></data>
+  <data name="Error.paste.too-many-lines" xml:space="preserve"><value>za dużo wierszy naraz (najwyżej 200)</value></data>
+  <data name="Error.quantity.not-positive" xml:space="preserve"><value>ilość musi być większa od zera</value></data>
+  <data name="Error.quantity.precision" xml:space="preserve"><value>ilość może mieć najwyżej 3 miejsca po przecinku</value></data>
+  <data name="Error.quantity.too-large" xml:space="preserve"><value>za duża ilość</value></data>
+  <data name="Error.quantity.invalid" xml:space="preserve"><value>Podaj ilość liczbą.</value></data>
+  <data name="Error.cart.too-many-items" xml:space="preserve"><value>W koszyku może być najwyżej 200 produktów.</value></data>
+  <data name="Error.cart.item-not-found" xml:space="preserve"><value>Tego produktu nie ma już w koszyku.</value></data>
+  <data name="Error.sku.empty" xml:space="preserve"><value>podaj indeks</value></data>
+  <data name="Error.sku.too-long" xml:space="preserve"><value>za długi indeks</value></data>
 </root>

@@ -88,6 +88,14 @@ else
             {
                 <section class="offer" aria-label="@T["PriceAndAvailability"]">
                     <partial name="_PriceTag" model="new PriceTag(offer.Price, product.Unit, Model.SignInHref, Detailed: true)" />
+                    @if (Model.CanAddToCart)
+                    {
+                        <partial name="_AddToCart" model="new FCommerce.Host.Pages.Cart.AddToCartForm(product.Sku, product.Unit, FCommerce.Cart.Contracts.CartSources.Product, Model.ReturnUrl)" />
+                    }
+                    else if (!User.Identity?.IsAuthenticated ?? true)
+                    {
+                        <p class="muted"><a href="@Model.SignInHref">@T["SignInToOrder"]</a></p>
+                    }
                     @if (offer.Stock.Display != StockDisplays.Hidden && offer.Stock.Total is { } total)
                     {
                         <p class="availability">@T["Availability"]: <partial name="_StockBadge" model="StockBadge.From(offer.Stock.Display, total, product.Unit)" /></p>

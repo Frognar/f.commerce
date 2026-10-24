@@ -14,6 +14,7 @@ public sealed class IndexModel(
     IQueryHandler<SearchProducts, Result<ProductPage, Error>> search,
     IQueryHandler<GetCategoryTree, Result<IReadOnlyList<CategoryView>, Error>> categories,
     CatalogOffers offers,
+    Cart.CartAccess carts,
     SupportedCultures cultures) : PageModel
 {
     public const string ResultsId = "results";
@@ -38,6 +39,9 @@ public sealed class IndexModel(
     /// <summary>Prices and stock of the products on the page, for the signed-in user (or the visitor).</summary>
     public ListingOffers Offers { get; private set; } = ListingOffers.None;
 
+    /// <summary>The user may order for the active customer: products get an "add to cart" form.</summary>
+    public bool CanAddToCart { get; private set; }
+
     /// <summary>URL token of a filter: the escaped code cannot contain '=', so the first '=' separates code and value.</summary>
     public static string FilterValue(string code, string value) => $"{Uri.EscapeDataString(code)}={value}";
 
@@ -52,6 +56,7 @@ public sealed class IndexModel(
             {
                 (Results, Categories) = loaded;
                 Offers = await offers.ListAsync([.. Results.Items.Select(product => product.Sku)], cancellationToken);
+                CanAddToCart = (await carts.OwnerAsync(cancellationToken)).Match(_ => true, () => false);
                 return Request.IsHtmxFor(ResultsId) ? Partial("_ProductResults", this) : Page();
             },
             error => Task.FromResult<IActionResult>(BadRequest(error.Message)));

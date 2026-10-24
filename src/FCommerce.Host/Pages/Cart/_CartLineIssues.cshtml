@@ -1,0 +1,39 @@
+@model (FCommerce.Cart.Contracts.CartLineView Line, string Unit)
+@if (Model.Line.Issues.Count > 0)
+{
+    <ul class="cart-issues">
+        @foreach (var issue in Model.Line.Issues)
+        {
+            var delivery = issue.NextDelivery is { } date ? Formats.Date(date) : null;
+            <li class="@(issue.Blocks ? "blocks" : "info")">
+                @switch (issue.Code)
+                {
+                    case "unavailable":
+                        @T["Issue.unavailable"]
+                        break;
+                    case "no-price":
+                        @T["Issue.no-price"]
+                        break;
+                    case "discontinued-shortage" when issue.Available is { } available:
+                        @T["Issue.discontinued-shortage.available", Formats.Quantity(available), Model.Unit]
+                        break;
+                    case "discontinued-shortage":
+                        @T["Issue.discontinued-shortage"]
+                        break;
+                    case "backorder" when issue.Available is { } available && delivery is not null:
+                        @T["Issue.backorder.available-on", Formats.Quantity(available), Model.Unit, delivery]
+                        break;
+                    case "backorder" when issue.Available is { } available:
+                        @T["Issue.backorder.available", Formats.Quantity(available), Model.Unit]
+                        break;
+                    case "backorder" when delivery is not null:
+                        @T["Issue.backorder.on", delivery]
+                        break;
+                    default:
+                        @T["Issue.backorder"]
+                        break;
+                }
+            </li>
+        }
+    </ul>
+}

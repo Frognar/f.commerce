@@ -1,0 +1,5 @@
+@model FCommerce.Host.Pages.Cart.IndexModel
+@foreach (var product in Model.Suggestions)
+{
+    <option value="@product.Sku">@product.Name (@product.Unit)</option>
+}

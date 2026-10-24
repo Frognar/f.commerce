@@ -1,0 +1,7 @@
+@page "/cart"
+@model FCommerce.Host.Pages.Cart.IndexModel
+@{
+    ViewData["Title"] = T["Cart"];
+}
+<h1>@T["Cart"]</h1>
+<partial name="_CartContent" model="Model" />

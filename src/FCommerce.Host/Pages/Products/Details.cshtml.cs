@@ -9,7 +9,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace FCommerce.Host.Pages.Products;
 
-public sealed class DetailsModel(IQueryHandler<GetProduct, Result<ProductDetails, Error>> products, CatalogOffers offers, SupportedCultures cultures) : PageModel
+public sealed class DetailsModel(
+    IQueryHandler<GetProduct, Result<ProductDetails, Error>> products,
+    CatalogOffers offers,
+    Cart.CartAccess carts,
+    SupportedCultures cultures) : PageModel
 {
     private Maybe<ProductDetails> product;
 
@@ -21,8 +25,14 @@ public sealed class DetailsModel(IQueryHandler<GetProduct, Result<ProductDetails
     /// <summary>Price and stock for the user (or the visitor); none when they could not be read.</summary>
     public Maybe<ProductOffer> Offer { get; private set; }
 
+    /// <summary>The user may order for the active customer.</summary>
+    public bool CanAddToCart { get; private set; }
+
+    /// <summary>This product page, to come back to.</summary>
+    public string ReturnUrl => Request.Path + Request.QueryString;
+
     /// <summary>Sign-in that returns to this product.</summary>
-    public string SignInHref => Url.CulturePage("/Auth/SignIn") + QueryString.Create("returnUrl", Request.Path + Request.QueryString);
+    public string SignInHref => Url.CulturePage("/Auth/SignIn") + QueryString.Create("returnUrl", ReturnUrl);
 
     public async Task<IActionResult> OnGetAsync(string sku, CancellationToken cancellationToken) =>
         await (await products.HandleAsync(new GetProduct(cultures.ForRequest(), sku), cancellationToken)).Match<Task<IActionResult>>(
@@ -30,6 +40,7 @@ public sealed class DetailsModel(IQueryHandler<GetProduct, Result<ProductDetails
             {
                 product = found;
                 Offer = await offers.ProductAsync(found.Sku, cancellationToken);
+                CanAddToCart = (await carts.OwnerAsync(cancellationToken)).Match(_ => true, () => false);
                 return Page();
             },
             error =>
