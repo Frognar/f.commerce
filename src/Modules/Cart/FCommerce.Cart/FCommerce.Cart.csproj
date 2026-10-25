@@ -6,6 +6,7 @@
     <ProjectReference Include="..\..\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
     <ProjectReference Include="..\..\Inventory\FCommerce.Inventory.Contracts\FCommerce.Inventory.Contracts.csproj" />
+    <ProjectReference Include="..\..\Ordering\FCommerce.Ordering.Contracts\FCommerce.Ordering.Contracts.csproj" />
     <ProjectReference Include="..\..\Pricing\FCommerce.Pricing.Contracts\FCommerce.Pricing.Contracts.csproj" />
     <ProjectReference Include="..\..\Settings\FCommerce.Settings.Contracts\FCommerce.Settings.Contracts.csproj" />
     <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />

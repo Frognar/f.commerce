@@ -22,9 +22,13 @@
     {
         <p class="alert" role="status">@T["CompanyBlocked"]</p>
     }
-    @if (Model.CanSeeDocuments || Model.CanSeeUsers || Model.CanSeeShoppingLists)
+    @if (Model.CanSeeOrders || Model.CanSeeDocuments || Model.CanSeeUsers || Model.CanSeeShoppingLists)
     {
         <p class="actions">
+            @if (Model.CanSeeOrders)
+            {
+                <a class="button secondary" asp-page="/Company/Orders/Index">@T["Orders"]</a>
+            }
             @if (Model.CanSeeDocuments)
             {
                 <a class="button secondary" asp-page="/Company/Documents">@T["Documents"]</a>

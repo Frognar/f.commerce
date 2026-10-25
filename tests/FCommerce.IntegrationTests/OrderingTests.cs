@@ -77,11 +77,19 @@ public sealed class OrderingTests(HostFixture host)
     private async Task AddAsync(BuyerTerms buyer, params (string Sku, decimal Quantity)[] items) =>
         Ok(await SendAsync<AddToCart, CartChange>(new AddToCart(new CartOwner(buyer.UserId, buyer.CustomerCode), [.. items.Select(i => new CartItemData(i.Sku, i.Quantity))], CartSources.Product)));
 
-    private async Task<Result<OrderPlacement, Error>> PlaceAsync(BuyerTerms buyer, Guid? id = null, string? address = null, long? version = null, decimal? gross = null)
+    /// <summary>Places the order like the checkout page: then takes the items out of the cart at once (the event would do it later).</summary>
+    private async Task<Result<OrderPlacement, Error>> PlaceAsync(BuyerTerms buyer, Guid? id = null, string? address = null, long? version = null, decimal? gross = null, bool takeOut = true)
     {
         var checkout = await QueryAsync<GetCheckout, CheckoutView>(new GetCheckout(buyer, ["pl"]));
-        return await SendAsync<PlaceOrder, OrderPlacement>(new PlaceOrder(
+        var placed = await SendAsync<PlaceOrder, OrderPlacement>(new PlaceOrder(
             id ?? Guid.CreateVersion7(), buyer, ["pl"], version ?? checkout.CartVersion, gross ?? checkout.Total?.Gross ?? 0m, "PO-1", "Uwagi", Today.AddDays(2), address));
+        foreach (var order in placed.Match(o => [o], _ => Array.Empty<OrderPlacement>()).Where(_ => takeOut))
+        {
+            Ok(await SendAsync<RemoveOrderedItems, CartChange>(new RemoveOrderedItems(
+                new CartOwner(buyer.UserId, buyer.CustomerCode), order.OrderId, [.. order.Items.Select(i => new CartItemData(i.Sku, i.Quantity))])));
+        }
+
+        return placed;
     }
 
     private async Task<OrderSummaryView> ListedAsync(BuyerTerms buyer, Guid orderId, Func<OrderSummaryView, bool>? until = null)
@@ -249,5 +257,24 @@ public sealed class OrderingTests(HostFixture host)
         Assert.Equal(2, byReference.TotalCount);
         Assert.Empty(accepted.Items);
         Assert.Equal("status.unknown", Code(await QueryAsync<GetOrders, Result<OrderPage, Error>>(new GetOrders(Status: "lost"))));
+    }
+
+    [Fact]
+    public async Task A_placed_order_takes_its_items_out_of_the_cart_through_its_event()
+    {
+        var (buyer, skus) = await ShopAsync();
+        var owner = new CartOwner(buyer.UserId, buyer.CustomerCode);
+        await AddAsync(buyer, (skus[0], 2));
+        Ok(await PlaceAsync(buyer, takeOut: false));
+        await AddAsync(buyer, (skus[1], 1));
+
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while ((await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"]))).Lines.Any(l => l.Sku == skus[0]))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The cart was not emptied.");
+            await Task.Delay(50, Token);
+        }
+
+        Assert.Equal([(skus[1], 1m)], (await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"]))).Lines.Select(l => (l.Sku, l.Quantity)));
     }
 }

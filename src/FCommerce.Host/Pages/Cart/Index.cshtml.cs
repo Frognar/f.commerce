@@ -31,6 +31,7 @@ public sealed class IndexModel(
     ICommandHandler<RemoveFromCart, Result<CartChange, Error>> remove,
     ICommandHandler<ClearCart, Result<CartChange, Error>> clear,
     ICommandHandler<SaveCartAsShoppingList, Result<Guid, Error>> saveList,
+    Company.Orders.OrderAccess orders,
     SupportedCultures cultures,
     IStringLocalizer<SharedResource> texts) : PageModel
 {
@@ -50,6 +51,9 @@ public sealed class IndexModel(
 
     /// <summary>The cart can be saved as a shopping list (feature and access).</summary>
     public bool ShoppingLists { get; private set; }
+
+    /// <summary>The user may place orders (the ordering feature is on and they may order for the customer).</summary>
+    public bool Ordering { get; private set; }
 
     /// <summary>Pasted text that had unreadable lines, offered again for correcting.</summary>
     public string PastedText { get; private set; } = string.Empty;
@@ -172,6 +176,7 @@ public sealed class IndexModel(
         Cart = await getCart.HandleAsync(new GetCart(owner, cultures.ForRequest(), (await carts.OrderLimitAsync(cancellationToken)).OrNull()), cancellationToken);
         QuickOrder = await QuickOrderOnAsync(cancellationToken);
         ShoppingLists = (await carts.ShoppingListsOwnerAsync(cancellationToken)).Match(_ => true, () => false);
+        Ordering = (await orders.BuyerAsync(cancellationToken)).Match(_ => true, () => false);
     }
 
     private async Task<bool> QuickOrderOnAsync(CancellationToken cancellationToken) =>

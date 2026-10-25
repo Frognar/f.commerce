@@ -4,6 +4,7 @@ using FCommerce.Cart.Domain;
 using FCommerce.Cart.Persistence;
 using FCommerce.Infrastructure;
 using FCommerce.Infrastructure.Persistence;
+using FCommerce.Ordering.Contracts;
 using FCommerce.SharedKernel.Results;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -39,6 +40,7 @@ public static class CartModule
         services.AddScoped<ICommandHandler<RemoveFromCart, Result<CartChange, Error>>, RemoveFromCartHandler>();
         services.AddScoped<ICommandHandler<ClearCart, Result<CartChange, Error>>, ClearCartHandler>();
         services.AddScoped<ICommandHandler<RemoveOrderedItems, Result<CartChange, Error>>, RemoveOrderedItemsHandler>();
+        services.AddIntegrationEventHandler<OrderPlaced, TakeOrderedItemsOut>();
         services.AddScoped<IQueryHandler<GetCartSize, int>, GetCartSizeHandler>();
         services.AddScoped<IQueryHandler<GetCart, CartView>, GetCartHandler>();
 

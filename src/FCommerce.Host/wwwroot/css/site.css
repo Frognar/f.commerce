@@ -208,7 +208,10 @@ main { padding: calc(var(--space) * 2) var(--space); }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: .25rem var(--space); }
 .facts dt { color: var(--color-muted); }
 .facts dd { margin: 0; }
-.description { white-space: pre-line; }
+.description, .pre-line { white-space: pre-line; }
+.order-header { display: grid; gap: var(--space); grid-template-columns: 2fr 1fr; }
+.order-history { margin: 0; padding-left: 1.25rem; display: grid; gap: .35rem; }
+@media (max-width: 40rem) { .order-header { grid-template-columns: 1fr; } }
 .attributes { border-collapse: collapse; width: 100%; }
 .attributes th, .attributes td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--color-border); }
 .attributes th { color: var(--color-muted); font-weight: 500; width: 40%; }
@@ -287,14 +290,14 @@ fieldset.stack legend { font-weight: 600; margin-bottom: .5rem; }
 .receivables { display: flex; flex-wrap: wrap; gap: var(--space); margin-bottom: var(--space); }
 .receivable { display: grid; gap: .2rem; margin-top: 0; min-width: 14rem; }
 .receivable strong { font-size: 1.25rem; }
-.overdue, .status-overdue { color: #a11b1b; }
-.status-paid { color: #0f6a3a; }
+.overdue, .status-overdue, .status-rejected, .status-cancelled { color: #a11b1b; }
+.status-paid, .status-completed { color: #0f6a3a; }
 .filters { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin-bottom: var(--space); }
 .filters label { display: grid; gap: .3rem; font-size: .9rem; color: var(--color-muted); }
 table.data .number { text-align: right; white-space: nowrap; }
 @media (prefers-color-scheme: dark) {
-    .overdue, .status-overdue { color: #f19a9a; }
-    .status-paid { color: #8fd9ad; }
+    .overdue, .status-overdue, .status-rejected, .status-cancelled { color: #f19a9a; }
+    .status-paid, .status-completed { color: #8fd9ad; }
 }
 
 /* Prices and stock */

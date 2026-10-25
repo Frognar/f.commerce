@@ -1,0 +1,77 @@
+@page "/cart/checkout"
+@model FCommerce.Host.Pages.Cart.CheckoutModel
+@{
+    ViewData["Title"] = T["Checkout"];
+    var checkout = Model.Checkout;
+}
+<nav class="breadcrumb">
+    <a asp-page="/Cart/Index">@T["Cart"]</a>
+</nav>
+<h1>@T["Checkout"]</h1>
+
+@foreach (var failure in Model.Failure.AsEnumerable())
+{
+    <p class="alert" role="alert">@failure</p>
+}
+
+@if (checkout.Lines.Count == 0)
+{
+    <p class="empty">@T["CartEmpty"] <a asp-page="/Catalog/Index">@T["BrowseCatalog"]</a></p>
+}
+else
+{
+    <partial name="_OrderLines" model="(checkout.Lines, checkout.Total.ToMaybe())" />
+
+    @if (!checkout.CanPlace)
+    {
+        <div class="alert" role="alert">
+            @foreach (var issue in checkout.Issues)
+            {
+                <p>@T[$"CheckoutIssue.{issue}"]</p>
+            }
+            <p><a asp-page="/Cart/Index">@T["BackToCart"]</a></p>
+        </div>
+    }
+    else
+    {
+        <form class="stack checkout" method="post" asp-page="/Cart/Checkout">
+            <div asp-validation-summary="All" class="alert" role="alert"></div>
+            <input type="hidden" asp-for="Form.OrderId" />
+            <input type="hidden" asp-for="Form.CartVersion" />
+            <input type="hidden" asp-for="Form.ExpectedGross" />
+
+            @if (checkout.Addresses.Count > 0)
+            {
+                <fieldset class="stack">
+                    <legend>@T["DeliveryAddress"]</legend>
+                    @foreach (var address in checkout.Addresses)
+                    {
+                        <label class="inline">
+                            <input type="radio" name="Form.AddressCode" value="@address.Code" checked="@(address.Code == Model.Form.AddressCode)" />
+                            <span><strong>@(address.Name ?? address.Code)</strong> — @address.Street, @address.PostalCode @address.City, @address.Country</span>
+                        </label>
+                    }
+                </fieldset>
+            }
+            else
+            {
+                <p class="muted">@T["DeliveryByErp"]</p>
+            }
+
+            <label>@T["CustomerReference"]
+                <input asp-for="Form.CustomerReference" maxlength="50" />
+            </label>
+            <label>@T["RequestedDate"]
+                <input asp-for="Form.RequestedDate" type="date" min="@checkout.Today.ToString("yyyy-MM-dd")" />
+            </label>
+            <label>@T["OrderNotes"]
+                <textarea asp-for="Form.Notes" rows="3" maxlength="1000"></textarea>
+            </label>
+            <p class="muted">@T["OrderPricesFrozen"]</p>
+            <p class="actions">
+                <button class="button" type="submit">@T["PlaceOrder"]</button>
+                <a asp-page="/Cart/Index">@T["BackToCart"]</a>
+            </p>
+        </form>
+    }
+}

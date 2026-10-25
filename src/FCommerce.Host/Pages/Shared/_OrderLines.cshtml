@@ -1,0 +1,47 @@
+@model (IReadOnlyList<FCommerce.Ordering.Contracts.OrderLineView> Lines, Maybe<FCommerce.Ordering.Contracts.OrderTotalView> Total)
+@{
+    var currency = Model.Total.Map(t => t.Currency).ValueOr(string.Empty);
+}
+<table class="data order-lines">
+    <thead>
+        <tr>
+            <th scope="col">@T["Product"]</th>
+            <th scope="col" class="number">@T["Quantity"]</th>
+            <th scope="col" class="number">@T["UnitNetPrice"]</th>
+            <th scope="col" class="number">@T["VatColumn"]</th>
+            <th scope="col" class="number">@T["NetValue"]</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var line in Model.Lines)
+        {
+            <tr>
+                <td>
+                    <a asp-page="/Products/Details" asp-route-sku="@line.Sku">@line.Name</a>
+                    <span class="muted">@T["Sku"]: @line.Sku</span>
+                    @if (line.Backorder)
+                    {
+                        <span class="cart-issues"><span>@T["OrderLineBackorder"]</span></span>
+                    }
+                </td>
+                <td class="number">@Formats.Quantity(line.Quantity) @line.Unit</td>
+                <td class="number">@Formats.Money(line.UnitNet, currency)</td>
+                <td class="number">@Formats.Percent(line.VatRate)</td>
+                <td class="number">@Formats.Money(line.NetAmount, currency)</td>
+            </tr>
+        }
+    </tbody>
+</table>
+@foreach (var total in Model.Total.AsEnumerable())
+{
+    <div class="cart-summary">
+        <dl class="cart-totals">
+            <dt>@T["NetTotal"]</dt><dd>@Formats.Money(total.Net, total.Currency)</dd>
+            @foreach (var rate in total.Rates)
+            {
+                <dt>@T["VatAt", Formats.Percent(rate.Rate)]</dt><dd>@Formats.Money(rate.Vat, total.Currency)</dd>
+            }
+            <dt class="gross">@T["GrossTotal"]</dt><dd class="gross">@Formats.Money(total.Gross, total.Currency)</dd>
+        </dl>
+    </div>
+}

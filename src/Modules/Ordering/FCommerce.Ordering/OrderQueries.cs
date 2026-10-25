@@ -1,3 +1,4 @@
+using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
 using FCommerce.Infrastructure.Persistence;
 using FCommerce.Ordering.Contracts;
@@ -49,14 +50,14 @@ internal static class OrderViews
             _ => LinkedDocumentKind.Other,
         };
 
-    public static OrderView Order(Guid id, OrderEvent.OrderPlaced placed, OrderState state, Maybe<OrderRow> row) =>
+    public static OrderView Order(Guid id, OrderEvent.OrderPlaced placed, OrderState state, Maybe<string> placedByName) =>
         new(
             id,
             placed.Number,
             state.ErpNumber.OrNull(),
             placed.CustomerCode,
             placed.PlacedBy,
-            row.Map(r => r.PlacedByName).Where(name => name.Length > 0).OrNull(),
+            placedByName.OrNull(),
             placed.PlacedAt,
             Status(state.Status),
             [.. state.Milestones.Select(m => new OrderMilestoneView(Status(m.Status), m.At))],
@@ -87,15 +88,23 @@ internal static class OrderViews
             placed.Details.Address.Map(Address).OrNull());
 }
 
-internal sealed class GetOrderHandler(OrderStore orders, OrderingDbContext db) : IQueryHandler<GetOrder, Result<OrderView, Error>>
+/// <summary>The order from its stream (current right after placing); the buyer's name from the order list or, before it caught up, from Access.</summary>
+internal sealed class GetOrderHandler(OrderStore orders, OrderingDbContext db, IQueryHandler<GetUserContact, Result<UserContact, Error>> contacts)
+    : IQueryHandler<GetOrder, Result<OrderView, Error>>
 {
     public async Task<Result<OrderView, Error>> HandleAsync(GetOrder query, CancellationToken cancellationToken = default)
     {
         var state = await orders.LoadAsync(query.OrderId, cancellationToken);
         var row = await db.Orders.AsNoTracking().SingleOrNoneAsync(o => o.Id == query.OrderId, cancellationToken);
-        return state.Placed
-            .Map(placed => OrderViews.Order(query.OrderId, placed, state, row))
-            .ToResult(() => Error.NotFound("order.not-found", "The order does not exist."));
+        return await state.Placed.Match(
+            async placed =>
+            {
+                var name = await row.Map(r => r.PlacedByName).Where(n => n.Length > 0).Match(
+                    known => Task.FromResult(Maybe.Some(known)),
+                    async () => (await contacts.HandleAsync(new GetUserContact(placed.PlacedBy), cancellationToken)).ToMaybe().Map(c => c.Name));
+                return Result.Ok<OrderView, Error>(OrderViews.Order(query.OrderId, placed, state, name));
+            },
+            () => Task.FromResult(Result.Fail<OrderView, Error>(Error.NotFound("order.not-found", "The order does not exist."))));
     }
 }
 

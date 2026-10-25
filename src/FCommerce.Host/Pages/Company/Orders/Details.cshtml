@@ -1,0 +1,124 @@
+@page "/company/orders/{id:guid}"
+@model FCommerce.Host.Pages.Company.Orders.DetailsModel
+@using System.Globalization
+@{
+    var order = Model.Order;
+    ViewData["Title"] = T["OrderTitle", order.Number];
+}
+<nav class="breadcrumb">
+    <a asp-page="/Company/Index">@T["MyCompany"]</a> <span aria-hidden="true">/</span>
+    <a asp-page="/Company/Orders/Index">@T["Orders"]</a>
+</nav>
+<h1>@T["OrderTitle", order.Number]</h1>
+
+@if (Model.JustPlaced)
+{
+    <p class="notice ready" role="status">@T["OrderPlacedNotice", order.Number]</p>
+}
+<partial name="~/Pages/Company/Lists/_ListOutcome.cshtml" model="Model.Outcome" />
+
+<section class="card order-header">
+    <dl class="facts">
+        <dt>@T["OrderStatus"]</dt>
+        <dd><span class="status status-@order.Status">@T[$"OrderStatus.{order.Status}"]</span>
+            @if (order.CancelledBy is not null)
+            {
+                <span class="muted">@T[$"CancelledBy.{order.CancelledBy}"]</span>
+            }
+        </dd>
+        @if (order.Reason is not null)
+        {
+            <dt>@T["StatusReason"]</dt><dd>@order.Reason</dd>
+        }
+        <dt>@T["PlacedAt"]</dt><dd>@order.PlacedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</dd>
+        @if (order.PlacedByName is not null)
+        {
+            <dt>@T["PlacedBy"]</dt><dd>@order.PlacedByName</dd>
+        }
+        @if (order.ErpNumber is not null)
+        {
+            <dt>@T["ErpOrderNumber"]</dt><dd>@order.ErpNumber</dd>
+        }
+        @if (order.CustomerReference is not null)
+        {
+            <dt>@T["CustomerReference"]</dt><dd>@order.CustomerReference</dd>
+        }
+        @if (order.RequestedDate is { } requested)
+        {
+            <dt>@T["RequestedDate"]</dt><dd>@Formats.Date(requested)</dd>
+        }
+        <dt>@T["DeliveryAddress"]</dt>
+        <dd>
+            @if (order.DeliveryAddress is { } address)
+            {
+                <span><strong>@(address.Name ?? address.Code)</strong> — @address.Street, @address.PostalCode @address.City, @address.Country</span>
+            }
+            else
+            {
+                <span class="muted">@T["DeliveryByErp"]</span>
+            }
+        </dd>
+        @if (order.Notes is not null)
+        {
+            <dt>@T["OrderNotes"]</dt><dd class="pre-line">@order.Notes</dd>
+        }
+    </dl>
+    <ol class="order-history" aria-label="@T["OrderHistory"]">
+        @foreach (var step in order.History)
+        {
+            <li><span class="status status-@step.Status">@T[$"OrderStatus.{step.Status}"]</span> <span class="muted">@step.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</span></li>
+        }
+    </ol>
+</section>
+
+@if (Model.CanCancel || Model.CanReorder)
+{
+    <p class="actions">
+        @if (Model.CanReorder)
+        {
+            <form class="inline-actions" method="post" asp-page="/Company/Orders/Details" asp-page-handler="ToCart" asp-route-id="@order.Id">
+                <input type="hidden" name="replace" value="false" />
+                <button class="button" type="submit">@T["AddListToCart"]</button>
+            </form>
+            <form class="inline-actions" method="post" asp-page="/Company/Orders/Details" asp-page-handler="ToCart" asp-route-id="@order.Id" onsubmit="return confirm('@T["ReplaceCartConfirm"]')">
+                <input type="hidden" name="replace" value="true" />
+                <button class="button secondary" type="submit">@T["ReplaceCart"]</button>
+            </form>
+        }
+        @if (Model.CanCancel)
+        {
+            <form class="inline-actions" method="post" asp-page="/Company/Orders/Details" asp-page-handler="Cancel" asp-route-id="@order.Id" onsubmit="return confirm('@T["CancelOrderConfirm"]')">
+                <button class="button secondary" type="submit">@T["CancelOrder"]</button>
+            </form>
+        }
+    </p>
+}
+
+<partial name="_OrderLines" model="(order.Lines, Maybe.Some(order.Total))" />
+
+@if (order.Documents.Count > 0)
+{
+    <section>
+        <h2>@T["OrderDocuments"]</h2>
+        <table class="data">
+            <thead><tr><th>@T["DocumentNumber"]</th><th>@T["DocumentType"]</th><th>@T["IssueDate"]</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var linked in order.Documents)
+                {
+                    var document = Model.Documents.FirstOrDefault(d => d.Id == linked.DocumentId);
+                    <tr>
+                        <td>@linked.Number</td>
+                        <td>@T[$"DocumentType.{linked.Type}"]</td>
+                        <td>@(document is null ? "" : Formats.Date(document.IssueDate))</td>
+                        <td class="actions">
+                            @if (document is { HasFile: true })
+                            {
+                                <a href="@Model.FileHref(document.Id)" download>PDF</a>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}

@@ -145,6 +145,10 @@
             @if (cart.CanOrder)
             {
                 <p class="notice ready">@T["CartReady"]</p>
+                @if (Model.Ordering)
+                {
+                    <p class="actions"><a class="button" asp-page="/Cart/Checkout">@T["GoToCheckout"]</a></p>
+                }
             }
             else if (cart.Lines.Any(l => l.Blocking))
             {

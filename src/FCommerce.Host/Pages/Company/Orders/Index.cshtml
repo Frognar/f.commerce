@@ -1,0 +1,71 @@
+@page "/company/orders"
+@model FCommerce.Host.Pages.Company.Orders.IndexModel
+@using FCommerce.Ordering.Contracts
+@{
+    ViewData["Title"] = T["Orders"];
+    var results = Model.Results;
+}
+<nav class="breadcrumb"><a asp-page="/Company/Index">@T["MyCompany"]</a></nav>
+<h1>@T["Orders"]</h1>
+
+<form class="filters" method="get" action="@Url.CulturePage("/Company/Orders/Index")">
+    <label>@T["OrderStatus"]
+        <select name="status">
+            <option value="">@T["AnyStatus"]</option>
+            @foreach (var status in OrderStatuses.All)
+            {
+                <option value="@status" selected="@(status == Model.Status)">@T[$"OrderStatus.{status}"]</option>
+            }
+        </select>
+    </label>
+    <label>@T["PlacedFrom"] <input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <label>@T["PlacedTo"] <input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <label>@T["OrderNumberOrReference"] <input name="number" value="@Model.Number" maxlength="64" /></label>
+    @if (Model.SeesCompany)
+    {
+        <label class="inline"><input type="checkbox" name="mine" value="true" checked="@Model.Mine" /> @T["OnlyMyOrders"]</label>
+    }
+    <button class="button secondary" type="submit">@T["Filter"]</button>
+</form>
+
+<p class="muted">@T["OrdersFound", results.TotalCount]</p>
+@if (results.Items.Count > 0)
+{
+    <table class="data">
+        <thead>
+            <tr>
+                <th>@T["OrderNumber"]</th><th>@T["PlacedAt"]</th><th>@T["OrderStatus"]</th>
+                @if (Model.SeesCompany) { <th>@T["PlacedBy"]</th> }
+                <th>@T["CustomerReference"]</th><th class="number">@T["GrossAmount"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in results.Items)
+            {
+                <tr>
+                    <td><a asp-page="/Company/Orders/Details" asp-route-id="@order.Id">@order.Number</a></td>
+                    <td>@order.PlacedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
+                    <td><span class="status status-@order.Status">@T[$"OrderStatus.{order.Status}"]</span></td>
+                    @if (Model.SeesCompany) { <td>@order.PlacedByName</td> }
+                    <td>@order.CustomerReference</td>
+                    <td class="number">@Formats.Money(order.Gross, order.Currency)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (results.PageCount > 1)
+{
+    <nav class="pagination" aria-label="@T["Pages"]">
+        @if (results.Page > 1)
+        {
+            <a href="@Model.Href(results.Page - 1)">@T["PreviousPage"]</a>
+        }
+        <span>@T["PageOf", results.Page, results.PageCount]</span>
+        @if (results.Page < results.PageCount)
+        {
+            <a href="@Model.Href(results.Page + 1)">@T["NextPage"]</a>
+        }
+    </nav>
+}

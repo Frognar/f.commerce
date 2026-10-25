@@ -6,6 +6,7 @@ using FCommerce.Application.Results;
 using FCommerce.Cart.Contracts;
 using FCommerce.Cart.Domain;
 using FCommerce.Catalog.Contracts;
+using FCommerce.Ordering.Contracts;
 using FCommerce.SharedKernel.Deciders;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
@@ -160,6 +161,24 @@ internal sealed class RemoveOrderedItemsHandler(CartStore carts) : ICommandHandl
             0,
             [],
             cancellationToken);
+}
+
+/// <summary>
+/// A placed order takes its items out of the buyer's cart for that customer (also when the host already did it right
+/// after placing: the cart changes once per order).
+/// </summary>
+internal sealed class TakeOrderedItemsOut(CartStore carts) : IIntegrationEventHandler<OrderPlaced>
+{
+    public async Task HandleAsync(OrderPlaced integrationEvent, CancellationToken cancellationToken = default)
+    {
+        var removed = await carts.DecideAsync(
+            new CartOwner(integrationEvent.PlacedBy, integrationEvent.CustomerCode),
+            new CartCommand.RemoveOrdered(integrationEvent.OrderId, [.. integrationEvent.Items.OrEmpty().Select(item => new CartItem(item.Sku.OrEmpty(), item.Quantity))]),
+            0,
+            [],
+            cancellationToken);
+        removed.Switch(_ => { }, error => throw new InvalidOperationException($"Taking order {integrationEvent.Number} out of the cart failed: {error.Code}"));
+    }
 }
 
 internal sealed class GetCartSizeHandler(CartStore carts) : IQueryHandler<GetCartSize, int>

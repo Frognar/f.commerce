@@ -447,4 +447,61 @@
   <data name="LinesWithoutSku" xml:space="preserve"><value>lines without a SKU (services, text): {0} — not added to the cart</value></data>
   <data name="DocumentToCartHint" xml:space="preserve"><value>Products to add: {0}</value></data>
   <data name="Error.document.not-found" xml:space="preserve"><value>No such document.</value></data>
+  <data name="VatColumn" xml:space="preserve"><value>VAT</value></data>
+  <data name="OrderLineBackorder" xml:space="preserve"><value>Delivered later</value></data>
+  <data name="Checkout" xml:space="preserve"><value>Checkout</value></data>
+  <data name="GoToCheckout" xml:space="preserve"><value>Proceed to checkout</value></data>
+  <data name="BackToCart" xml:space="preserve"><value>Back to the cart</value></data>
+  <data name="CheckoutIssue.cart-incomplete" xml:space="preserve"><value>Prices or stock could not be checked right now. Please try again in a moment.</value></data>
+  <data name="CheckoutIssue.empty" xml:space="preserve"><value>The cart is empty.</value></data>
+  <data name="CheckoutIssue.cannot-order" xml:space="preserve"><value>Something in the cart prevents ordering — see the cart for details.</value></data>
+  <data name="CheckoutIssue.no-address-allowed" xml:space="preserve"><value>You may not order to any delivery address of the company. Please contact your company account administrator.</value></data>
+  <data name="DeliveryAddress" xml:space="preserve"><value>Delivery address</value></data>
+  <data name="DeliveryByErp" xml:space="preserve"><value>The seller arranges the delivery address.</value></data>
+  <data name="CustomerReference" xml:space="preserve"><value>Your order reference</value></data>
+  <data name="RequestedDate" xml:space="preserve"><value>Requested delivery date</value></data>
+  <data name="OrderNotes" xml:space="preserve"><value>Notes</value></data>
+  <data name="OrderPricesFrozen" xml:space="preserve"><value>The order keeps the prices of the moment it is placed. The seller arranges delivery and the invoice.</value></data>
+  <data name="PlaceOrder" xml:space="preserve"><value>Place the order</value></data>
+  <data name="Orders" xml:space="preserve"><value>Orders</value></data>
+  <data name="OrderStatus" xml:space="preserve"><value>Status</value></data>
+  <data name="OrderStatus.placed" xml:space="preserve"><value>Placed</value></data>
+  <data name="OrderStatus.accepted" xml:space="preserve"><value>Accepted</value></data>
+  <data name="OrderStatus.in-progress" xml:space="preserve"><value>In progress</value></data>
+  <data name="OrderStatus.completed" xml:space="preserve"><value>Completed</value></data>
+  <data name="OrderStatus.rejected" xml:space="preserve"><value>Rejected</value></data>
+  <data name="OrderStatus.cancelled" xml:space="preserve"><value>Cancelled</value></data>
+  <data name="CancelledBy.customer" xml:space="preserve"><value>(by the customer)</value></data>
+  <data name="CancelledBy.seller" xml:space="preserve"><value>(by the seller)</value></data>
+  <data name="StatusReason" xml:space="preserve"><value>Reason</value></data>
+  <data name="PlacedFrom" xml:space="preserve"><value>Placed from</value></data>
+  <data name="PlacedTo" xml:space="preserve"><value>Placed until</value></data>
+  <data name="OrderNumberOrReference" xml:space="preserve"><value>Order number</value></data>
+  <data name="OnlyMyOrders" xml:space="preserve"><value>Only my orders</value></data>
+  <data name="OrdersFound" xml:space="preserve"><value>Orders: {0}</value></data>
+  <data name="PlacedAt" xml:space="preserve"><value>Placed</value></data>
+  <data name="PlacedBy" xml:space="preserve"><value>Placed by</value></data>
+  <data name="ErpOrderNumber" xml:space="preserve"><value>Seller's number</value></data>
+  <data name="OrderTitle" xml:space="preserve"><value>Order {0}</value></data>
+  <data name="OrderPlacedNotice" xml:space="preserve"><value>Thank you! Order {0} has been placed.</value></data>
+  <data name="OrderHistory" xml:space="preserve"><value>Order history</value></data>
+  <data name="OrderDocuments" xml:space="preserve"><value>Documents of the order</value></data>
+  <data name="DocumentType.other" xml:space="preserve"><value>Other document</value></data>
+  <data name="CancelOrder" xml:space="preserve"><value>Cancel the order</value></data>
+  <data name="CancelOrderConfirm" xml:space="preserve"><value>Cancel this order?</value></data>
+  <data name="OrderCancelled" xml:space="preserve"><value>The order has been cancelled.</value></data>
+  <data name="Error.cart.not-available" xml:space="preserve"><value>You cannot order for this company now.</value></data>
+  <data name="Error.order.cart-changed" xml:space="preserve"><value>The cart or its prices changed since you saw them. Check them and place the order again.</value></data>
+  <data name="Error.order.cart-incomplete" xml:space="preserve"><value>Prices or stock could not be checked right now. Please try again in a moment.</value></data>
+  <data name="Error.order.cannot-order" xml:space="preserve"><value>Something in the cart prevents ordering — check the cart.</value></data>
+  <data name="Error.order.mixed-currencies" xml:space="preserve"><value>An order has one currency.</value></data>
+  <data name="Error.order.address-not-allowed" xml:space="preserve"><value>You cannot order to this delivery address.</value></data>
+  <data name="Error.order.no-address-allowed" xml:space="preserve"><value>You may not order to any delivery address of the company.</value></data>
+  <data name="Error.order.customer-reference-too-long" xml:space="preserve"><value>Your order reference has at most 50 characters.</value></data>
+  <data name="Error.order.notes-too-long" xml:space="preserve"><value>Notes have at most 1000 characters.</value></data>
+  <data name="Error.order.requested-date-past" xml:space="preserve"><value>The requested date cannot be in the past.</value></data>
+  <data name="Error.order.requested-date-too-far" xml:space="preserve"><value>The requested date is at most a year ahead.</value></data>
+  <data name="Error.order.not-cancellable" xml:space="preserve"><value>The seller has already taken this order over — contact them to cancel it.</value></data>
+  <data name="Error.order.not-found" xml:space="preserve"><value>There is no such order.</value></data>
+  <data name="Error.order.exists" xml:space="preserve"><value>This order has already been placed.</value></data>
 </root>
