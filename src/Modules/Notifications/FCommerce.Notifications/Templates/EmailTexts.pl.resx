@@ -29,4 +29,16 @@
   <data name="RegistrationRejectedBody" xml:space="preserve"><value>Nie możemy teraz założyć konta dla firmy {0}. Powód: {1}</value></data>
   <data name="RegistrationRejectedAction" xml:space="preserve"><value>Przejdź do sklepu</value></data>
   <data name="RegistrationRejectedNote" xml:space="preserve"><value>W razie pytań skontaktuj się ze sprzedawcą.</value></data>
+  <data name="OrderPlacedSubject" xml:space="preserve"><value>Zamówienie {0} w {1} zostało złożone</value></data>
+  <data name="OrderPlacedBody" xml:space="preserve"><value>Dziękujemy! Przyjęliśmy Twoje zamówienie {0} złożone {1}. Szczegóły i jego status zobaczysz na platformie po zalogowaniu.</value></data>
+  <data name="OrderAction" xml:space="preserve"><value>Zobacz zamówienie</value></data>
+  <data name="OrderNote" xml:space="preserve"><value>Ze względów bezpieczeństwa nie przesyłamy treści zamówienia e-mailem.</value></data>
+  <data name="OrderForSalespersonSubject" xml:space="preserve"><value>Nowe zamówienie {0} od {1}</value></data>
+  <data name="OrderForSalespersonBody" xml:space="preserve"><value>Firma {0} złożyła zamówienie {1} ({2}).</value></data>
+  <data name="OrderForSalespersonNote" xml:space="preserve"><value>Wiadomość wysłana do opiekuna handlowego firmy.</value></data>
+  <data name="OrderStatusSubject" xml:space="preserve"><value>Zamówienie {0}: {1}</value></data>
+  <data name="OrderStatusBody" xml:space="preserve"><value>Status Twojego zamówienia {0} zmienił się na „{1}” ({2}).</value></data>
+  <data name="OrderStatus.accepted" xml:space="preserve"><value>przyjęte</value></data>
+  <data name="OrderStatus.rejected" xml:space="preserve"><value>odrzucone</value></data>
+  <data name="OrderStatus.cancelled" xml:space="preserve"><value>anulowane</value></data>
 </root>

@@ -17,19 +17,28 @@ public sealed class NotificationsOptions
 
     /// <summary>Language of e-mails to the seller's own mailboxes (e.g. new registration requests).</summary>
     public string SellerCulture { get; init; } = "pl";
+
+    /// <summary>IANA time zone of the seller: dates in e-mails.</summary>
+    public string TimeZone { get; init; } = "Europe/Warsaw";
 }
 
 public static class NotificationsModule
 {
-    /// <summary>Requires an <see cref="IEmailSender"/> and the Settings module (the store name comes from its branding).</summary>
+    /// <summary>
+    /// Requires an <see cref="IEmailSender"/> and the Settings module (the store name comes from its branding); e-mails about
+    /// orders read the buyer from Access and the salesperson from Customers.
+    /// </summary>
     public static IServiceCollection AddNotificationsModule(this IServiceCollection services, NotificationsOptions options)
     {
         services.AddSingleton(options);
+        services.AddScoped<OrderMail>();
         services.AddIntegrationEventHandler<InvitationIssued, SendInvitation>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordReset>();
         services.AddIntegrationEventHandler<MembershipGranted, SendMembershipGranted>();
         services.AddIntegrationEventHandler<RegistrationSubmitted, NotifyOperatorsOfRegistration>();
         services.AddIntegrationEventHandler<RegistrationRejected, SendRegistrationRejected>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderPlaced, ConfirmOrderPlaced>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderStatusChanged, SendOrderStatusChanged>();
         return services;
     }
 }

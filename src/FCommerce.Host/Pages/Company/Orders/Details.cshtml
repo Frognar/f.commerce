@@ -1,6 +1,5 @@
 @page "/company/orders/{id:guid}"
 @model FCommerce.Host.Pages.Company.Orders.DetailsModel
-@using System.Globalization
 @{
     var order = Model.Order;
     ViewData["Title"] = T["OrderTitle", order.Number];
@@ -17,59 +16,7 @@
 }
 <partial name="~/Pages/Company/Lists/_ListOutcome.cshtml" model="Model.Outcome" />
 
-<section class="card order-header">
-    <dl class="facts">
-        <dt>@T["OrderStatus"]</dt>
-        <dd><span class="status status-@order.Status">@T[$"OrderStatus.{order.Status}"]</span>
-            @if (order.CancelledBy is not null)
-            {
-                <span class="muted">@T[$"CancelledBy.{order.CancelledBy}"]</span>
-            }
-        </dd>
-        @if (order.Reason is not null)
-        {
-            <dt>@T["StatusReason"]</dt><dd>@order.Reason</dd>
-        }
-        <dt>@T["PlacedAt"]</dt><dd>@order.PlacedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</dd>
-        @if (order.PlacedByName is not null)
-        {
-            <dt>@T["PlacedBy"]</dt><dd>@order.PlacedByName</dd>
-        }
-        @if (order.ErpNumber is not null)
-        {
-            <dt>@T["ErpOrderNumber"]</dt><dd>@order.ErpNumber</dd>
-        }
-        @if (order.CustomerReference is not null)
-        {
-            <dt>@T["CustomerReference"]</dt><dd>@order.CustomerReference</dd>
-        }
-        @if (order.RequestedDate is { } requested)
-        {
-            <dt>@T["RequestedDate"]</dt><dd>@Formats.Date(requested)</dd>
-        }
-        <dt>@T["DeliveryAddress"]</dt>
-        <dd>
-            @if (order.DeliveryAddress is { } address)
-            {
-                <span><strong>@(address.Name ?? address.Code)</strong> — @address.Street, @address.PostalCode @address.City, @address.Country</span>
-            }
-            else
-            {
-                <span class="muted">@T["DeliveryByErp"]</span>
-            }
-        </dd>
-        @if (order.Notes is not null)
-        {
-            <dt>@T["OrderNotes"]</dt><dd class="pre-line">@order.Notes</dd>
-        }
-    </dl>
-    <ol class="order-history" aria-label="@T["OrderHistory"]">
-        @foreach (var step in order.History)
-        {
-            <li><span class="status status-@step.Status">@T[$"OrderStatus.{step.Status}"]</span> <span class="muted">@step.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</span></li>
-        }
-    </ol>
-</section>
+<partial name="_OrderHeader" model="order" />
 
 @if (Model.CanCancel || Model.CanReorder)
 {

@@ -7,6 +7,10 @@
 <p class="muted">@T["BackOfficeLead"]</p>
 <ul class="tiles">
     <li><a class="card tile" asp-page="/Admin/Customers/Index"><strong>@T["Customers"]</strong><span class="muted">@T["CustomersLead"]</span></a></li>
+    @if (Model.Ordering)
+    {
+        <li><a class="card tile" asp-page="/Admin/Orders/Index"><strong>@T["Orders"]</strong><span class="muted">@T["OrdersLead"]</span></a></li>
+    }
     @foreach (var pending in Model.PendingRegistrations.AsEnumerable())
     {
         <li><a class="card tile" asp-page="/Admin/Registrations/Index"><strong>@T["Registrations"] @if (pending > 0) { <span class="badge">@pending</span> }</strong><span class="muted">@T["RegistrationsLead"]</span></a></li>

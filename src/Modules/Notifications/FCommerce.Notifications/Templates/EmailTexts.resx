@@ -29,4 +29,16 @@
   <data name="RegistrationRejectedBody" xml:space="preserve"><value>We cannot open an account for {0} at this time. Reason: {1}</value></data>
   <data name="RegistrationRejectedAction" xml:space="preserve"><value>Go to the store</value></data>
   <data name="RegistrationRejectedNote" xml:space="preserve"><value>If you have questions, please contact the seller.</value></data>
+  <data name="OrderPlacedSubject" xml:space="preserve"><value>Order {0} at {1} has been placed</value></data>
+  <data name="OrderPlacedBody" xml:space="preserve"><value>Thank you! We have received your order {0} placed on {1}. Sign in to see its details and status.</value></data>
+  <data name="OrderAction" xml:space="preserve"><value>View the order</value></data>
+  <data name="OrderNote" xml:space="preserve"><value>For security reasons the contents of the order are not sent by e-mail.</value></data>
+  <data name="OrderForSalespersonSubject" xml:space="preserve"><value>New order {0} from {1}</value></data>
+  <data name="OrderForSalespersonBody" xml:space="preserve"><value>{0} has placed order {1} ({2}).</value></data>
+  <data name="OrderForSalespersonNote" xml:space="preserve"><value>Sent to the salesperson of the company.</value></data>
+  <data name="OrderStatusSubject" xml:space="preserve"><value>Order {0}: {1}</value></data>
+  <data name="OrderStatusBody" xml:space="preserve"><value>The status of your order {0} changed to “{1}” ({2}).</value></data>
+  <data name="OrderStatus.accepted" xml:space="preserve"><value>accepted</value></data>
+  <data name="OrderStatus.rejected" xml:space="preserve"><value>rejected</value></data>
+  <data name="OrderStatus.cancelled" xml:space="preserve"><value>cancelled</value></data>
 </root>

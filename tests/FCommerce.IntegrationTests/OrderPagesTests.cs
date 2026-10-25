@@ -30,7 +30,7 @@ public sealed partial class OrderPagesTests(HostFixture host)
     /// A product priced 10 net, 5 in stock, and a company with two delivery addresses whose administrator, buyer and
     /// accountant accepted their invitations.
     /// </summary>
-    private async Task<(string Sku, Browser Admin, Browser Buyer, Browser Accountant)> CompanyAsync()
+    private async Task<(string Sku, Browser Admin, Browser Buyer, Browser Accountant)> CompanyAsync(string? salesperson = null)
     {
         var sku = Unique("A");
         await PutAsync("/integration/v1/catalog/products", new ImportProducts([new ProductData(
@@ -53,7 +53,7 @@ public sealed partial class OrderPagesTests(HostFixture host)
                 new ContactData("C2", "Piotr Kupiec", emails[1], null, PortalAccess: true, "buyer"),
                 new ContactData("C3", "Ewa Księgowa", emails[2], null, PortalAccess: true, "accounting"),
             ],
-            null, PriceListCode: list)]));
+            salesperson is null ? null : new SalespersonData("Anna Handlowiec", salesperson, null), PriceListCode: list)]));
         var browsers = new List<Browser>();
         foreach (var email in emails)
         {
@@ -202,6 +202,33 @@ public sealed partial class OrderPagesTests(HostFixture host)
         Assert.DoesNotContain("Tylko moje zamówienia", own, StringComparison.Ordinal);
         Assert.Contains(adminNumber, mine, StringComparison.Ordinal);
         Assert.DoesNotContain(buyerNumber, mine, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task The_buyer_and_the_salesperson_get_an_e_mail_with_a_link_and_the_seller_sees_the_order()
+    {
+        var salesperson = UniqueEmail("anna");
+        var (sku, admin, buyer, accountant) = await CompanyAsync(salesperson);
+        using var _ = admin;
+        using var __ = buyer;
+        using var ___ = accountant;
+        await QuickAddAsync(buyer, sku, "2");
+        var location = (await PlaceAsync(buyer, await CheckoutFormAsync(buyer))).Location!;
+        var id = location.Split('?')[0].Split('/')[^1];
+        var number = OrderNumber((await buyer.GetAsync(location)).Html);
+
+        var toSalesperson = await host.Mail.WaitForAsync(salesperson, m => m.Subject.Contains(number, StringComparison.Ordinal));
+        using var operatorBrowser = await host.AdminAsync();
+        var list = await EventuallyAsync(operatorBrowser, $"/pl/admin/orders?number={Uri.EscapeDataString(number)}", html => html.Contains(number, StringComparison.Ordinal));
+        var details = (await operatorBrowser.GetAsync($"/pl/admin/orders/{id}")).Html;
+        var buyerInBackOffice = await buyer.GetAsync("/pl/admin/orders");
+
+        Assert.Contains($"/pl/admin/orders/{id}", toSalesperson.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain(sku, toSalesperson.Text, StringComparison.Ordinal);
+        Assert.Contains("Piotr Kupiec", list, StringComparison.Ordinal);
+        Assert.Contains($"Wkręt {sku}", details, StringComparison.Ordinal);
+        Assert.Contains("Zamówienie przyjmuje, odrzuca i anuluje ERP", details, StringComparison.Ordinal);
+        Assert.NotEqual(HttpStatusCode.OK, buyerInBackOffice.Status);
     }
 
     private static async Task<string> EventuallyAsync(Browser browser, string url, Func<string, bool> condition)

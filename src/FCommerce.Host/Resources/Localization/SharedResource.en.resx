@@ -483,7 +483,7 @@
   <data name="PlacedBy" xml:space="preserve"><value>Placed by</value></data>
   <data name="ErpOrderNumber" xml:space="preserve"><value>Seller's number</value></data>
   <data name="OrderTitle" xml:space="preserve"><value>Order {0}</value></data>
-  <data name="OrderPlacedNotice" xml:space="preserve"><value>Thank you! Order {0} has been placed.</value></data>
+  <data name="OrderPlacedNotice" xml:space="preserve"><value>Thank you! Order {0} has been placed. We have sent a confirmation by e-mail.</value></data>
   <data name="OrderHistory" xml:space="preserve"><value>Order history</value></data>
   <data name="OrderDocuments" xml:space="preserve"><value>Documents of the order</value></data>
   <data name="DocumentType.other" xml:space="preserve"><value>Other document</value></data>
@@ -504,4 +504,8 @@
   <data name="Error.order.not-cancellable" xml:space="preserve"><value>The seller has already taken this order over — contact them to cancel it.</value></data>
   <data name="Error.order.not-found" xml:space="preserve"><value>There is no such order.</value></data>
   <data name="Error.order.exists" xml:space="preserve"><value>This order has already been placed.</value></data>
+  <data name="Customer" xml:space="preserve"><value>Customer</value></data>
+  <data name="OwnCustomersOrdersOnly" xml:space="preserve"><value>You see the orders of your customers.</value></data>
+  <data name="OrdersLead" xml:space="preserve"><value>Orders placed on the platform and their status from the ERP.</value></data>
+  <data name="OrderHandledInErp" xml:space="preserve"><value>The ERP accepts, rejects and cancels the order; this is a preview.</value></data>
 </root>

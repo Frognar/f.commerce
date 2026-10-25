@@ -483,7 +483,7 @@
   <data name="PlacedBy" xml:space="preserve"><value>Zamawiający</value></data>
   <data name="ErpOrderNumber" xml:space="preserve"><value>Numer u sprzedawcy</value></data>
   <data name="OrderTitle" xml:space="preserve"><value>Zamówienie {0}</value></data>
-  <data name="OrderPlacedNotice" xml:space="preserve"><value>Dziękujemy! Zamówienie {0} zostało złożone.</value></data>
+  <data name="OrderPlacedNotice" xml:space="preserve"><value>Dziękujemy! Zamówienie {0} zostało złożone. Potwierdzenie wysłaliśmy e-mailem.</value></data>
   <data name="OrderHistory" xml:space="preserve"><value>Historia zamówienia</value></data>
   <data name="OrderDocuments" xml:space="preserve"><value>Dokumenty zamówienia</value></data>
   <data name="DocumentType.other" xml:space="preserve"><value>Inny dokument</value></data>
@@ -504,4 +504,8 @@
   <data name="Error.order.not-cancellable" xml:space="preserve"><value>Sprzedawca przyjął już to zamówienie — aby je anulować, skontaktuj się z nim.</value></data>
   <data name="Error.order.not-found" xml:space="preserve"><value>Nie ma takiego zamówienia.</value></data>
   <data name="Error.order.exists" xml:space="preserve"><value>To zamówienie zostało już złożone.</value></data>
+  <data name="Customer" xml:space="preserve"><value>Kontrahent</value></data>
+  <data name="OwnCustomersOrdersOnly" xml:space="preserve"><value>Widzisz zamówienia swoich kontrahentów.</value></data>
+  <data name="OrdersLead" xml:space="preserve"><value>Zamówienia złożone na platformie i ich statusy z ERP.</value></data>
+  <data name="OrderHandledInErp" xml:space="preserve"><value>Zamówienie przyjmuje, odrzuca i anuluje ERP; tu jest podgląd.</value></data>
 </root>

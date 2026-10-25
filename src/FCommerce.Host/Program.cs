@@ -69,6 +69,7 @@ builder.Services.AddNotificationsModule(new NotificationsOptions
 {
     PublicUrl = new Uri(builder.Configuration["Platform:PublicUrl"] ?? throw new InvalidOperationException("Platform:PublicUrl is not configured.")),
     SellerCulture = localization.DefaultCulture,
+    TimeZone = builder.Configuration["Platform:TimeZone"] ?? "Europe/Warsaw",
 });
 builder.Services.AddMediaModule();
 builder.Services.AddCustomersModule();

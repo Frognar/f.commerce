@@ -1,0 +1,32 @@
+@page "/admin/orders/{id:guid}"
+@model FCommerce.Host.Pages.Admin.Orders.DetailsModel
+@{
+    var order = Model.Order;
+    ViewData["Title"] = T["OrderTitle", order.Number];
+}
+<nav class="breadcrumb">
+    <a asp-page="/Admin/Index">@T["BackOffice"]</a> <span aria-hidden="true">/</span>
+    <a asp-page="/Admin/Orders/Index">@T["Orders"]</a>
+</nav>
+<h1>@T["OrderTitle", order.Number]</h1>
+<p><a asp-page="/Admin/Customers/Details" asp-route-code="@order.CustomerCode">@Model.CustomerName</a> <span class="muted">@order.CustomerCode</span></p>
+<p class="muted">@T["OrderHandledInErp"]</p>
+
+<partial name="_OrderHeader" model="order" />
+<partial name="_OrderLines" model="(order.Lines, Maybe.Some(order.Total))" />
+
+@if (order.Documents.Count > 0)
+{
+    <section>
+        <h2>@T["OrderDocuments"]</h2>
+        <table class="data">
+            <thead><tr><th>@T["DocumentNumber"]</th><th>@T["DocumentType"]</th></tr></thead>
+            <tbody>
+                @foreach (var linked in order.Documents)
+                {
+                    <tr><td>@linked.Number</td><td>@T[$"DocumentType.{linked.Type}"]</td></tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}

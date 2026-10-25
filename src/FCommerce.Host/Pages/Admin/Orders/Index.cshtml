@@ -1,0 +1,72 @@
+@page "/admin/orders"
+@model FCommerce.Host.Pages.Admin.Orders.IndexModel
+@using FCommerce.Ordering.Contracts
+@{
+    ViewData["Title"] = T["Orders"];
+    var results = Model.Results;
+}
+<nav class="breadcrumb"><a asp-page="/Admin/Index">@T["BackOffice"]</a></nav>
+<h1>@T["Orders"]</h1>
+@if (Model.OwnCustomersOnly)
+{
+    <p class="muted">@T["OwnCustomersOrdersOnly"]</p>
+}
+
+<form class="filters" method="get" action="@Url.CulturePage("/Admin/Orders/Index")">
+    <label>@T["OrderStatus"]
+        <select name="status">
+            <option value="">@T["AnyStatus"]</option>
+            @foreach (var status in OrderStatuses.All)
+            {
+                <option value="@status" selected="@(status == Model.Status)">@T[$"OrderStatus.{status}"]</option>
+            }
+        </select>
+    </label>
+    <label>@T["CustomerCode"] <input name="customer" value="@Model.Customer" maxlength="64" /></label>
+    <label>@T["OrderNumberOrReference"] <input name="number" value="@Model.Number" maxlength="64" /></label>
+    <label>@T["PlacedFrom"] <input type="date" name="from" value="@Model.From?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <label>@T["PlacedTo"] <input type="date" name="to" value="@Model.To?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)" /></label>
+    <button class="button secondary" type="submit">@T["Filter"]</button>
+</form>
+
+<p class="muted">@T["OrdersFound", results.TotalCount]</p>
+@if (results.Items.Count > 0)
+{
+    <table class="data">
+        <thead>
+            <tr>
+                <th>@T["OrderNumber"]</th><th>@T["PlacedAt"]</th><th>@T["OrderStatus"]</th><th>@T["Customer"]</th>
+                <th>@T["PlacedBy"]</th><th>@T["ErpOrderNumber"]</th><th class="number">@T["NetValue"]</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in results.Items)
+            {
+                <tr>
+                    <td><a asp-page="/Admin/Orders/Details" asp-route-id="@order.Id">@order.Number</a></td>
+                    <td>@order.PlacedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
+                    <td><span class="status status-@order.Status">@T[$"OrderStatus.{order.Status}"]</span></td>
+                    <td><a asp-page="/Admin/Customers/Details" asp-route-code="@order.CustomerCode">@order.CustomerName</a> <span class="muted">@order.CustomerCode</span></td>
+                    <td>@order.PlacedByName</td>
+                    <td>@order.ErpNumber</td>
+                    <td class="number">@Formats.Money(order.Net, order.Currency)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (results.PageCount > 1)
+{
+    <nav class="pagination" aria-label="@T["Pages"]">
+        @if (results.Page > 1)
+        {
+            <a href="@Model.Href(results.Page - 1)">@T["PreviousPage"]</a>
+        }
+        <span>@T["PageOf", results.Page, results.PageCount]</span>
+        @if (results.Page < results.PageCount)
+        {
+            <a href="@Model.Href(results.Page + 1)">@T["NextPage"]</a>
+        }
+    </nav>
+}
