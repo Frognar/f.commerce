@@ -61,6 +61,12 @@ public sealed record RejectOrder(string Number, string? Reason) : ICommand<Resul
 /// <summary>The seller cancels an order (before it is invoiced).</summary>
 public sealed record CancelOrderBySeller(string Number, string? Reason) : ICommand<Result<Unit, Error>>;
 
+/// <summary>The body of the ERP's confirmation of an order (integration API).</summary>
+public sealed record OrderAcceptanceData(string ErpNumber);
+
+/// <summary>The body of the ERP's rejection or cancellation of an order (integration API); the reason is optional.</summary>
+public sealed record OrderReasonData(string? Reason);
+
 /// <summary>One order with its frozen lines, history and linked documents.</summary>
 public sealed record GetOrder(Guid OrderId) : IQuery<Result<OrderView, Error>>;
 

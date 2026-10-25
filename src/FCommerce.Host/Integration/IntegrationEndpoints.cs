@@ -4,7 +4,9 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Host.Http;
+using FCommerce.Host.Security;
 using FCommerce.Inventory.Contracts;
+using FCommerce.Ordering.Contracts;
 using FCommerce.Pricing.Contracts;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
@@ -13,7 +15,7 @@ using FCommerce.SharedKernel.Contracts;
 
 namespace FCommerce.Host.Integration;
 
-/// <summary>API for the ERP connector: master data in (bulk upserts).</summary>
+/// <summary>API for the ERP connector: master data in (bulk upserts), orders out (a feed) and their confirmations in.</summary>
 internal static class IntegrationEndpoints
 {
     public const int MaxBatchSize = 1000;
@@ -63,6 +65,24 @@ internal static class IntegrationEndpoints
             .WithMetadata(new RequestSizeLimitAttribute(MaxDocumentFileRequestBytes))
             .Accepts<byte[]>("application/pdf")
             .WithSummary("Stores the PDF (raw body) of an imported document; an id with \"/\" is sent URL-encoded.");
+
+        var orders = integration.MapGroup("/orders").RequireFeature("order-feed");
+
+        orders.MapGet("/feed", async (long? after, int? limit, IQueryHandler<GetOrderFeed, OrderFeedPage> handler, CancellationToken ct) =>
+                Results.Ok(await handler.HandleAsync(new GetOrderFeed(Math.Max(after ?? 0, 0), limit ?? 100), ct)))
+            .WithSummary("Placed orders and orders the buyer cancelled, after a position (0: from the start); keep lastPosition and ask after it next time.");
+
+        orders.MapPut("/{number}/acceptance", async (string number, OrderAcceptanceData? body, ICommandHandler<AcceptOrder, Result<Unit, Error>> handler, CancellationToken ct) =>
+                (await handler.HandleAsync(new AcceptOrder(Uri.UnescapeDataString(number), body?.ErpNumber ?? string.Empty), ct)).ToHttpResult(_ => Results.NoContent()))
+            .WithSummary("The ERP took the order over under its own number (\"/\" in the platform number sent URL-encoded); repeating it changes nothing.");
+
+        orders.MapPut("/{number}/rejection", async (string number, OrderReasonData? body, ICommandHandler<RejectOrder, Result<Unit, Error>> handler, CancellationToken ct) =>
+                (await handler.HandleAsync(new RejectOrder(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
+            .WithSummary("The ERP refuses an order it has not accepted; 409 for an accepted or cancelled order.");
+
+        orders.MapPut("/{number}/cancellation", async (string number, OrderReasonData? body, ICommandHandler<CancelOrderBySeller, Result<Unit, Error>> handler, CancellationToken ct) =>
+                (await handler.HandleAsync(new CancelOrderBySeller(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
+            .WithSummary("The seller cancels an order that is not invoiced yet.");
 
         return app;
     }
