@@ -10,12 +10,25 @@ using FCommerce.Pricing.Contracts;
 using FCommerce.Media.Contracts;
 using FCommerce.SharedKernel.Contracts;
 
-// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key>]
+// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key> [orders [accept|deliver|invoice]]]
 var baseUrl = args.Length > 0 ? args[0] : "http://localhost:5180";
 var apiKey = args.Length > 1 ? args[1] : "dev-integration-key";
 
 using var client = new HttpClient { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(5) };
 client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
+
+// "orders": the ERP's part for orders placed in the demo (confirm, deliver, invoice); all three steps by default.
+if (args.Length > 2 && args[2] == "orders")
+{
+    var step = args.Length > 3 ? args[3] : "all";
+    if (step != "all" && !DemoOrders.Steps.Contains(step))
+    {
+        Console.Error.WriteLine($"Unknown step '{step}': use {string.Join(", ", DemoOrders.Steps)} or nothing for all of them.");
+        return 1;
+    }
+
+    return await DemoOrders.RunAsync(client, step);
+}
 
 await SendAsync("/integration/v1/catalog/categories", new ImportCategories(DemoCatalog.Categories), DemoCatalog.Categories.Count);
 
@@ -74,6 +87,9 @@ Console.WriteLine($"""
       Prices:       choose {DemoPricing.Retail} as the default price list in {baseUrl}/pl/admin/settings (the integration
                     API does not change settings); until then visitors are asked to sign in. K-1001 buys from {DemoPricing.Wholesale}.
       Customers:    open the invitation e-mails to choose passwords, then sign in at {baseUrl}/pl/sign-in
+      Orders:       place an order as a buyer (company administrators set order limits and delivery addresses in
+                    {baseUrl}/pl/company/users), then play the ERP: dotnet run --project tools/FCommerce.DemoSeeder --
+                    {baseUrl} <api key> orders [accept|deliver|invoice] (all three steps without one).
     """);
 foreach (var customer in DemoCustomers.All)
 {

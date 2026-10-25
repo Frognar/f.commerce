@@ -16,6 +16,7 @@
     <ProjectReference Include="..\..\src\Modules\Documents\FCommerce.Documents.Contracts\FCommerce.Documents.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Inventory\FCommerce.Inventory.Contracts\FCommerce.Inventory.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Media\FCommerce.Media.Contracts\FCommerce.Media.Contracts.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Ordering\FCommerce.Ordering.Contracts\FCommerce.Ordering.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Pricing\FCommerce.Pricing.Contracts\FCommerce.Pricing.Contracts.csproj" />
   </ItemGroup>
 
