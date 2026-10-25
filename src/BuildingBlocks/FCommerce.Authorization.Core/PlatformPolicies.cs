@@ -22,6 +22,7 @@ public static class PlatformPolicies
         CustomerUsers,
         CustomerDocuments,
         Cart,
+        Orders,
         BackOffice,
         Registrations,
     ];
@@ -40,6 +41,7 @@ public static class PlatformPolicies
             (Resource.CustomerDocuments, _) => Feature.Documents,
             (Resource.Cart, _) => Feature.Cart,
             (Resource.ShoppingLists, _) => Feature.ShoppingLists,
+            (Resource.Orders or Resource.Order, _) => Feature.Ordering,
             (Resource.Registrations, _) => Feature.SelfRegistration,
             (Resource.CustomerUsers, Subject.CustomerUser) when request.Action == AccessAction.Manage => Feature.CustomerAdminInvitations,
             (Resource.CustomerProfile or Resource.CustomerUsers, Subject.CustomerUser) => Feature.CustomerAccounts,
@@ -107,6 +109,24 @@ public static class PlatformPolicies
         {
             (Resource.Cart or Resource.ShoppingLists, AccessAction.Read or AccessAction.Manage, Subject.CustomerUser user) =>
                 PolicyResult.PermitIf(user.Attributes.CanOrder, "cannot-order"),
+            _ => PolicyResult.NotApplicable,
+        };
+
+    /// <summary>
+    /// Buyers place orders and see their own; the company order scope shows every order of the customer. Only the
+    /// person who placed an order, or someone who sees all orders, may cancel it. Operators read orders.
+    /// </summary>
+    private static PolicyResult Orders(AccessRequest request) =>
+        (request.Resource, request.Action, request.Subject) switch
+        {
+            (Resource.Orders, AccessAction.Submit, Subject.CustomerUser user) => PolicyResult.PermitIf(user.Attributes.CanOrder, "cannot-order"),
+            (Resource.Orders, AccessAction.Read, Subject.CustomerUser user) =>
+                PolicyResult.PermitIf(user.Attributes.CanOrder || user.Attributes.OrderScope == OrderScope.Company, "cannot-see-orders"),
+            (Resource.Order order, AccessAction.Read, Subject.CustomerUser user) =>
+                PolicyResult.PermitIf(order.PlacedBy == user.UserId || user.Attributes.OrderScope == OrderScope.Company, "not-own-order"),
+            (Resource.Order order, AccessAction.Manage, Subject.CustomerUser user) =>
+                PolicyResult.PermitIf(user.Attributes.CanOrder && (order.PlacedBy == user.UserId || user.Attributes.OrderScope == OrderScope.Company), "cannot-manage-order"),
+            (Resource.Orders or Resource.Order, AccessAction.Read, Subject.Operator) => PolicyResult.Permit,
             _ => PolicyResult.NotApplicable,
         };
 

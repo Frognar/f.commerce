@@ -104,7 +104,8 @@ public sealed record CartLineView(
     decimal? UnitGross,
     decimal? NetAmount,
     IReadOnlyList<CartLineIssueView> Issues,
-    bool Blocking);
+    bool Blocking,
+    string? PriceListCode = null);
 
 /// <param name="Code">"unavailable", "no-price", "discontinued-shortage" (blocks) or "backorder" (delivered later).</param>
 /// <param name="Available">What is on hand; only when the stock display is "exact".</param>

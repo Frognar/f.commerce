@@ -5,6 +5,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
+using FCommerce.Ordering.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -68,6 +69,8 @@ public partial class HostFixture : IAsyncLifetime
                 services.AddSingleton<IIntegrationEventHandler<CustomerChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<PortalContactsChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<DocumentChanged>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderPlaced>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderStatusChanged>>(Events);
                 services.AddSingleton<IEmailSender>(Mail);
             })));
         _ = Factory.Server; // start now, so failures surface in the fixture
@@ -149,12 +152,14 @@ public partial class HostFixture : IAsyncLifetime
 
     public sealed class EventRecorder
         : IIntegrationEventHandler<ProductChanged>, IIntegrationEventHandler<CustomerChanged>, IIntegrationEventHandler<PortalContactsChanged>,
-            IIntegrationEventHandler<DocumentChanged>
+            IIntegrationEventHandler<DocumentChanged>, IIntegrationEventHandler<OrderPlaced>, IIntegrationEventHandler<OrderStatusChanged>
     {
         private readonly ConcurrentQueue<ProductChanged> productChanges = new();
         private readonly ConcurrentQueue<CustomerChanged> customerChanges = new();
         private readonly ConcurrentQueue<PortalContactsChanged> portalContactChanges = new();
         private readonly ConcurrentQueue<DocumentChanged> documentChanges = new();
+        private readonly ConcurrentQueue<OrderPlaced> ordersPlaced = new();
+        private readonly ConcurrentQueue<OrderStatusChanged> orderStatusChanges = new();
 
         public IReadOnlyCollection<ProductChanged> ProductChanges => productChanges;
 
@@ -163,6 +168,10 @@ public partial class HostFixture : IAsyncLifetime
         public IReadOnlyCollection<PortalContactsChanged> PortalContactChanges => portalContactChanges;
 
         public IReadOnlyCollection<DocumentChanged> DocumentChanges => documentChanges;
+
+        public IReadOnlyCollection<OrderPlaced> OrdersPlaced => ordersPlaced;
+
+        public IReadOnlyCollection<OrderStatusChanged> OrderStatusChanges => orderStatusChanges;
 
         public Task HandleAsync(ProductChanged integrationEvent, CancellationToken cancellationToken = default)
         {
@@ -185,6 +194,18 @@ public partial class HostFixture : IAsyncLifetime
         public Task HandleAsync(DocumentChanged integrationEvent, CancellationToken cancellationToken = default)
         {
             documentChanges.Enqueue(integrationEvent);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(OrderPlaced integrationEvent, CancellationToken cancellationToken = default)
+        {
+            ordersPlaced.Enqueue(integrationEvent);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(OrderStatusChanged integrationEvent, CancellationToken cancellationToken = default)
+        {
+            orderStatusChanges.Enqueue(integrationEvent);
             return Task.CompletedTask;
         }
     }

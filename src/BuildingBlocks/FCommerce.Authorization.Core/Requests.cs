@@ -50,6 +50,12 @@ public abstract record Resource
     /// <summary>The shopping lists of the signed-in user for a customer.</summary>
     public sealed record ShoppingLists(string CustomerCode) : Resource;
 
+    /// <summary>The orders of a customer: placing one, the order history.</summary>
+    public sealed record Orders(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
+
+    /// <summary>One order of a customer, placed by <paramref name="PlacedBy"/>.</summary>
+    public sealed record Order(string CustomerCode, Maybe<EmailAddress> Salesperson, Guid PlacedBy) : Resource;
+
     /// <summary>The back-office list of customers.</summary>
     public sealed record Customers : Resource;
 
@@ -69,6 +75,8 @@ public abstract record Resource
             CustomerDocuments r => (r.CustomerCode, r.Salesperson),
             Cart r => (r.CustomerCode, Maybe<EmailAddress>.None),
             ShoppingLists r => (r.CustomerCode, Maybe<EmailAddress>.None),
+            Orders r => (r.CustomerCode, r.Salesperson),
+            Order r => (r.CustomerCode, r.Salesperson),
             _ => Maybe<(string, Maybe<EmailAddress>)>.None,
         };
 }

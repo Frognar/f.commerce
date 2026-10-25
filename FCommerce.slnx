@@ -29,6 +29,11 @@
     <Project Path="src/Modules/Access/FCommerce.Access.Domain/FCommerce.Access.Domain.csproj" />
     <Project Path="src/Modules/Access/FCommerce.Access/FCommerce.Access.csproj" />
   </Folder>
+  <Folder Name="/src/Modules/Ordering/">
+    <Project Path="src/Modules/Ordering/FCommerce.Ordering.Contracts/FCommerce.Ordering.Contracts.csproj" />
+    <Project Path="src/Modules/Ordering/FCommerce.Ordering.Domain/FCommerce.Ordering.Domain.csproj" />
+    <Project Path="src/Modules/Ordering/FCommerce.Ordering/FCommerce.Ordering.csproj" />
+  </Folder>
   <Folder Name="/src/Modules/Cart/">
     <Project Path="src/Modules/Cart/FCommerce.Cart.Contracts/FCommerce.Cart.Contracts.csproj" />
     <Project Path="src/Modules/Cart/FCommerce.Cart.Domain/FCommerce.Cart.Domain.csproj" />
@@ -78,6 +83,7 @@
     <Project Path="tests/FCommerce.ArchitectureTests/FCommerce.ArchitectureTests.csproj" />
     <Project Path="tests/FCommerce.Authorization.Core.Tests/FCommerce.Authorization.Core.Tests.csproj" />
     <Project Path="tests/FCommerce.Cart.Tests/FCommerce.Cart.Tests.csproj" />
+    <Project Path="tests/FCommerce.Ordering.Tests/FCommerce.Ordering.Tests.csproj" />
     <Project Path="tests/FCommerce.Catalog.Tests/FCommerce.Catalog.Tests.csproj" />
     <Project Path="tests/FCommerce.Customers.Tests/FCommerce.Customers.Tests.csproj" />
     <Project Path="tests/FCommerce.Documents.Tests/FCommerce.Documents.Tests.csproj" />

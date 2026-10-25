@@ -154,6 +154,38 @@ public sealed class PolicyTests
         AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.ShoppingLists("C2")), "other-customer");
         AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.ShoppingLists("C1"), Environment(off: Feature.ShoppingLists)), "feature-off:shopping-lists");
     }
+
+    [Fact]
+    public void Buyers_place_orders_and_see_their_own_while_the_company_scope_sees_all()
+    {
+        var buyer = (Subject.CustomerUser)Buyer;
+        var own = new Resource.Order("C1", Anna, buyer.UserId);
+        var colleagues = new Resource.Order("C1", Anna, Guid.NewGuid());
+
+        Assert.True(Decide(Buyer, AccessAction.Submit, new Resource.Orders("C1", Anna)).IsPermitted);
+        AssertDenied(Decide(Accountant, AccessAction.Submit, new Resource.Orders("C1", Anna)), "cannot-order");
+        Assert.True(Decide(Accountant, AccessAction.Read, new Resource.Orders("C1", Anna)).IsPermitted);
+        Assert.True(Decide(Buyer, AccessAction.Read, own).IsPermitted);
+        Assert.True(Decide(Buyer, AccessAction.Manage, own).IsPermitted);
+        AssertDenied(Decide(Buyer, AccessAction.Read, colleagues), "not-own-order");
+        Assert.True(Decide(Admin, AccessAction.Manage, colleagues).IsPermitted);
+        Assert.True(Decide(Accountant, AccessAction.Read, colleagues).IsPermitted);
+        AssertDenied(Decide(Accountant, AccessAction.Manage, colleagues), "cannot-manage-order");
+        AssertDenied(Decide(Buyer, AccessAction.Read, new Resource.Order("C2", Anna, buyer.UserId)), "other-customer");
+        AssertDenied(Decide(Buyer, AccessAction.Submit, new Resource.Orders("C1", Anna), Environment(off: Feature.Ordering)), "feature-off:ordering");
+    }
+
+    [Fact]
+    public void Operators_read_orders_within_their_scope_but_never_place_them()
+    {
+        var order = new Resource.Order("C1", Anna, Guid.NewGuid());
+
+        Assert.True(Decide(SalespersonAnna, AccessAction.Read, order).IsPermitted);
+        Assert.True(Decide(PlatformAdmin, AccessAction.Read, new Resource.Orders("C1", Piotr)).IsPermitted);
+        AssertDenied(Decide(SalespersonAnna, AccessAction.Read, new Resource.Order("C1", Piotr, Guid.NewGuid())), "outside-operator-scope");
+        AssertDenied(Decide(PlatformAdmin, AccessAction.Submit, new Resource.Orders("C1", Piotr)), "no-applicable-policy");
+        AssertDenied(Decide(PlatformAdmin, AccessAction.Manage, order), "no-applicable-policy");
+    }
 }
 
 public sealed class GrantTests

@@ -5,6 +5,7 @@
     <!-- Modules whose provider-specific migrations live here. -->
     <ProjectReference Include="..\..\Modules\Access\FCommerce.Access\FCommerce.Access.csproj" />
     <ProjectReference Include="..\..\Modules\Cart\FCommerce.Cart\FCommerce.Cart.csproj" />
+    <ProjectReference Include="..\..\Modules\Ordering\FCommerce.Ordering\FCommerce.Ordering.csproj" />
     <ProjectReference Include="..\..\Modules\Catalog\FCommerce.Catalog\FCommerce.Catalog.csproj" />
     <ProjectReference Include="..\..\Modules\Customers\FCommerce.Customers\FCommerce.Customers.csproj" />
     <ProjectReference Include="..\..\Modules\Documents\FCommerce.Documents\FCommerce.Documents.csproj" />

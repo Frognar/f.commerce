@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\FCommerce.Ordering.Contracts\FCommerce.Ordering.Contracts.csproj" />
+    <ProjectReference Include="..\FCommerce.Ordering.Domain\FCommerce.Ordering.Domain.csproj" />
+    <ProjectReference Include="..\..\Access\FCommerce.Access.Contracts\FCommerce.Access.Contracts.csproj" />
+    <ProjectReference Include="..\..\Cart\FCommerce.Cart.Contracts\FCommerce.Cart.Contracts.csproj" />
+    <ProjectReference Include="..\..\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
+    <ProjectReference Include="..\..\Documents\FCommerce.Documents.Contracts\FCommerce.Documents.Contracts.csproj" />
+    <ProjectReference Include="..\..\..\BuildingBlocks\FCommerce.Infrastructure\FCommerce.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Provider-specific migrations and design-time factories live in the database adapter. -->
+    <InternalsVisibleTo Include="FCommerce.Infrastructure.Postgres" />
+  </ItemGroup>
+
+</Project>

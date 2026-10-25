@@ -89,7 +89,8 @@ internal sealed class GetCartHandler(
             price.Bind(p => p.UnitGross.ToMaybe()).OrNull(),
             price.Bind(p => p.NetAmount.ToMaybe()).OrNull(),
             [.. line.Issues.Select(issue => Issue(issue, display))],
-            line.Blocks);
+            line.Blocks,
+            price.Bind(p => p.PriceListCode.ToMaybe()).OrNull());
 
     /// <summary>Quantities on hand only in the exact stock display.</summary>
     private static CartLineIssueView Issue(LineIssue issue, string display)

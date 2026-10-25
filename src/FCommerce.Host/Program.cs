@@ -6,6 +6,7 @@ using FCommerce.Documents;
 using FCommerce.Host.Security;
 using FCommerce.Inventory;
 using FCommerce.Notifications;
+using FCommerce.Ordering;
 using FCommerce.Pricing;
 using FCommerce.Settings;
 using FCommerce.SharedKernel.Features;
@@ -75,6 +76,11 @@ builder.Services.AddDocumentsModule(new DocumentsOptions { TimeZone = sellerTime
 builder.Services.AddPricingModule();
 builder.Services.AddInventoryModule(new InventoryOptions { TimeZone = sellerTimeZone });
 builder.Services.AddCartModule(new CartOptions { DefaultCulture = localization.DefaultCulture });
+builder.Services.AddOrderingModule(new OrderingOptions
+{
+    NumberPrefix = builder.Configuration["Ordering:NumberPrefix"] ?? "WWW",
+    TimeZone = sellerTimeZone,
+});
 builder.Services.AddCatalogModule(options =>
 {
     options.DefaultCulture = localization.DefaultCulture;
