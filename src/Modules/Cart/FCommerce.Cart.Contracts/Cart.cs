@@ -29,6 +29,11 @@ public sealed record RemoveFromCart(CartOwner Owner, string Sku) : ICommand<Resu
 
 public sealed record ClearCart(CartOwner Owner) : ICommand<Result<CartChange, Error>>;
 
+/// <summary>
+/// Takes the quantities of a placed order out of the cart; what was added meanwhile stays. Idempotent per order.
+/// </summary>
+public sealed record RemoveOrderedItems(CartOwner Owner, Guid OrderId, IReadOnlyList<CartItemData> Items) : ICommand<Result<CartChange, Error>>;
+
 /// <param name="ItemCount">Products in the cart after the change.</param>
 /// <param name="Added">Items that were added (after merging the same SKU).</param>
 /// <param name="Rejected">Lines or SKUs that were not added, and why.</param>
@@ -56,17 +61,30 @@ public sealed record GetCartSize(CartOwner Owner) : IQuery<int>;
 /// The cart with current prices (the owner's customer prices, as pricing resolves them), availability and what
 /// prevents ordering it. Texts in the first matching culture of <c>Cultures</c>.
 /// </summary>
-public sealed record GetCart(CartOwner Owner, IReadOnlyList<string> Cultures) : IQuery<CartView>;
+/// <param name="OrderLimit">The owner's order limit (from the session, like the owner); null when unlimited.</param>
+public sealed record GetCart(CartOwner Owner, IReadOnlyList<string> Cultures, CartOrderLimit? OrderLimit = null) : IQuery<CartView>;
+
+/// <summary>The highest net value of an order, in a currency.</summary>
+public sealed record CartOrderLimit(decimal Amount, string Currency);
 
 /// <param name="StockDisplay">"hidden", "levels" or "exact": quantities of stock are given only in "exact".</param>
-/// <param name="Issues">Cart issues: "empty", "customer-blocked".</param>
+/// <param name="Issues">Cart issues: "empty", "customer-blocked", "mixed-currencies", "over-limit".</param>
 /// <param name="CanOrder">Nothing prevents placing an order from the cart.</param>
+/// <param name="Version">Version of the cart: changes with every change of its items.</param>
+/// <param name="Complete">
+/// Products, prices, stock and the customer were all read; when false the review may be too lenient, so an order
+/// must not be placed from this view.
+/// </param>
+/// <param name="OrderLimit">The limit the review checked against.</param>
 public sealed record CartView(
     IReadOnlyList<CartLineView> Lines,
     IReadOnlyList<CartTotalView> Totals,
     IReadOnlyList<string> Issues,
     bool CanOrder,
-    string StockDisplay);
+    string StockDisplay,
+    long Version,
+    bool Complete,
+    CartOrderLimit? OrderLimit);
 
 /// <param name="Name">None when the product is no longer in the catalog.</param>
 /// <param name="PriceStatus">"priced", "on-request" (no price for this customer).</param>

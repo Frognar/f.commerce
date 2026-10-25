@@ -98,4 +98,27 @@ public sealed class CartDeciderTests
         Assert.Equal([new CartItem("A", 5), new CartItem("C", 1), new CartItem("B", 2)], state.Items);
         Assert.Empty(Carts.Decider.Fold(state, [new CartEvent.Cleared(ClearReason.Ordered)]).Items);
     }
+
+    [Fact]
+    public void An_order_takes_its_quantities_out_and_leaves_what_was_added_meanwhile()
+    {
+        var order = Guid.Parse("0199f1a0-0000-7000-8000-000000000001");
+        var state = Given(Added(("A", 2), ("B", 1), ("C", 3)));
+
+        var events = When(state, new CartCommand.RemoveOrdered(order, [new("A", 2), new("C", 1)]));
+        var after = Carts.Decider.Fold(state, events);
+
+        Assert.Equal([new CartEvent.ItemsOrdered(order, [new CartItem("A", 2), new CartItem("C", 1)])], events);
+        Assert.Equal([new CartItem("B", 1), new CartItem("C", 2)], after.Items);
+    }
+
+    [Fact]
+    public void The_same_order_leaves_the_cart_once_even_after_clearing()
+    {
+        var order = Guid.Parse("0199f1a0-0000-7000-8000-000000000002");
+        var ordered = Given(Added(("A", 2)), new CartEvent.ItemsOrdered(order, [new CartItem("A", 2)]), new CartEvent.Cleared(ClearReason.Emptied), Added(("A", 5)));
+
+        Assert.Empty(When(ordered, new CartCommand.RemoveOrdered(order, [new("A", 2)])));
+        Assert.Equal([new CartItem("A", 5)], ordered.Items);
+    }
 }

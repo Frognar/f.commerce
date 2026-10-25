@@ -1,6 +1,7 @@
 using FCommerce.Access.Domain;
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
 
@@ -43,14 +44,41 @@ public sealed class MembershipTests
     }
 
     [Fact]
-    public void Rights_change_only_what_the_ui_edits()
+    public void Rights_carry_every_attribute_the_ui_edits()
     {
-        var limited = MembershipAttributes.Buyer with { DeliveryAddresses = DeliveryAddressScope.Only(["MAG"]) };
+        var limit = new Money(5000, Currency.Parse("PLN").ShouldSucceed());
+        var rights = new MembershipRights(false, OrderScope.Company, true, true, limit, DeliveryAddressScope.Only(["MAG"]));
 
-        var changed = new MembershipRights(false, OrderScope.Company, true, true).ApplyTo(limited);
+        var changed = rights.ApplyTo(MembershipAttributes.Buyer);
 
-        Assert.Equal(new MembershipRights(false, OrderScope.Company, true, true), MembershipRights.Of(changed));
-        Assert.Equal(DeliveryAddressScope.Only(["MAG"]), changed.DeliveryAddresses);
+        Assert.Equal(rights, MembershipRights.Of(changed));
+        Assert.Equal(new MembershipAttributes(false, OrderScope.Company, limit, true, true, DeliveryAddressScope.Only(["MAG"])), changed);
+    }
+
+    [Theory]
+    [InlineData(0, "membership.order-limit-not-positive")]
+    [InlineData(-5, "membership.order-limit-not-positive")]
+    [InlineData(10.005, "membership.order-limit-precision")]
+    [InlineData(2000000000, "membership.order-limit-too-large")]
+    public void An_order_limit_is_positive_with_at_most_two_decimal_places(decimal amount, string code)
+    {
+        Assert.Equal(code, MembershipRights.Limit(amount, "PLN").ShouldFail().Code);
+    }
+
+    [Fact]
+    public void An_order_limit_needs_a_valid_currency_and_none_means_unlimited()
+    {
+        Assert.Equal(new Money(1500.5m, Currency.Parse("EUR").ShouldSucceed()), MembershipRights.Limit(1500.5m, "eur").ShouldSucceed().ShouldBeSome());
+        Assert.Equal("currency.invalid", MembershipRights.Limit(100, "").ShouldFail().Code);
+        MembershipRights.Limit(Maybe<decimal>.None, "").ShouldSucceed().ShouldBeNone();
+    }
+
+    [Fact]
+    public void No_listed_delivery_address_means_all_of_them()
+    {
+        Assert.Equal(DeliveryAddressScope.All, MembershipRights.Addresses(Maybe<IReadOnlyList<string>>.None).ShouldSucceed());
+        Assert.Equal(DeliveryAddressScope.All, MembershipRights.Addresses(Maybe.Some<IReadOnlyList<string>>([" ", ""])).ShouldSucceed());
+        Assert.Equal(DeliveryAddressScope.Only(["MAG", "BUD"]), MembershipRights.Addresses(Maybe.Some<IReadOnlyList<string>>([" MAG", "BUD", "MAG"])).ShouldSucceed());
     }
 
     [Fact]

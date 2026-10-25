@@ -1,5 +1,8 @@
 using FCommerce.Cart.Domain;
+using FCommerce.SharedKernel.Collections;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
+using FCommerce.Testing;
 
 namespace FCommerce.Cart.Tests;
 
@@ -7,7 +10,11 @@ public sealed class CartReviewTests
 {
     private static readonly DateOnly Delivery = new(2026, 11, 3);
 
-    private static CartState Cart(params (string Sku, decimal Quantity)[] items) => new([.. items.Select(i => new CartItem(i.Sku, i.Quantity))]);
+    private static CartState Cart(params (string Sku, decimal Quantity)[] items) => CartState.Empty with { Items = [.. items.Select(i => new CartItem(i.Sku, i.Quantity))] };
+
+    private static Money Pln(decimal amount) => new(amount, Currency.Parse("PLN").ShouldSucceed());
+
+    private static Money Eur(decimal amount) => new(amount, Currency.Parse("EUR").ShouldSucceed());
 
     /// <summary>Reviews one line: the product exists unless <paramref name="gone"/>, 5 on hand, a delivery on 3 Nov.</summary>
     private static LineReview Line(decimal quantity, bool priced = true, bool discontinued = false, bool gone = false) =>
@@ -16,7 +23,8 @@ public sealed class CartReviewTests
             _ => gone ? Maybe<ProductFacts>.None : new ProductFacts(discontinued),
             _ => priced,
             _ => new StockFacts(5, Delivery),
-            customerBlocked: false).Lines[0];
+            [],
+            OrderTerms.None).Lines[0];
 
     [Fact]
     public void A_priced_product_in_stock_has_no_issues()
@@ -65,14 +73,34 @@ public sealed class CartReviewTests
     [Fact]
     public void The_cart_can_be_ordered_only_without_blocking_issues()
     {
-        var backorder = CartReview.Review(Cart(("A", 9)), _ => new ProductFacts(false), _ => true, _ => StockFacts.None, customerBlocked: false);
-        var blocked = CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => new StockFacts(5, default), customerBlocked: true);
-        var empty = CartReview.Review(CartState.Empty, _ => new ProductFacts(false), _ => true, _ => StockFacts.None, customerBlocked: false);
-        var noPrice = CartReview.Review(Cart(("A", 1), ("B", 1)), _ => new ProductFacts(false), sku => sku == "A", _ => new StockFacts(5, default), customerBlocked: false);
+        var backorder = CartReview.Review(Cart(("A", 9)), _ => new ProductFacts(false), _ => true, _ => StockFacts.None, [], OrderTerms.None);
+        var blocked = CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => new StockFacts(5, default), [], new OrderTerms(true, Maybe<Money>.None));
+        var empty = CartReview.Review(CartState.Empty, _ => new ProductFacts(false), _ => true, _ => StockFacts.None, [], OrderTerms.None);
+        var noPrice = CartReview.Review(Cart(("A", 1), ("B", 1)), _ => new ProductFacts(false), sku => sku == "A", _ => new StockFacts(5, default), [], OrderTerms.None);
 
         Assert.True(backorder.CanOrder);
         Assert.Equal((false, (CartIssue)new CartIssue.CustomerBlocked()), (blocked.CanOrder, Assert.Single(blocked.Issues)));
         Assert.Equal((false, (CartIssue)new CartIssue.Empty()), (empty.CanOrder, Assert.Single(empty.Issues)));
         Assert.False(noPrice.CanOrder);
+    }
+
+    private static CartReviewResult Totals(EquatableArray<Money> netTotals, Maybe<Money> limit) =>
+        CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => new StockFacts(5, default), netTotals, new OrderTerms(false, limit));
+
+    [Fact]
+    public void Lines_in_several_currencies_block_ordering()
+    {
+        var mixed = Totals([Eur(10), Pln(10)], Maybe<Money>.None);
+
+        Assert.Equal((false, (CartIssue)new CartIssue.MixedCurrencies()), (mixed.CanOrder, Assert.Single(mixed.Issues)));
+    }
+
+    [Fact]
+    public void The_net_value_may_reach_but_not_exceed_the_order_limit_in_its_currency()
+    {
+        Assert.True(Totals([Pln(1000)], Pln(1000)).CanOrder);
+        Assert.Equal([new CartIssue.OverLimit(Pln(1000))], Totals([Pln(1000.01m)], Pln(1000)).Issues);
+        Assert.Equal([new CartIssue.OverLimit(Pln(1000))], Totals([Eur(1)], Pln(1000)).Issues);
+        Assert.True(Totals([Pln(1_000_000)], Maybe<Money>.None).CanOrder);
     }
 }

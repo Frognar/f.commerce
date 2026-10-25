@@ -39,7 +39,8 @@ internal sealed class DocumentRow
 
     public decimal Outstanding { get; set; }
 
-    public string? OrderNumber { get; set; }
+    /// <summary>JSON array of the order numbers ("[]" without orders).</summary>
+    public string OrderNumbers { get; set; } = "[]";
 
     /// <summary>JSON array of the lines ("[]" without lines).</summary>
     public string Lines { get; set; } = "[]";
@@ -83,7 +84,7 @@ internal sealed class DocumentRow
         Gross = content.Amounts.Map(a => a.Gross).OrNull();
         Paid = content.Amounts.Map(a => a.Paid).OrNull();
         Outstanding = Domain.Documents.Outstanding(content);
-        OrderNumber = content.OrderNumber.OrNull();
+        OrderNumbers = System.Text.Json.JsonSerializer.Serialize(content.OrderNumbers, PersistenceJson.Options);
         Lines = System.Text.Json.JsonSerializer.Serialize(content.Lines, PersistenceJson.Options);
         ReorderableLines = Domain.Documents.Reorderable(content).Items.Count;
         UpdatedAt = now;
@@ -99,6 +100,6 @@ internal sealed class DocumentRow
                 Number,
                 new DocumentDates(IssueDate, SaleDate.ToMaybe(), DueDate.ToMaybe()),
                 Currency.ToMaybe().Map(code => new DocumentAmounts(Persisted.Rehydrate<SharedKernel.Monetary.Currency, string>(code), Net ?? 0m, Gross ?? 0m, Paid ?? 0m)),
-                OrderNumber.ToMaybe(),
+                System.Text.Json.JsonSerializer.Deserialize<SharedKernel.Collections.EquatableArray<string>>(OrderNumbers, PersistenceJson.Options),
                 System.Text.Json.JsonSerializer.Deserialize<SharedKernel.Collections.EquatableArray<DocumentLine>>(Lines, PersistenceJson.Options)));
 }

@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using FCommerce.Access.Contracts;
+using FCommerce.Application.Messaging;
 using FCommerce.Customers.Contracts;
+using FCommerce.SharedKernel.Results;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FCommerce.IntegrationTests;
 
@@ -123,6 +127,41 @@ public sealed class MembershipsTests(HostFixture host)
         Assert.Contains("Zaproszenie wysłane.", html, StringComparison.Ordinal);
         Assert.Equal("/pl/access-denied", users.Location);
         Assert.DoesNotContain("Użytkownicy firmy", company.Html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task An_administrator_sets_an_order_limit_and_the_delivery_addresses_of_a_colleague()
+    {
+        var email = UniqueEmail("admin");
+        var buyer = UniqueEmail("buyer");
+        var code = Unique("K");
+        var address = new AddressData("ul. Magazynowa 5", "90-002", "Łódź", "PL");
+        await ImportAsync(Customer(code, $"Firma {code}", 1, Portal(email, "administrator"), Portal(buyer, "buyer", "C2")) with
+        {
+            DeliveryAddresses = [new DeliveryAddressData("MAG", "Magazyn", address, IsDefault: true), new DeliveryAddressData("BUD", "Budowa", address)],
+        });
+        using var admin = host.NewBrowser();
+        await host.AcceptInvitationAsync(admin, email, Password);
+        var id = await UserIdAsync(admin, buyer);
+
+        var invalid = await admin.SubmitAsync("/pl/company/users", new Dictionary<string, string>(Rights()) { ["UserForm.OrderLimit"] = "dużo" }, $"/pl/company/users?handler=Change&id={id}");
+        var saved = await admin.SubmitAsync(
+            "/pl/company/users",
+            new Dictionary<string, string>(Rights()) { ["UserForm.OrderLimit"] = "2500,50", ["UserForm.OrderLimitCurrency"] = "PLN", ["UserForm.DeliveryAddressCodes"] = "BUD" },
+            $"/pl/company/users?handler=Change&id={id}");
+        var page = (await admin.GetAsync("/pl/company/users")).Html;
+
+        Assert.Contains("Limit zamówienia musi być liczbą.", invalid.Html, StringComparison.Ordinal);
+        Assert.Contains("Zapisano", saved.Html, StringComparison.Ordinal);
+        Assert.Contains("value=\"2500.5\"", page, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"BUD\" selected=\"selected\">", page, StringComparison.Ordinal);
+        Assert.Contains("<option value=\"MAG\">", page, StringComparison.Ordinal);
+
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var contacts = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetUserContact, Result<UserContact, Error>>>();
+        var adminId = Guid.Parse(await UserIdAsync(admin, email));
+        Assert.Equal(new UserContact(adminId, email, "Jan Kowalski", "pl"), (await contacts.HandleAsync(new GetUserContact(adminId), Token)).Match(c => c, e => throw new InvalidOperationException(e.Code)));
+        Assert.Equal("access.user-not-found", (await contacts.HandleAsync(new GetUserContact(Guid.Parse(id)), Token)).Match(_ => "found", e => e.Code));
     }
 
     [Fact]

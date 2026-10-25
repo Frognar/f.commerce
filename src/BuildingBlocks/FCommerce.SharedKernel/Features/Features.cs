@@ -35,6 +35,9 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
     public static readonly FeatureId QuickOrder = FeatureId.Define("quick-order");
     public static readonly FeatureId ShoppingLists = FeatureId.Define("shopping-lists");
     public static readonly FeatureId ReorderFromDocuments = FeatureId.Define("reorder-from-documents");
+    public static readonly FeatureId Ordering = FeatureId.Define("ordering");
+    public static readonly FeatureId ReorderFromOrders = FeatureId.Define("reorder-from-orders");
+    public static readonly FeatureId OrderFeed = FeatureId.Define("order-feed");
 
     /// <summary>The feature catalog. Modules add their features here (one list, so dependencies can be checked).</summary>
     public static ImmutableArray<Feature> All { get; } =
@@ -51,6 +54,9 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
         new(QuickOrder, "Products are added to the cart by SKU or by pasting a list.", true, [Cart]),
         new(ShoppingLists, "Carts are saved as shopping lists and added back to the cart.", true, [Cart]),
         new(ReorderFromDocuments, "Lines of an invoice or delivery note are added to the cart.", true, [Cart, Documents]),
+        new(Ordering, "Orders are placed from the cart; customers see their order history.", true, [Cart]),
+        new(ReorderFromOrders, "Lines of an earlier order are added to the cart.", true, [Ordering]),
+        new(OrderFeed, "The ERP takes orders from a feed of the integration API and confirms them.", true, [Ordering]),
     ];
 }
 

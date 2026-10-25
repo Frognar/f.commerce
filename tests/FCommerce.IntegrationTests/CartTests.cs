@@ -127,6 +127,41 @@ public sealed class CartTests(HostFixture host)
     }
 
     [Fact]
+    public async Task The_review_checks_the_order_limit_and_tells_the_version_of_the_cart()
+    {
+        var (owner, skus) = await ShopAsync();
+        var empty = await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"]));
+        await ChangeAsync(new AddToCart(owner, [new(skus[0], 10)], CartSources.Product));
+        await ChangeAsync(new AddToCart(owner, [new(skus[1], 2)], CartSources.Product));
+
+        var withinLimit = await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"], new CartOrderLimit(95m, "PLN")));
+        var overLimit = await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"], new CartOrderLimit(94.99m, "PLN")));
+        var otherCurrency = await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"], new CartOrderLimit(1000m, "EUR")));
+
+        Assert.Equal((0L, true), (empty.Version, empty.Complete));
+        Assert.Equal((2L, true, true), (withinLimit.Version, withinLimit.Complete, withinLimit.CanOrder));
+        Assert.Equal((false, "over-limit", new CartOrderLimit(94.99m, "PLN")), (overLimit.CanOrder, Assert.Single(overLimit.Issues), overLimit.OrderLimit!));
+        Assert.Equal(["over-limit"], otherCurrency.Issues);
+    }
+
+    [Fact]
+    public async Task The_items_of_an_order_leave_the_cart_once()
+    {
+        var (owner, skus) = await ShopAsync();
+        var order = Guid.CreateVersion7();
+        await ChangeAsync(new AddToCart(owner, [new(skus[0], 3), new(skus[1], 1)], CartSources.Product));
+
+        var ordered = await ChangeAsync(new RemoveOrderedItems(owner, order, [new(skus[0], 2), new(skus[1], 1)]));
+        await ChangeAsync(new AddToCart(owner, [new(skus[1], 4)], CartSources.Product));
+        var again = await ChangeAsync(new RemoveOrderedItems(owner, order, [new(skus[0], 2), new(skus[1], 1)]));
+        var cart = await QueryAsync<GetCart, CartView>(new GetCart(owner, ["pl"]));
+
+        Assert.Equal(1, ordered.ItemCount);
+        Assert.Equal(2, again.ItemCount);
+        Assert.Equal([(skus[0], 1m), (skus[1], 4m)], cart.Lines.Select(l => (l.Sku, l.Quantity)));
+    }
+
+    [Fact]
     public async Task Pasted_lines_replacing_and_clearing()
     {
         var (owner, skus) = await ShopAsync();

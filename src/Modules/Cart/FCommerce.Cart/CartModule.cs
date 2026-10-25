@@ -29,6 +29,7 @@ public static class CartModule
         services.AddMessageType<CartEvent.ItemQuantityChanged>("cart.item-quantity-changed.v1");
         services.AddMessageType<CartEvent.ItemRemoved>("cart.item-removed.v1");
         services.AddMessageType<CartEvent.Cleared>("cart.cleared.v1");
+        services.AddMessageType<CartEvent.ItemsOrdered>("cart.items-ordered.v1");
 
         services.AddScoped<CartStore>();
         services.AddScoped<ICommandHandler<AddToCart, Result<CartChange, Error>>, AddToCartHandler>();
@@ -37,6 +38,7 @@ public static class CartModule
         services.AddScoped<ICommandHandler<ChangeCartQuantity, Result<CartChange, Error>>, ChangeCartQuantityHandler>();
         services.AddScoped<ICommandHandler<RemoveFromCart, Result<CartChange, Error>>, RemoveFromCartHandler>();
         services.AddScoped<ICommandHandler<ClearCart, Result<CartChange, Error>>, ClearCartHandler>();
+        services.AddScoped<ICommandHandler<RemoveOrderedItems, Result<CartChange, Error>>, RemoveOrderedItemsHandler>();
         services.AddScoped<IQueryHandler<GetCartSize, int>, GetCartSizeHandler>();
         services.AddScoped<IQueryHandler<GetCart, CartView>, GetCartHandler>();
 

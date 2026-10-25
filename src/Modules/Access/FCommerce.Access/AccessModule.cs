@@ -51,6 +51,7 @@ public static class AccessModule
         services.AddScoped<MembershipManagement>();
         services.AddScoped<ICommandHandler<SignInCommand, Result<SignedIn, Error>>, SignInHandler>();
         services.AddScoped<IQueryHandler<GetSession, Result<SessionView, Error>>, GetSessionHandler>();
+        services.AddScoped<IQueryHandler<GetUserContact, Result<UserContact, Error>>, GetUserContactHandler>();
         services.AddScoped<IQueryHandler<GetInvitation, Result<InvitationView, Error>>, GetInvitationHandler>();
         services.AddScoped<ICommandHandler<AcceptInvitation, Result<SignedIn, Error>>, AcceptInvitationHandler>();
         services.AddScoped<ICommandHandler<RequestPasswordReset, Result<Unit, Error>>, RequestPasswordResetHandler>();

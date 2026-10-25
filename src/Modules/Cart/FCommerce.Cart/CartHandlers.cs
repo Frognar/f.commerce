@@ -39,7 +39,10 @@ internal sealed class CartStore(
     IQueryHandler<GetProductsBySku, Result<IReadOnlyList<ProductSummary>, Error>> products)
 {
     public async Task<CartState> LoadAsync(CartOwner owner, CancellationToken cancellationToken) =>
-        (await store.LoadAsync(CartStream.For(owner), Carts.Decider, cancellationToken)).State;
+        (await LoadWithVersionAsync(owner, cancellationToken)).State;
+
+    public Task<(CartState State, long Version)> LoadWithVersionAsync(CartOwner owner, CancellationToken cancellationToken) =>
+        store.LoadAsync(CartStream.For(owner), Carts.Decider, cancellationToken);
 
     public async Task<Result<CartChange, Error>> DecideAsync(CartOwner owner, CartCommand command, int added, IReadOnlyList<CartRejection> rejected, CancellationToken cancellationToken) =>
         (await store.DecideAsync(
@@ -146,6 +149,17 @@ internal sealed class ClearCartHandler(CartStore carts) : ICommandHandler<ClearC
 {
     public Task<Result<CartChange, Error>> HandleAsync(ClearCart command, CancellationToken cancellationToken = default) =>
         carts.DecideAsync(command.Owner, new CartCommand.Clear(), 0, [], cancellationToken);
+}
+
+internal sealed class RemoveOrderedItemsHandler(CartStore carts) : ICommandHandler<RemoveOrderedItems, Result<CartChange, Error>>
+{
+    public Task<Result<CartChange, Error>> HandleAsync(RemoveOrderedItems command, CancellationToken cancellationToken = default) =>
+        carts.DecideAsync(
+            command.Owner,
+            new CartCommand.RemoveOrdered(command.OrderId, [.. command.Items.OrEmpty().Select(item => new CartItem(item.Sku.OrEmpty(), item.Quantity))]),
+            0,
+            [],
+            cancellationToken);
 }
 
 internal sealed class GetCartSizeHandler(CartStore carts) : IQueryHandler<GetCartSize, int>

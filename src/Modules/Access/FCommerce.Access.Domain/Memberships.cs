@@ -1,5 +1,6 @@
 using FCommerce.Authorization.Core;
 using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
@@ -18,14 +19,55 @@ public enum MembershipSource
 /// <param name="ErpContactId">The ERP contact the membership came from (ERP source only).</param>
 public sealed record Membership(Guid UserId, string CustomerCode, MembershipAttributes Attributes, MembershipSource Source, Maybe<string> ErpContactId);
 
-/// <summary>The rights edited in the UI; order limit and delivery addresses keep their values.</summary>
-public sealed record MembershipRights(bool CanOrder, OrderScope OrderScope, bool CanViewDocuments, bool CanManageUsers)
+/// <summary>The rights edited in the UI.</summary>
+/// <param name="OrderLimit">The highest net value of an order; none when unlimited.</param>
+public sealed record MembershipRights(
+    bool CanOrder,
+    OrderScope OrderScope,
+    bool CanViewDocuments,
+    bool CanManageUsers,
+    Maybe<Money> OrderLimit,
+    DeliveryAddressScope DeliveryAddresses)
 {
+    public const int MaxDeliveryAddresses = 100;
+    public const decimal MaxOrderLimit = 1_000_000_000m;
+
     public static MembershipRights Of(MembershipAttributes attributes) =>
-        new(attributes.CanOrder, attributes.OrderScope, attributes.CanViewDocuments, attributes.CanManageUsers);
+        new(attributes.CanOrder, attributes.OrderScope, attributes.CanViewDocuments, attributes.CanManageUsers, attributes.OrderLimit, attributes.DeliveryAddresses);
 
     public MembershipAttributes ApplyTo(MembershipAttributes attributes) =>
-        attributes with { CanOrder = CanOrder, OrderScope = OrderScope, CanViewDocuments = CanViewDocuments, CanManageUsers = CanManageUsers };
+        attributes with
+        {
+            CanOrder = CanOrder,
+            OrderScope = OrderScope,
+            CanViewDocuments = CanViewDocuments,
+            CanManageUsers = CanManageUsers,
+            OrderLimit = OrderLimit,
+            DeliveryAddresses = DeliveryAddresses,
+        };
+
+    /// <summary>An order limit: none, or more than zero with at most 2 decimal places in a valid currency.</summary>
+    public static Result<Maybe<Money>, Error> Limit(Maybe<decimal> amount, string currency) =>
+        amount.Match(
+            value => value switch
+            {
+                <= 0 => Error.Validation("membership.order-limit-not-positive", "The order limit must be greater than zero.") with { Field = "orderLimit" },
+                > MaxOrderLimit => Error.Validation("membership.order-limit-too-large", "The order limit is too large.") with { Field = "orderLimit" },
+                _ when decimal.Round(value, 2) != value => Error.Validation("membership.order-limit-precision", "The order limit has at most 2 decimal places.") with { Field = "orderLimit" },
+                _ => Currency.Parse(currency).Map(c => Maybe.Some(new Money(value, c))).MapError(error => error with { Field = "orderLimitCurrency" }),
+            },
+            () => Result.Ok<Maybe<Money>, Error>(Maybe<Money>.None));
+
+    /// <summary>Delivery addresses a user may order to: none listed means all of them.</summary>
+    public static Result<DeliveryAddressScope, Error> Addresses(Maybe<IReadOnlyList<string>> codes) =>
+        codes.Match(
+            list => list.Select(code => code.Trim()).Where(code => code.Length > 0).Distinct(StringComparer.Ordinal).ToList() switch
+            {
+                [] => Result.Ok<DeliveryAddressScope, Error>(DeliveryAddressScope.All),
+                { Count: > MaxDeliveryAddresses } => Error.Validation("membership.too-many-addresses", $"At most {MaxDeliveryAddresses} delivery addresses.") with { Field = "deliveryAddressCodes" },
+                var distinct => DeliveryAddressScope.Only([.. distinct]),
+            },
+            () => Result.Ok<DeliveryAddressScope, Error>(DeliveryAddressScope.All));
 }
 
 public static class MembershipRules

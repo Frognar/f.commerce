@@ -64,7 +64,9 @@ public sealed class UsersModel(CompanyContext company, CustomerUsersActions user
             await users.UsersAsync(customer.Code, cancellationToken),
             await company.CanAsync(AccessAction.Manage, (code, salesperson) => new Resource.CustomerUsers(code, salesperson), customer, cancellationToken),
             new Dictionary<string, string>(),
-            user.UserId));
+            user.UserId,
+            customer.Currency,
+            customer.DeliveryAddresses));
         return Maybe<IActionResult>.None;
     }
 }

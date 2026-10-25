@@ -85,7 +85,9 @@ public sealed class DetailsModel(
             await users.UsersAsync(found.Code, cancellationToken),
             await access.CanAsync(AccessAction.Manage, new Resource.CustomerUsers(found.Code, salesperson), cancellationToken),
             new Dictionary<string, string> { ["code"] = found.Code },
-            user.UserId);
+            user.UserId,
+            found.Currency,
+            found.DeliveryAddresses);
         Audit = [.. (await auditLog.HandleAsync(new GetAuditLog($"customer:{found.Code}"), cancellationToken))
             .Select(entry => new AuditLine(entry.At, entry.Actor.ToMaybe(), entry.Action, entry.Details.ToMaybe().Bind(EmailOf)))];
         return Maybe<IActionResult>.None;

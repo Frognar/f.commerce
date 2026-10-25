@@ -161,6 +161,9 @@
   <data name="Feature.quick-order" xml:space="preserve"><value>Szybkie zamawianie</value></data>
   <data name="Feature.shopping-lists" xml:space="preserve"><value>Listy zakupowe</value></data>
   <data name="Feature.reorder-from-documents" xml:space="preserve"><value>Koszyk z dokumentu</value></data>
+  <data name="Feature.ordering" xml:space="preserve"><value>Zamówienia</value></data>
+  <data name="Feature.reorder-from-orders" xml:space="preserve"><value>Koszyk z zamówienia</value></data>
+  <data name="Feature.order-feed" xml:space="preserve"><value>Feed zamówień dla ERP</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Klienci logują się do strefy klienta.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>Użytkownik może działać w imieniu kilku firm.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Administratorzy firm sami zapraszają współpracowników.</value></data>
@@ -173,6 +176,9 @@
   <data name="FeatureHint.quick-order" xml:space="preserve"><value>Dodawanie do koszyka po indeksie i wklejanie listy pozycji.</value></data>
   <data name="FeatureHint.shopping-lists" xml:space="preserve"><value>Zapisywanie koszyka jako listy i ponowne dodawanie z listy.</value></data>
   <data name="FeatureHint.reorder-from-documents" xml:space="preserve"><value>Pozycje faktury lub WZ trafiają do koszyka jednym kliknięciem.</value></data>
+  <data name="FeatureHint.ordering" xml:space="preserve"><value>Klienci składają zamówienia z koszyka i widzą historię zamówień.</value></data>
+  <data name="FeatureHint.reorder-from-orders" xml:space="preserve"><value>Pozycje wcześniejszego zamówienia trafiają do koszyka jednym kliknięciem.</value></data>
+  <data name="FeatureHint.order-feed" xml:space="preserve"><value>ERP pobiera zamówienia przez API integracyjne i potwierdza je. Wyłącz przy innym sposobie integracji.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Ktoś zmienił ustawienia w międzyczasie. Odśwież stronę i spróbuj ponownie.</value></data>
   <data name="Error.settings.stock-display" xml:space="preserve"><value>Wybierz, jak pokazywać stany.</value></data>
   <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>Próg musi być liczbą nie mniejszą od zera, z najwyżej 3 miejscami po przecinku.</value></data>
@@ -227,6 +233,10 @@
   <data name="OrderScope.company" xml:space="preserve"><value>całej firmy</value></data>
   <data name="CanViewDocuments" xml:space="preserve"><value>Widzi dokumenty</value></data>
   <data name="CanManageUsers" xml:space="preserve"><value>Zarządza użytkownikami</value></data>
+  <data name="OrderLimit" xml:space="preserve"><value>Limit zamówienia (netto)</value></data>
+  <data name="Unlimited" xml:space="preserve"><value>bez limitu</value></data>
+  <data name="AllowedDeliveryAddresses" xml:space="preserve"><value>Adresy dostawy</value></data>
+  <data name="AllowedDeliveryAddressesHint" xml:space="preserve"><value>Bez zaznaczenia: wszystkie adresy firmy.</value></data>
   <data name="You" xml:space="preserve"><value>Ty</value></data>
   <data name="RevokeAccess" xml:space="preserve"><value>Odbierz dostęp</value></data>
   <data name="NoCustomerUsers" xml:space="preserve"><value>Nikt z firmy nie ma jeszcze dostępu do platformy.</value></data>
@@ -250,6 +260,11 @@
   <data name="Error.membership.operator-account" xml:space="preserve"><value>Konto pracownika sprzedawcy nie może działać w imieniu firmy.</value></data>
   <data name="Error.membership.account-disabled" xml:space="preserve"><value>To konto jest wyłączone.</value></data>
   <data name="Error.membership.exists" xml:space="preserve"><value>Ta osoba ma już dostęp do firmy.</value></data>
+  <data name="Error.membership.order-limit-format" xml:space="preserve"><value>Limit zamówienia musi być liczbą.</value></data>
+  <data name="Error.membership.order-limit-not-positive" xml:space="preserve"><value>Limit zamówienia musi być większy od zera.</value></data>
+  <data name="Error.membership.order-limit-too-large" xml:space="preserve"><value>Limit zamówienia jest za duży.</value></data>
+  <data name="Error.membership.order-limit-precision" xml:space="preserve"><value>Limit zamówienia ma najwyżej 2 miejsca po przecinku.</value></data>
+  <data name="Error.membership.too-many-addresses" xml:space="preserve"><value>Zaznacz najwyżej 100 adresów dostawy.</value></data>
   <data name="Error.membership.single-customer" xml:space="preserve"><value>Ta osoba działa już w imieniu innej firmy.</value></data>
   <data name="Error.membership.not-found" xml:space="preserve"><value>Ta osoba nie ma dostępu do firmy.</value></data>
   <data name="Error.membership.order-scope-invalid" xml:space="preserve"><value>Wybierz zakres widocznych zamówień.</value></data>
@@ -369,6 +384,8 @@
   <data name="GrossTotal" xml:space="preserve"><value>Razem brutto</value></data>
   <data name="TotalsWithoutUnpriced" xml:space="preserve"><value>Sumy nie obejmują pozycji bez ceny.</value></data>
   <data name="CartCustomerBlocked" xml:space="preserve"><value>Konto firmy jest zablokowane — zamówienia są wstrzymane. Skontaktuj się z opiekunem.</value></data>
+  <data name="CartMixedCurrencies" xml:space="preserve"><value>Pozycje mają ceny w różnych walutach — jedno zamówienie ma jedną walutę. Zamów je osobno.</value></data>
+  <data name="CartOverLimit" xml:space="preserve"><value>Wartość netto przekracza Twój limit zamówienia ({0}). Zmniejsz ilości albo skontaktuj się z administratorem konta firmy.</value></data>
   <data name="CartReady" xml:space="preserve"><value>Koszyk jest gotowy do zamówienia.</value></data>
   <data name="CartNotReady" xml:space="preserve"><value>Zamówienia nie da się złożyć, dopóki w koszyku są oznaczone pozycje.</value></data>
   <data name="ClearCart" xml:space="preserve"><value>Wyczyść koszyk</value></data>

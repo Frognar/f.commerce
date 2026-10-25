@@ -4,6 +4,7 @@ using FCommerce.Application.Email;
 using FCommerce.Application.Messaging;
 using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
+using FCommerce.Documents.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -66,6 +67,7 @@ public partial class HostFixture : IAsyncLifetime
                 services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<CustomerChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<PortalContactsChanged>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<DocumentChanged>>(Events);
                 services.AddSingleton<IEmailSender>(Mail);
             })));
         _ = Factory.Server; // start now, so failures surface in the fixture
@@ -146,17 +148,21 @@ public partial class HostFixture : IAsyncLifetime
     }
 
     public sealed class EventRecorder
-        : IIntegrationEventHandler<ProductChanged>, IIntegrationEventHandler<CustomerChanged>, IIntegrationEventHandler<PortalContactsChanged>
+        : IIntegrationEventHandler<ProductChanged>, IIntegrationEventHandler<CustomerChanged>, IIntegrationEventHandler<PortalContactsChanged>,
+            IIntegrationEventHandler<DocumentChanged>
     {
         private readonly ConcurrentQueue<ProductChanged> productChanges = new();
         private readonly ConcurrentQueue<CustomerChanged> customerChanges = new();
         private readonly ConcurrentQueue<PortalContactsChanged> portalContactChanges = new();
+        private readonly ConcurrentQueue<DocumentChanged> documentChanges = new();
 
         public IReadOnlyCollection<ProductChanged> ProductChanges => productChanges;
 
         public IReadOnlyCollection<CustomerChanged> CustomerChanges => customerChanges;
 
         public IReadOnlyCollection<PortalContactsChanged> PortalContactChanges => portalContactChanges;
+
+        public IReadOnlyCollection<DocumentChanged> DocumentChanges => documentChanges;
 
         public Task HandleAsync(ProductChanged integrationEvent, CancellationToken cancellationToken = default)
         {
@@ -173,6 +179,12 @@ public partial class HostFixture : IAsyncLifetime
         public Task HandleAsync(PortalContactsChanged integrationEvent, CancellationToken cancellationToken = default)
         {
             portalContactChanges.Enqueue(integrationEvent);
+            return Task.CompletedTask;
+        }
+
+        public Task HandleAsync(DocumentChanged integrationEvent, CancellationToken cancellationToken = default)
+        {
+            documentChanges.Enqueue(integrationEvent);
             return Task.CompletedTask;
         }
     }

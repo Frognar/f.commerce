@@ -4,7 +4,7 @@
     <thead>
         <tr>
             <th>@T["FullName"]</th><th>@T["Email"]</th><th>@T["Status"]</th><th>@T["MembershipSource"]</th>
-            <th>@T["CanOrder"]</th><th>@T["OrderScope"]</th><th>@T["CanViewDocuments"]</th><th>@T["CanManageUsers"]</th>
+            <th>@T["CanOrder"]</th><th>@T["OrderScope"]</th><th>@T["OrderLimit"]</th><th>@T["AllowedDeliveryAddresses"]</th><th>@T["CanViewDocuments"]</th><th>@T["CanManageUsers"]</th>
             @if (Model.CanManage) { <th></th> }
         </tr>
     </thead>
@@ -24,6 +24,26 @@
                         <option value="own" selected="@(user.Rights.OrderScope == "own")">@T["OrderScope.own"]</option>
                         <option value="company" selected="@(user.Rights.OrderScope == "company")">@T["OrderScope.company"]</option>
                     </select>
+                </td>
+                <td>
+                    <input form="@formId" name="UserForm.OrderLimit" inputmode="decimal" size="10" maxlength="16" value="@(user.Rights.OrderLimit is { } limit ? limit.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "")" placeholder="@T["Unlimited"]" disabled="@disabled" aria-label="@T["OrderLimit"]" />
+                    <input form="@formId" type="hidden" name="UserForm.OrderLimitCurrency" value="@(user.Rights.OrderLimitCurrency ?? Model.Currency)" />
+                    <span class="muted">@(user.Rights.OrderLimitCurrency ?? Model.Currency)</span>
+                </td>
+                <td>
+                    @if (Model.DeliveryAddresses.Count == 0)
+                    {
+                        <span class="muted">—</span>
+                    }
+                    else
+                    {
+                        <select form="@formId" name="UserForm.DeliveryAddressCodes" multiple size="@Math.Min(Model.DeliveryAddresses.Count, 4)" disabled="@disabled" aria-label="@T["AllowedDeliveryAddresses"]" title="@T["AllowedDeliveryAddressesHint"]">
+                            @foreach (var address in Model.DeliveryAddresses)
+                            {
+                                <option value="@address.Code" selected="@(user.Rights.DeliveryAddressCodes?.Contains(address.Code) == true)">@(address.Name ?? address.Code), @address.Address.City</option>
+                            }
+                        </select>
+                    }
                 </td>
                 <td><input form="@formId" type="checkbox" name="UserForm.CanViewDocuments" value="true" checked="@user.Rights.CanViewDocuments" disabled="@disabled" aria-label="@T["CanViewDocuments"]" /></td>
                 <td><input form="@formId" type="checkbox" name="UserForm.CanManageUsers" value="true" checked="@user.Rights.CanManageUsers" disabled="@disabled" aria-label="@T["CanManageUsers"]" /></td>

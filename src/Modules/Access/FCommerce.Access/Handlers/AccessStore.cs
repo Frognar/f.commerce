@@ -91,15 +91,25 @@ internal sealed class AccessStore(AccessDbContext db, Outbox<AccessDbContext> ou
             membership.Attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null);
 
     public static MembershipRightsView ToView(MembershipRights rights) =>
-        new(rights.CanOrder, ToView(rights.OrderScope), rights.CanViewDocuments, rights.CanManageUsers);
+        new(
+            rights.CanOrder,
+            ToView(rights.OrderScope),
+            rights.CanViewDocuments,
+            rights.CanManageUsers,
+            rights.OrderLimit.Map(limit => limit.Amount).OrNull(),
+            rights.OrderLimit.Map(limit => limit.Currency.Code).OrNull(),
+            rights.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null);
 
     public static Result<MembershipRights, Error> FromView(MembershipRightsView view) =>
-        view.OrderScope switch
+        from scope in view.OrderScope switch
         {
-            "own" => new MembershipRights(view.CanOrder, OrderScope.Own, view.CanViewDocuments, view.CanManageUsers),
-            "company" => new MembershipRights(view.CanOrder, OrderScope.Company, view.CanViewDocuments, view.CanManageUsers),
+            "own" => Result.Ok<OrderScope, Error>(OrderScope.Own),
+            "company" => OrderScope.Company,
             _ => Error.Validation("membership.order-scope-invalid", "Order scope must be 'own' or 'company'.") with { Field = "orderScope" },
-        };
+        }
+        from limit in MembershipRights.Limit(view.OrderLimit.ToMaybe(), view.OrderLimitCurrency.OrEmpty())
+        from addresses in MembershipRights.Addresses(view.DeliveryAddressCodes.ToMaybe())
+        select new MembershipRights(view.CanOrder, scope, view.CanViewDocuments, view.CanManageUsers, limit, addresses);
 
     private static string ToView(OrderScope scope) => scope == OrderScope.Company ? "company" : "own";
 

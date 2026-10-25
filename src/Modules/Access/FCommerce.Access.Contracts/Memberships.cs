@@ -18,7 +18,16 @@ public sealed record MembershipView(
     IReadOnlyList<string>? DeliveryAddressCodes);
 
 /// <summary>The rights edited in the UI ("own"/"company" order scope).</summary>
-public sealed record MembershipRightsView(bool CanOrder, string OrderScope, bool CanViewDocuments, bool CanManageUsers);
+/// <param name="OrderLimit">Highest net value of an order, in <paramref name="OrderLimitCurrency"/>; null: unlimited.</param>
+/// <param name="DeliveryAddressCodes">Null or empty: every delivery address of the customer.</param>
+public sealed record MembershipRightsView(
+    bool CanOrder,
+    string OrderScope,
+    bool CanViewDocuments,
+    bool CanManageUsers,
+    decimal? OrderLimit = null,
+    string? OrderLimitCurrency = null,
+    IReadOnlyList<string>? DeliveryAddressCodes = null);
 
 /// <summary>
 /// Invites a person to act for a customer: a new account gets an invitation link, an existing one the access (and an

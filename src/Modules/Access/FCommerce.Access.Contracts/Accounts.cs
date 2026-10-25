@@ -19,6 +19,11 @@ public sealed record SignedIn(Guid UserId, string SecurityStamp, string Culture)
 /// <summary>The session's account, if the account is active and its stamp unchanged.</summary>
 public sealed record GetSession(Guid UserId, string SecurityStamp) : IQuery<Result<SessionView, Error>>;
 
+/// <summary>How to reach an active user (e.g. to send them a notification); not found for other accounts.</summary>
+public sealed record GetUserContact(Guid UserId) : IQuery<Result<UserContact, Error>>;
+
+public sealed record UserContact(Guid UserId, string Email, string Name, string Culture);
+
 /// <summary>Who an invitation link is for (to greet the person before they choose a password).</summary>
 public sealed record GetInvitation(string Token) : IQuery<Result<InvitationView, Error>>;
 

@@ -1,6 +1,8 @@
 using FCommerce.Access.Contracts;
 using FCommerce.Application.Messaging;
+using FCommerce.Application.Results;
 using FCommerce.Authorization.Core;
+using FCommerce.Customers.Contracts;
 using FCommerce.Host.Http;
 using FCommerce.Host.Localization;
 using FCommerce.SharedKernel.Optional;
@@ -30,7 +32,27 @@ public sealed class CustomerUserForm
 
     public bool CanManageUsers { get; set; }
 
-    public MembershipRightsView Rights() => new(CanOrder, OrderScope, CanViewDocuments, CanManageUsers);
+    /// <summary>Highest net value of an order; empty: unlimited.</summary>
+    public string OrderLimit { get; set; } = string.Empty;
+
+    /// <summary>The customer's currency, rendered with the form.</summary>
+    public string OrderLimitCurrency { get; set; } = string.Empty;
+
+    /// <summary>Delivery addresses the user may order to; none selected: all of them.</summary>
+    public List<string> DeliveryAddressCodes { get; set; } = [];
+
+    public Result<MembershipRightsView, Error> Rights() =>
+        (string.IsNullOrWhiteSpace(OrderLimit)
+            ? Result.Ok<Maybe<decimal>, Error>(Maybe<decimal>.None)
+            : FormNumbers.Decimal(OrderLimit, "membership.order-limit-format", "orderLimit").Map(Maybe.Some))
+        .Map(limit => new MembershipRightsView(
+            CanOrder,
+            OrderScope,
+            CanViewDocuments,
+            CanManageUsers,
+            limit.OrNull(),
+            limit.Map(_ => OrderLimitCurrency).OrNull(),
+            DeliveryAddressCodes.Count == 0 ? null : DeliveryAddressCodes));
 
     /// <summary>The template's rights (an unknown template gives none, so nothing is granted by mistake).</summary>
     public MembershipRightsView TemplateRights() =>
@@ -40,7 +62,15 @@ public sealed class CustomerUserForm
 }
 
 /// <summary>What the users panel shows; forms post to the current page with <see cref="RouteValues"/>.</summary>
-public sealed record CustomerUsersPanel(IReadOnlyList<CustomerUserSummary> Users, bool CanManage, IDictionary<string, string> RouteValues, Maybe<Guid> CurrentUserId);
+/// <param name="Currency">The customer's currency (of order limits).</param>
+/// <param name="DeliveryAddresses">The customer's delivery addresses, to limit where a user may order to.</param>
+public sealed record CustomerUsersPanel(
+    IReadOnlyList<CustomerUserSummary> Users,
+    bool CanManage,
+    IDictionary<string, string> RouteValues,
+    Maybe<Guid> CurrentUserId,
+    string Currency,
+    IReadOnlyList<DeliveryAddressView> DeliveryAddresses);
 
 /// <summary>Runs the users panel commands for the pages that host it.</summary>
 public sealed class CustomerUsersActions(
@@ -58,7 +88,7 @@ public sealed class CustomerUsersActions(
         Outcome(await invite.HandleAsync(new InviteCustomerUser(actorId, customerCode, form.Email, form.Name, form.Culture, form.TemplateRights()), cancellationToken), "UserInvited", modelState);
 
     public async Task<Maybe<string>> ChangeAsync(Guid actorId, string customerCode, Guid userId, CustomerUserForm form, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
-        Outcome(await change.HandleAsync(new ChangeMembership(actorId, userId, customerCode, form.Rights()), cancellationToken), "Saved", modelState);
+        Outcome(await form.Rights().BindAsync(rights => change.HandleAsync(new ChangeMembership(actorId, userId, customerCode, rights), cancellationToken)), "Saved", modelState);
 
     public async Task<Maybe<string>> RevokeAsync(Guid actorId, string customerCode, Guid userId, ModelStateDictionary modelState, CancellationToken cancellationToken) =>
         Outcome(await revoke.HandleAsync(new RevokeMembership(actorId, userId, customerCode), cancellationToken), "AccessRevoked", modelState);

@@ -37,7 +37,7 @@ public sealed class IndexModel(
     public const string ContentId = "cart";
     public const int MaxSuggestions = 8;
 
-    public CartView Cart { get; private set; } = new([], [], [], false, "hidden");
+    public CartView Cart { get; private set; } = new([], [], [], false, "hidden", 0, false, null);
 
     /// <summary>What the last change did: a message and what was not added.</summary>
     public Maybe<string> Message { get; private set; }
@@ -169,7 +169,7 @@ public sealed class IndexModel(
 
     private async Task LoadAsync(CartOwner owner, CancellationToken cancellationToken)
     {
-        Cart = await getCart.HandleAsync(new GetCart(owner, cultures.ForRequest()), cancellationToken);
+        Cart = await getCart.HandleAsync(new GetCart(owner, cultures.ForRequest(), (await carts.OrderLimitAsync(cancellationToken)).OrNull()), cancellationToken);
         QuickOrder = await QuickOrderOnAsync(cancellationToken);
         ShoppingLists = (await carts.ShoppingListsOwnerAsync(cancellationToken)).Match(_ => true, () => false);
     }

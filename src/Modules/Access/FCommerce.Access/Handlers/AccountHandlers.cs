@@ -74,6 +74,16 @@ internal sealed class GetSessionHandler(AccessStore store) : IQueryHandler<GetSe
     }
 }
 
+internal sealed class GetUserContactHandler(AccessStore store) : IQueryHandler<GetUserContact, Result<UserContact, Error>>
+{
+    public async Task<Result<UserContact, Error>> HandleAsync(GetUserContact query, CancellationToken cancellationToken = default) =>
+        (await store.Db.Accounts.AsNoTracking().SingleOrNoneAsync(a => a.Id == query.UserId, cancellationToken))
+            .Map(row => row.ToDomain())
+            .Where(account => account.Status == AccountStatus.Active)
+            .Map(account => new UserContact(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value))
+            .ToResult(() => Error.NotFound("access.user-not-found", "No active user with this id."));
+}
+
 internal sealed class GetInvitationHandler(AccessStore store) : IQueryHandler<GetInvitation, Result<InvitationView, Error>>
 {
     public async Task<Result<InvitationView, Error>> HandleAsync(GetInvitation query, CancellationToken cancellationToken = default) =>

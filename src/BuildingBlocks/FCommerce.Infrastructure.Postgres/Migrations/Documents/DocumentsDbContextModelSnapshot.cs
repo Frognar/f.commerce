@@ -80,10 +80,12 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Documents
                         .HasColumnType("character varying(64)")
                         .HasColumnName("number");
 
-                    b.Property<string>("OrderNumber")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)")
-                        .HasColumnName("order_number");
+                    b.Property<string>("OrderNumbers")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("order_numbers");
 
                     b.Property<decimal>("Outstanding")
                         .HasPrecision(15, 2)
@@ -123,6 +125,51 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Documents
                         .HasDatabaseName("ix_documents_customer_issue_date");
 
                     b.ToTable("documents", "documents");
+                });
+
+            modelBuilder.Entity("FCommerce.Infrastructure.Outbox.OutboxMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<string>("LastError")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)")
+                        .HasColumnName("last_error");
+
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("occurred_at");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("payload");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProcessedAt")
+                        .HasDatabaseName("ix_outbox_messages_processed_at");
+
+                    b.ToTable("outbox_messages", "documents");
                 });
 #pragma warning restore 612, 618
         }

@@ -54,7 +54,7 @@ public sealed record DocumentAmounts(Currency Currency, decimal Net, decimal Gro
 public sealed record DocumentLine(int Number, Maybe<string> Sku, string Name, decimal Quantity, string Unit, Maybe<decimal> NetPrice, Maybe<decimal> NetAmount);
 
 /// <param name="Amounts">Required for invoices and corrections; optional for other documents.</param>
-/// <param name="OrderNumber">The order the document belongs to, if any.</param>
+/// <param name="OrderNumbers">The orders the document belongs to (platform or ERP numbers), in ERP order.</param>
 /// <param name="Lines">The lines, when the ERP sends them (for ordering the same again).</param>
 public sealed record DocumentContent(
     string CustomerCode,
@@ -62,7 +62,7 @@ public sealed record DocumentContent(
     string Number,
     DocumentDates Dates,
     Maybe<DocumentAmounts> Amounts,
-    Maybe<string> OrderNumber,
+    EquatableArray<string> OrderNumbers,
     EquatableArray<DocumentLine> Lines);
 
 /// <summary>A customer's document (invoice, correction, delivery note, proforma) as replicated from the ERP.</summary>
@@ -83,7 +83,8 @@ public sealed record UnvalidatedDocument(
     Maybe<decimal> Gross,
     Maybe<decimal> Paid,
     Maybe<string> OrderNumber,
-    EquatableArray<UnvalidatedDocumentLine> Lines = default);
+    EquatableArray<UnvalidatedDocumentLine> Lines = default,
+    EquatableArray<string> OrderNumbers = default);
 
 public sealed record UnvalidatedDocumentLine(int Number, Maybe<string> Sku, string Name, decimal Quantity, string Unit, Maybe<decimal> NetPrice, Maybe<decimal> NetAmount);
 
@@ -102,6 +103,7 @@ public static class Documents
     public const int MaxNumber = 64;
     public const int MaxCustomerCode = 64;
     public const int MaxOrderNumber = 64;
+    public const int MaxOrderNumbers = 50;
     public const int MaxFileBytes = 20 * 1024 * 1024;
 
     /// <summary>Amounts are bounded well below what the storage column holds.</summary>
@@ -125,8 +127,8 @@ public static class Documents
     private static readonly Func<DocumentId, SourceVersion, DocumentContent, Document> Create =
         (id, version, content) => new Document(id, version, content);
 
-    private static readonly Func<string, DocumentType, string, DocumentDates, Maybe<DocumentAmounts>, Maybe<string>, EquatableArray<DocumentLine>, DocumentContent> CreateContent =
-        (customer, type, number, dates, amounts, order, lines) => new DocumentContent(customer, type, number, dates, amounts, order, lines);
+    private static readonly Func<string, DocumentType, string, DocumentDates, Maybe<DocumentAmounts>, EquatableArray<string>, EquatableArray<DocumentLine>, DocumentContent> CreateContent =
+        (customer, type, number, dates, amounts, orders, lines) => new DocumentContent(customer, type, number, dates, amounts, orders, lines);
 
     /// <summary>Validates a document from the ERP, reporting every problem with its field path.</summary>
     public static Validated<Document> Validate(UnvalidatedDocument input) =>
@@ -139,7 +141,7 @@ public static class Documents
                 .Apply(SourceCodes.Parse(input.Number, MaxNumber, "number", "Document number").ToValidated("number"))
                 .Apply(ValidateDates(input))
                 .Apply(ValidateAmounts(input))
-                .Apply(SourceCodes.ParseOptional(input.OrderNumber, MaxOrderNumber, "order-number", "Order number").ToValidated("orderNumber"))
+                .Apply(ValidateOrderNumbers(input))
                 .Apply(ValidateLines(input.Lines))
                 .EnsureAll(
                     (content => content.Amounts.Match(_ => true, () => !IsPayable(content.Type)), Error.Validation("amounts.missing", "Invoices and corrections need their amounts.") with { Field = "gross" }),
@@ -204,6 +206,17 @@ public static class Documents
             _ when !content.StartsWith("%PDF-"u8) => Error.Validation("file.not-pdf", "The file is not a PDF document."),
             _ => Unit.Value,
         };
+
+    /// <summary>The single order number and the list together, without repeats; blank entries are ignored.</summary>
+    private static Validated<EquatableArray<string>> ValidateOrderNumbers(UnvalidatedDocument input)
+    {
+        var listed = input.OrderNumbers.Where(number => !string.IsNullOrWhiteSpace(number)).ToList();
+        return Maybe.ParseOptional(input.OrderNumber, raw => SourceCodes.Parse(raw, MaxOrderNumber, "order-number", "Order number")).ToValidated("orderNumber")
+            .Bind(single => listed.Count > MaxOrderNumbers
+                ? Validated.Invalid<EquatableArray<string>>(Error.Validation("order-numbers.too-many", $"At most {MaxOrderNumbers} order numbers.") with { Field = "orderNumbers" })
+                : listed.Traverse(raw => SourceCodes.Parse(raw, MaxOrderNumber, "order-number", "Order number").ToValidated()).AtField("orderNumbers")
+                    .Map(numbers => (EquatableArray<string>)[.. single.AsEnumerable().Concat(numbers).Distinct(StringComparer.Ordinal)]));
+    }
 
     private static Validated<EquatableArray<DocumentLine>> ValidateLines(EquatableArray<UnvalidatedDocumentLine> lines) =>
         lines.Count > MaxLines

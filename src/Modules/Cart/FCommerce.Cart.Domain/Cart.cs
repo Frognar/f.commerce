@@ -48,6 +48,9 @@ public abstract record CartEvent
     public sealed record ItemRemoved(string Sku) : CartEvent;
 
     public sealed record Cleared(ClearReason Reason) : CartEvent;
+
+    /// <summary>An order was placed with these items: their quantities leave the cart.</summary>
+    public sealed record ItemsOrdered(Guid OrderId, EquatableArray<CartItem> Items) : CartEvent;
 }
 
 public abstract record CartCommand
@@ -67,12 +70,19 @@ public abstract record CartCommand
 
     /// <summary>Empties the cart and adds the items (one decision, one append).</summary>
     public sealed record ReplaceItems(IReadOnlyList<CartItem> Items, CartSource Source) : CartCommand;
+
+    /// <summary>
+    /// Takes the ordered quantities out of the cart (what was added meanwhile stays). Once per order: the same
+    /// order again changes nothing.
+    /// </summary>
+    public sealed record RemoveOrdered(Guid OrderId, IReadOnlyList<CartItem> Items) : CartCommand;
 }
 
 /// <summary>The items of a cart in the order they were first added.</summary>
-public sealed record CartState(EquatableArray<CartItem> Items)
+/// <param name="Orders">Orders whose items already left the cart (kept when the cart is cleared).</param>
+public sealed record CartState(EquatableArray<CartItem> Items, EquatableArray<Guid> Orders)
 {
-    public static CartState Empty { get; } = new(EquatableArray<CartItem>.Empty);
+    public static CartState Empty { get; } = new(EquatableArray<CartItem>.Empty, EquatableArray<Guid>.Empty);
 
     public Maybe<CartItem> Find(string sku) => Items.FirstOrNone(item => item.Sku == sku);
 }
@@ -99,6 +109,9 @@ public static class Carts
             CartCommand.ReplaceItems replace => Normalize(replace.Items).Bind(items =>
                 Add(CartState.Empty, items, replace.Source).Map(added =>
                     (EquatableArray<CartEvent>)[.. state.Items.IsEmpty ? [] : new CartEvent[] { new CartEvent.Cleared(ClearReason.Replaced) }, .. added])),
+            CartCommand.RemoveOrdered ordered => state.Orders.Contains(ordered.OrderId)
+                ? EquatableArray<CartEvent>.Empty
+                : Normalize(ordered.Items).Map(items => (EquatableArray<CartEvent>)[new CartEvent.ItemsOrdered(ordered.OrderId, items)]),
             _ => Error.Validation("cart.unknown-command", "Unknown cart command."),
         };
 
@@ -112,7 +125,14 @@ public static class Carts
                 existing => state with { Items = Replace(state.Items, existing with { Quantity = changed.Quantity }) },
                 () => state),
             CartEvent.ItemRemoved removed => state with { Items = state.Items.RemoveAll(item => item.Sku == removed.Sku) },
-            CartEvent.Cleared => CartState.Empty,
+            CartEvent.Cleared => state with { Items = EquatableArray<CartItem>.Empty },
+            CartEvent.ItemsOrdered ordered => state with
+            {
+                Items = [.. state.Items
+                    .Select(item => ordered.Items.FirstOrNone(o => o.Sku == item.Sku).Match(o => item with { Quantity = item.Quantity - o.Quantity }, () => item))
+                    .Where(item => item.Quantity > 0)],
+                Orders = state.Orders.Add(ordered.OrderId),
+            },
             _ => state,
         };
 

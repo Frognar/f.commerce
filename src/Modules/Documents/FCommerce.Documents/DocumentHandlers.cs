@@ -4,9 +4,11 @@ using FCommerce.Application.Storage;
 using FCommerce.Documents.Contracts;
 using FCommerce.Documents.Domain;
 using FCommerce.Documents.Persistence;
+using FCommerce.Infrastructure.Outbox;
 using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Messaging;
 using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
@@ -25,8 +27,8 @@ internal sealed class DocumentsClock(TimeProvider time, DocumentsOptions options
     public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone).DateTime);
 }
 
-/// <summary>Validate every item (pure) → reconcile with stored documents (pure) → store the changes.</summary>
-internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClock clock) : ICommandHandler<ImportDocuments, Result<ImportReport, Error>>
+/// <summary>Validate every item (pure) → reconcile with stored documents (pure) → store the changes and their events.</summary>
+internal sealed class ImportDocumentsHandler(DocumentsDbContext db, Outbox<DocumentsDbContext> outbox, DocumentsClock clock) : ICommandHandler<ImportDocuments, Result<ImportReport, Error>>
 {
     public async Task<Result<ImportReport, Error>> HandleAsync(ImportDocuments command, CancellationToken cancellationToken = default)
     {
@@ -55,9 +57,30 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClo
             }
         }
 
-        await db.SaveChangesAsync(cancellationToken);
-        return ImportReport.From(command.Documents.Count, changes, batch.Rejected);
+        return await outbox.EnqueueAll(changes.Choose(Changed))
+            .MapAsync(async _ =>
+            {
+                await db.SaveChangesAsync(cancellationToken);
+                return ImportReport.From(command.Documents.Count, changes, batch.Rejected);
+            });
     }
+
+    private static Maybe<IIntegrationEvent> Changed(Change<Document> change) =>
+        change switch
+        {
+            Change<Document>.Created created => Maybe.Some<IIntegrationEvent>(Event(created.Current)),
+            Change<Document>.Updated updated => Maybe.Some<IIntegrationEvent>(Event(updated.Current)),
+            _ => Maybe<IIntegrationEvent>.None,
+        };
+
+    private static DocumentChanged Event(Document document) =>
+        new DocumentChanged(
+            document.Id.Value,
+            document.Content.CustomerCode,
+            Domain.Documents.TypeNames.First(n => n.Value == document.Content.Type).Key,
+            document.Content.Number,
+            document.Content.Dates.Issued,
+            [.. document.Content.OrderNumbers]);
 
     private static UnvalidatedDocument ToUnvalidated(DocumentData data) =>
         new(
@@ -75,7 +98,8 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, DocumentsClo
             data.Paid.ToMaybe(),
             data.OrderNumber.ToMaybe(),
             [.. data.Lines.OrEmpty().Select(line => new UnvalidatedDocumentLine(
-                line.Number, line.Sku.ToMaybe(), line.Name.OrEmpty(), line.Quantity, line.Unit.OrEmpty(), line.NetPrice.ToMaybe(), line.NetAmount.ToMaybe()))]);
+                line.Number, line.Sku.ToMaybe(), line.Name.OrEmpty(), line.Quantity, line.Unit.OrEmpty(), line.NetPrice.ToMaybe(), line.NetAmount.ToMaybe()))],
+            [.. data.OrderNumbers.OrEmpty().Select(number => number.OrEmpty())]);
 }
 
 /// <summary>The file is accepted only for a document whose metadata is already imported; the blob is written first.</summary>
@@ -143,7 +167,7 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
         return new DocumentPage([.. rows.Select(row => Summary(row, today))], page, pageSize, total);
     }
 
-    private static DocumentSummary Summary(DocumentRow row, DateOnly today)
+    public static DocumentSummary Summary(DocumentRow row, DateOnly today)
     {
         var document = row.ToDomain();
         var content = document.Content;
@@ -157,9 +181,10 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             content.Amounts.Map(a => a.Gross).OrNull(),
             row.Outstanding,
             StatusName(Domain.Documents.StatusOn(content, today)),
-            content.OrderNumber.OrNull(),
+            content.OrderNumbers.IsEmpty ? null : string.Join(", ", content.OrderNumbers),
             row.FileSize is not null,
-            row.ReorderableLines);
+            row.ReorderableLines,
+            [.. content.OrderNumbers]);
     }
 
     private static Result<DocumentType, Error> ParseType(string raw) =>
@@ -184,6 +209,22 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             PaymentStatus.Overdue => DocumentStatuses.Overdue,
             _ => DocumentStatuses.None,
         };
+}
+
+internal sealed class GetOrderDocumentsHandler(DocumentsDbContext db, DocumentsClock clock) : IQueryHandler<GetOrderDocuments, IReadOnlyList<DocumentSummary>>
+{
+    public async Task<IReadOnlyList<DocumentSummary>> HandleAsync(GetOrderDocuments query, CancellationToken cancellationToken = default)
+    {
+        var ids = query.DocumentIds.OrEmpty().Take(GetOrderDocuments.MaxDocuments).ToList();
+        var rows = ids.Count == 0
+            ? []
+            : await db.Documents.AsNoTracking()
+                .Where(d => d.CustomerCode == query.CustomerCode && ids.Contains(d.Id))
+                .OrderByDescending(d => d.IssueDate).ThenByDescending(d => d.Number)
+                .ToListAsync(cancellationToken);
+        var today = clock.Today;
+        return [.. rows.Select(row => GetCustomerDocumentsHandler.Summary(row, today))];
+    }
 }
 
 internal sealed class GetReceivablesHandler(DocumentsDbContext db, DocumentsClock clock) : IQueryHandler<GetReceivables, IReadOnlyList<ReceivableView>>

@@ -1,6 +1,8 @@
 using FCommerce.Application.Messaging;
 using FCommerce.Documents.Contracts;
 using FCommerce.Documents.Persistence;
+using FCommerce.Infrastructure;
+using FCommerce.Infrastructure.Outbox;
 using FCommerce.Infrastructure.Persistence;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Results;
@@ -21,6 +23,8 @@ public static class DocumentsModule
     public static IServiceCollection AddDocumentsModule(this IServiceCollection services, DocumentsOptions options)
     {
         services.AddModuleDbContext<DocumentsDbContext>(DocumentsDbContext.Schema);
+        services.AddOutbox<DocumentsDbContext>();
+        services.AddMessageType<DocumentChanged>("documents.document-changed.v1");
         services.AddSingleton(options);
         services.AddSingleton<DocumentsClock>();
 
@@ -30,6 +34,7 @@ public static class DocumentsModule
         services.AddScoped<IQueryHandler<GetReceivables, IReadOnlyList<ReceivableView>>, GetReceivablesHandler>();
         services.AddScoped<IQueryHandler<OpenDocumentFile, Result<DocumentFile, Error>>, OpenDocumentFileHandler>();
         services.AddScoped<IQueryHandler<GetDocumentLines, Result<DocumentLines, Error>>, GetDocumentLinesHandler>();
+        services.AddScoped<IQueryHandler<GetOrderDocuments, IReadOnlyList<DocumentSummary>>, GetOrderDocumentsHandler>();
         return services;
     }
 }

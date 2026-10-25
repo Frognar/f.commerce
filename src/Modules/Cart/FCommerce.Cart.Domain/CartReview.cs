@@ -1,4 +1,5 @@
 using FCommerce.SharedKernel.Collections;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Cart.Domain;
@@ -45,6 +46,20 @@ public abstract record CartIssue
 
     /// <summary>The customer is blocked in the ERP (e.g. overdue payments).</summary>
     public sealed record CustomerBlocked : CartIssue;
+
+    /// <summary>Lines priced in different currencies: one order has one currency.</summary>
+    public sealed record MixedCurrencies : CartIssue;
+
+    /// <summary>The net value is above the buyer's order limit (or in another currency than the limit).</summary>
+    public sealed record OverLimit(Money Limit) : CartIssue;
+}
+
+/// <summary>What, besides the lines, decides whether the buyer may order.</summary>
+/// <param name="CustomerBlocked">The customer is blocked in the ERP.</param>
+/// <param name="OrderLimit">The highest net value of an order the buyer may place; none when unlimited.</param>
+public sealed record OrderTerms(bool CustomerBlocked, Maybe<Money> OrderLimit)
+{
+    public static OrderTerms None { get; } = new(false, Maybe<Money>.None);
 }
 
 public sealed record LineReview(CartItem Item, EquatableArray<LineIssue> Issues)
@@ -61,12 +76,14 @@ public static class CartReview
     /// <param name="product">The product in the catalog; none when it is gone or inactive.</param>
     /// <param name="priced">Whether the buyer has a price for the SKU.</param>
     /// <param name="stock">What can be ordered from stock.</param>
+    /// <param name="netTotals">Net value of the priced lines, per currency.</param>
     public static CartReviewResult Review(
         CartState cart,
         Func<string, Maybe<ProductFacts>> product,
         Func<string, bool> priced,
         Func<string, StockFacts> stock,
-        bool customerBlocked)
+        EquatableArray<Money> netTotals,
+        OrderTerms terms)
     {
         EquatableArray<LineReview> lines = [.. cart.Items.Select(item => new LineReview(item, product(item.Sku).Match(
             facts => LineIssues(item, facts, priced(item.Sku), stock(item.Sku)),
@@ -74,7 +91,10 @@ public static class CartReview
         EquatableArray<CartIssue> issues =
         [
             .. cart.Items.IsEmpty ? [new CartIssue.Empty()] : Array.Empty<CartIssue>(),
-            .. customerBlocked ? [new CartIssue.CustomerBlocked()] : Array.Empty<CartIssue>(),
+            .. terms.CustomerBlocked ? [new CartIssue.CustomerBlocked()] : Array.Empty<CartIssue>(),
+            .. netTotals.Count > 1 ? [new CartIssue.MixedCurrencies()] : Array.Empty<CartIssue>(),
+            .. terms.OrderLimit.Where(limit => netTotals.Any(total => total.Currency != limit.Currency || total.Amount > limit.Amount))
+                .Map(limit => (CartIssue)new CartIssue.OverLimit(limit)).AsEnumerable(),
         ];
         return new CartReviewResult(lines, issues, issues.IsEmpty && !lines.Any(line => line.Blocks));
     }

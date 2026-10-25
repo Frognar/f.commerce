@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using FCommerce.Application.Messaging;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Contracts;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FCommerce.IntegrationTests;
 
@@ -126,6 +128,37 @@ public sealed class DocumentsTests(HostFixture host)
         Assert.Equal("/pl/access-denied", buyerFile.Location);
         Assert.DoesNotContain("/pl/company/documents", buyerCompany.Html, StringComparison.Ordinal);
         Assert.StartsWith("/pl/sign-in", anonymous.Location, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Changed_documents_are_published_with_their_orders_and_found_by_id()
+    {
+        var customer = Unique("K");
+        var id = Unique("WZ");
+        var note = new DocumentData(id, 1, customer, "delivery-note", $"WZ/{id}", Today, OrderNumber: "ZAM/9", OrderNumbers: ["WWW/2026/000001", "ZAM/9"]);
+
+        await ImportAsync(note);
+        await ImportAsync(note);
+        await ImportAsync(note with { Version = 2 });
+        await ImportAsync(note with { Version = 3, OrderNumbers = ["WWW/2026/000002"] });
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (host.Events.DocumentChanges.Count(e => e.Id == id) < 2)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "The document events were not delivered.");
+            await Task.Delay(50, Token);
+        }
+
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var query = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetOrderDocuments, IReadOnlyList<DocumentSummary>>>();
+        var found = await query.HandleAsync(new GetOrderDocuments(customer, [id, "NONE"]), Token);
+        var otherCustomer = await query.HandleAsync(new GetOrderDocuments(Unique("K"), [id]), Token);
+
+        Assert.Equal(
+            [(customer, "delivery-note", "ZAM/9|WWW/2026/000001"), (customer, "delivery-note", "ZAM/9|WWW/2026/000002")],
+            host.Events.DocumentChanges.Where(e => e.Id == id).Select(e => (e.CustomerCode, e.Type, string.Join("|", e.OrderNumbers))));
+        var summary = Assert.Single(found);
+        Assert.Equal(("ZAM/9, WWW/2026/000002", "ZAM/9|WWW/2026/000002"), (summary.OrderNumber, string.Join("|", summary.OrderNumbers!)));
+        Assert.Empty(otherCustomer);
     }
 
     [Fact]

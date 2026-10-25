@@ -134,6 +134,14 @@
             {
                 <p class="alert">@T["CartCustomerBlocked"]</p>
             }
+            @if (cart.Issues.Contains("mixed-currencies"))
+            {
+                <p class="alert">@T["CartMixedCurrencies"]</p>
+            }
+            @if (cart.Issues.Contains("over-limit") && cart.OrderLimit is { } limit)
+            {
+                <p class="alert">@T["CartOverLimit", Formats.Money(limit.Amount, limit.Currency)]</p>
+            }
             @if (cart.CanOrder)
             {
                 <p class="notice ready">@T["CartReady"]</p>

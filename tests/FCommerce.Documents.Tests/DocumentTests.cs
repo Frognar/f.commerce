@@ -24,7 +24,27 @@ public sealed class DocumentTests
 
         Assert.Equal(("FV-1", "K-001", DocumentType.Invoice), (document.Id.Value, document.Content.CustomerCode, document.Content.Type));
         Assert.Equal(new DocumentAmounts(Pln, 1000m, 1230m, 0m), document.Content.Amounts);
-        Assert.Equal("ZAM/7", document.Content.OrderNumber);
+        Assert.Equal(["ZAM/7"], document.Content.OrderNumbers);
+    }
+
+    [Fact]
+    public void A_document_of_several_orders_lists_each_number_once()
+    {
+        var document = Valid(Invoice() with { OrderNumbers = [" WWW/2026/000002 ", "ZAM/7", "", "WWW/2026/000002"] });
+        var none = Valid(Invoice() with { OrderNumber = default });
+
+        Assert.Equal(["ZAM/7", "WWW/2026/000002"], document.Content.OrderNumbers);
+        Assert.Empty(none.Content.OrderNumbers);
+    }
+
+    [Fact]
+    public void Order_numbers_are_bounded()
+    {
+        var tooMany = Invoice() with { OrderNumbers = [.. Enumerable.Range(1, 51).Select(i => $"Z/{i}")] };
+        var tooLong = Invoice() with { OrderNumbers = [new string('Z', 65)] };
+
+        Assert.Equal("order-numbers.too-many", Assert.Single(Domain.Documents.Validate(tooMany).ShouldBeInvalid()).Code);
+        Assert.Equal("orderNumbers[0]", Assert.Single(Domain.Documents.Validate(tooLong).ShouldBeInvalid()).Field);
     }
 
     [Fact]

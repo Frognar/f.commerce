@@ -1,3 +1,4 @@
+using FCommerce.Infrastructure.Outbox;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Documents.Persistence;
@@ -11,6 +12,7 @@ internal sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
+        modelBuilder.AddOutbox();
 
         modelBuilder.Entity<DocumentRow>(document =>
         {
@@ -29,7 +31,7 @@ internal sealed class DocumentsDbContext(DbContextOptions<DocumentsDbContext> op
             document.Property(d => d.Gross).HasColumnName("gross").HasPrecision(15, 2);
             document.Property(d => d.Paid).HasColumnName("paid").HasPrecision(15, 2);
             document.Property(d => d.Outstanding).HasColumnName("outstanding").HasPrecision(15, 2);
-            document.Property(d => d.OrderNumber).HasColumnName("order_number").HasMaxLength(64);
+            document.Property(d => d.OrderNumbers).HasColumnName("order_numbers").HasDefaultValue("[]");
             document.Property(d => d.Lines).HasColumnName("lines").HasDefaultValue("[]");
             document.Property(d => d.ReorderableLines).HasColumnName("reorderable_lines");
             document.Property(d => d.FileSize).HasColumnName("file_size");

@@ -7,6 +7,7 @@ using FCommerce.Inventory.Contracts;
 using FCommerce.Pricing.Contracts;
 using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Features;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 
@@ -14,7 +15,8 @@ namespace FCommerce.Cart;
 
 /// <summary>
 /// Load the cart → products, quote, availability, customer and settings through their contracts → pure review →
-/// view. Prices are always current: the cart holds only SKUs and quantities.
+/// view. Prices are always current: the cart holds only SKUs and quantities. A failed lookup does not fail the view
+/// (the cart page still shows), but marks it incomplete so no order is placed from it.
 /// </summary>
 internal sealed class GetCartHandler(
     CartStore carts,
@@ -27,7 +29,7 @@ internal sealed class GetCartHandler(
 {
     public async Task<CartView> HandleAsync(GetCart query, CancellationToken cancellationToken = default)
     {
-        var cart = await carts.LoadAsync(query.Owner, cancellationToken);
+        var (cart, version) = await carts.LoadWithVersionAsync(query.Owner, cancellationToken);
         var skus = cart.Items.Select(item => item.Sku).ToList();
         var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         var display = !platform.IsOn(Feature.StockLevels.Value) ? StockDisplays.Hidden
@@ -35,31 +37,41 @@ internal sealed class GetCartHandler(
             : StockDisplays.Levels;
 
         var offered = skus.Count == 0
-            ? new Dictionary<string, ProductSummary>()
-            : (await products.HandleAsync(new GetProductsBySku(query.Cultures.OrEmpty(), skus), cancellationToken)).Match(found => found.ToDictionary(p => p.Sku), _ => []);
+            ? Result.Ok<IReadOnlyList<ProductSummary>, Error>([])
+            : await products.HandleAsync(new GetProductsBySku(query.Cultures.OrEmpty(), skus), cancellationToken);
         var quote = skus.Count == 0
-            ? new Quote([], [])
-            : (await quotes.HandleAsync(new QuoteLines(new PriceViewer(true, query.Owner.CustomerCode), [.. cart.Items.Select(i => new PriceLine(i.Sku, i.Quantity))]), cancellationToken))
-                .Match(q => q, _ => new Quote([], []));
-        var priced = quote.Lines.Where(l => l.Status == PriceStatuses.Priced).ToDictionary(l => l.Sku);
+            ? Result.Ok<Quote, Error>(new Quote([], []))
+            : await quotes.HandleAsync(new QuoteLines(new PriceViewer(true, query.Owner.CustomerCode), [.. cart.Items.Select(i => new PriceLine(i.Sku, i.Quantity))]), cancellationToken);
         var stock = skus.Count == 0
-            ? new Dictionary<string, Availability>()
-            : (await availability.HandleAsync(new GetAvailability(skus), cancellationToken)).Match(found => found.ToDictionary(a => a.Sku), _ => []);
-        var blocked = (await customers.HandleAsync(new GetCustomer(query.Owner.CustomerCode), cancellationToken)).Match(c => c.Blocked, _ => false);
+            ? Result.Ok<IReadOnlyList<Availability>, Error>([])
+            : await availability.HandleAsync(new GetAvailability(skus), cancellationToken);
+        var customer = await customers.HandleAsync(new GetCustomer(query.Owner.CustomerCode), cancellationToken);
+        var complete = offered.Match(_ => true, _ => false) && quote.Match(_ => true, _ => false)
+            && stock.Match(_ => true, _ => false) && customer.Match(_ => true, _ => false);
+
+        var productsBySku = offered.Match(found => found.ToDictionary(p => p.Sku), _ => []);
+        var quoted = quote.Match(q => q, _ => new Quote([], []));
+        var priced = quoted.Lines.Where(l => l.Status == PriceStatuses.Priced).ToDictionary(l => l.Sku);
+        var stockBySku = stock.Match(found => found.ToDictionary(a => a.Sku), _ => []);
+        var limit = query.OrderLimit.ToMaybe().Bind(l => Currency.Parse(l.Currency.OrEmpty()).ToMaybe().Map(currency => new Money(l.Amount, currency)));
 
         var review = CartReview.Review(
             cart,
-            sku => offered.GetValueOrNone(sku).Map(p => new ProductFacts(p.Discontinued)),
+            sku => productsBySku.GetValueOrNone(sku).Map(p => new ProductFacts(p.Discontinued)),
             priced.ContainsKey,
-            sku => stock.GetValueOrNone(sku).Match(a => new StockFacts(a.Available, a.NextDelivery.ToMaybe()), () => StockFacts.None),
-            blocked);
+            sku => stockBySku.GetValueOrNone(sku).Match(a => new StockFacts(a.Available, a.NextDelivery.ToMaybe()), () => StockFacts.None),
+            [.. quoted.Totals.Choose(t => Currency.Parse(t.Currency.OrEmpty()).ToMaybe().Map(currency => new Money(t.Net, currency)))],
+            new OrderTerms(customer.Match(c => c.Blocked, _ => false), limit));
 
         return new CartView(
-            [.. review.Lines.Select(line => Line(line, offered.GetValueOrNone(line.Item.Sku), priced.GetValueOrNone(line.Item.Sku), display))],
-            [.. quote.Totals.Select(t => new CartTotalView(t.Currency, t.Net, [.. t.Rates.Select(r => new CartVatView(r.Rate, r.Net, r.Vat))], t.Vat, t.Gross))],
+            [.. review.Lines.Select(line => Line(line, productsBySku.GetValueOrNone(line.Item.Sku), priced.GetValueOrNone(line.Item.Sku), display))],
+            [.. quoted.Totals.Select(t => new CartTotalView(t.Currency, t.Net, [.. t.Rates.Select(r => new CartVatView(r.Rate, r.Net, r.Vat))], t.Vat, t.Gross))],
             [.. review.Issues.Select(IssueCode)],
             review.CanOrder,
-            display);
+            display,
+            version,
+            complete,
+            limit.Map(l => new CartOrderLimit(l.Amount, l.Currency.Code)).OrNull());
     }
 
     private static CartLineView Line(LineReview line, Maybe<ProductSummary> product, Maybe<QuotedLine> price, string display) =>
@@ -98,6 +110,8 @@ internal sealed class GetCartHandler(
         {
             CartIssue.Empty => "empty",
             CartIssue.CustomerBlocked => "customer-blocked",
+            CartIssue.MixedCurrencies => "mixed-currencies",
+            CartIssue.OverLimit => "over-limit",
             _ => "unknown",
         };
 }
