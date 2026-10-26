@@ -40,8 +40,10 @@ public sealed record StockContent(decimal Quantity, Maybe<Delivery> NextDelivery
 /// <summary>Stock of one SKU in one warehouse.</summary>
 public sealed record StockEntry(string Sku, SourceVersion Version, StockContent Content);
 
+[RawInput]
 public sealed record UnvalidatedWarehouse(string Code, long Version, string Name, bool Visible, int SortOrder, bool Active);
 
+[RawInput]
 public sealed record UnvalidatedStock(string Sku, long Version, decimal Quantity, Maybe<DateOnly> NextDeliveryDate, Maybe<decimal> NextDeliveryQuantity);
 
 public enum StockStatus

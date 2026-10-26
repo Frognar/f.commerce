@@ -19,7 +19,22 @@
   </PropertyGroup>
 
   <ItemGroup Condition="'$(IsPureProject)' == 'true'">
-    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
     <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/BannedSymbols.Pure.txt" Link="BannedSymbols.Pure.txt" />
+  </ItemGroup>
+
+  <!--
+    Every production project (not tests): enums are read only through Enums.Parse / Stored.Enum, which accept the
+    declared names and nothing else, so no value is ever silently replaced by a default.
+  -->
+  <PropertyGroup Condition="!$(MSBuildProjectName.EndsWith('Tests')) And '$(MSBuildProjectName)' != 'FCommerce.Testing'">
+    <IsProductionProject>true</IsProductionProject>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(IsPureProject)' == 'true' Or '$(IsProductionProject)' == 'true'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(IsProductionProject)' == 'true'">
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)build/BannedSymbols.Enums.txt" Link="BannedSymbols.Enums.txt" />
   </ItemGroup>
 </Project>

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FCommerce.Access.Domain;
 using FCommerce.Authorization.Core;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
@@ -60,7 +61,7 @@ internal sealed class AccountRow
             Persisted.Rehydrate<EmailAddress, string>(Email),
             Persisted.Rehydrate<PersonName, string>(Name),
             Persisted.Rehydrate<CultureCode, string>(Culture),
-            Enum.Parse<AccountStatus>(Status),
+            Stored.Enum<AccountStatus>(Status, "account status"),
             PasswordHash.ToMaybe(),
             SecurityStamp,
             FailedSignIns,
@@ -101,7 +102,7 @@ internal sealed class MembershipRow
     }
 
     public Membership ToDomain() =>
-        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Enum.Parse<MembershipSource>(Source), ErpContactId.ToMaybe());
+        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Stored.Enum<MembershipSource>(Source, "membership source"), ErpContactId.ToMaybe());
 
     /// <summary>Flat storage shape of <see cref="MembershipAttributes"/> (its address scope is a closed hierarchy).</summary>
     private sealed record AttributesDocument(
@@ -223,7 +224,7 @@ internal sealed class TokenRow
 
     public DateTimeOffset? UsedAt { get; set; }
 
-    public OneTimeToken ToDomain() => new(AccountId, Enum.Parse<TokenPurpose>(Purpose), Hash, ExpiresAt, UsedAt.ToMaybe());
+    public OneTimeToken ToDomain() => new(AccountId, Stored.Enum<TokenPurpose>(Purpose, "token purpose"), Hash, ExpiresAt, UsedAt.ToMaybe());
 
     public static TokenRow From(OneTimeToken token) =>
         new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash, ExpiresAt = token.ExpiresAt, UsedAt = token.UsedAt.OrNull() };

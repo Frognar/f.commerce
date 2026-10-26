@@ -5,6 +5,7 @@ using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Catalog.Domain;
 
+[RawInput]
 public sealed record UnvalidatedCategory(
     string Code,
     Maybe<string> ParentCode,

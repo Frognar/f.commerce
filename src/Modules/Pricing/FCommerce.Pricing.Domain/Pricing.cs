@@ -113,9 +113,11 @@ public sealed record PriceContent(PriceTiers Tiers, VatRate Vat, bool Active);
 /// <summary>The price of one SKU in one price list.</summary>
 public sealed record Price(string Sku, SourceVersion Version, PriceContent Content);
 
+[RawInput]
 public sealed record UnvalidatedPriceList(string Code, long Version, string Name, string Currency, bool Active);
 
 /// <summary>A price as received from the ERP (missing required texts arrive as empty).</summary>
+[RawInput]
 public sealed record UnvalidatedPrice(string Sku, long Version, decimal NetPrice, decimal VatRate, IReadOnlyList<PriceBreak> Breaks, bool Active);
 
 public static class Prices

@@ -69,6 +69,7 @@ public sealed record DocumentContent(
 public sealed record Document(DocumentId Id, SourceVersion Version, DocumentContent Content);
 
 /// <summary>A document as received from the ERP; missing required texts arrive as empty, optional fields are absent.</summary>
+[RawInput]
 public sealed record UnvalidatedDocument(
     string Id,
     long Version,
@@ -86,6 +87,7 @@ public sealed record UnvalidatedDocument(
     EquatableArray<UnvalidatedDocumentLine> Lines = default,
     EquatableArray<string> OrderNumbers = default);
 
+[RawInput]
 public sealed record UnvalidatedDocumentLine(int Number, Maybe<string> Sku, string Name, decimal Quantity, string Unit, Maybe<decimal> NetPrice, Maybe<decimal> NetAmount);
 
 /// <summary>What of a document can be ordered again: products with a positive quantity, summed per SKU.</summary>

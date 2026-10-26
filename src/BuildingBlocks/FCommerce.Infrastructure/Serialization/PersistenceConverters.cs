@@ -7,7 +7,10 @@ using FCommerce.SharedKernel.Persistence;
 
 namespace FCommerce.Infrastructure.Serialization;
 
-/// <summary>Writes any <see cref="IPersistedValue{TSelf,TRaw}"/> as its raw form and reads it back without re-validation.</summary>
+/// <summary>
+/// Writes any <see cref="IPersistedValue{TSelf,TRaw}"/> as its raw form and reads it back without re-validation (but
+/// never a raw form the type cannot represent, see <see cref="IPersistedValue{TSelf,TRaw}.IsWellFormed"/>).
+/// </summary>
 internal sealed class PersistedValueConverterFactory : JsonConverterFactory
 {
     public override bool CanConvert(Type typeToConvert) => RawTypeOf(typeToConvert).Match(_ => true, () => false);
@@ -27,7 +30,7 @@ internal sealed class PersistedValueConverterFactory : JsonConverterFactory
         where TRaw : notnull
     {
         public override T Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options) =>
-            T.Rehydrate(JsonSerializer.Deserialize<TRaw>(ref reader, options) ?? throw new JsonException($"Missing value for {typeof(T).Name}."));
+            Persisted.Rehydrate<T, TRaw>(JsonSerializer.Deserialize<TRaw>(ref reader, options) ?? throw new JsonException($"Missing value for {typeof(T).Name}."));
 
         public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
             JsonSerializer.Serialize(writer, value.Dehydrate(), options);

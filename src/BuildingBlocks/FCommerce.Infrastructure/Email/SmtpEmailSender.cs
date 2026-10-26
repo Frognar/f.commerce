@@ -3,6 +3,7 @@ using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 using FCommerce.SharedKernel.Optional;
+using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Infrastructure.Email;
 
@@ -40,7 +41,9 @@ internal sealed class SmtpEmailSender(SmtpOptions options) : IEmailSender
         mime.Body = new BodyBuilder { HtmlBody = message.Html, TextBody = message.Text }.ToMessageBody();
 
         using var client = new SmtpClient();
-        await client.ConnectAsync(options.Host, options.Port, Enum.Parse<SecureSocketOptions>(options.Security, ignoreCase: true), cancellationToken);
+        var security = Enums.Parse<SecureSocketOptions>(options.Security)
+            .Match(value => value, error => throw new InvalidOperationException($"Smtp:Security: {error.Message}"));
+        await client.ConnectAsync(options.Host, options.Port, security, cancellationToken);
         foreach (var userName in options.UserName.ToMaybe().Where(name => name.Length > 0).AsEnumerable())
         {
             await client.AuthenticateAsync(userName, options.Password.OrEmpty(), cancellationToken);

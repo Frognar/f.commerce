@@ -87,6 +87,7 @@ public sealed record PlatformSettings(
 }
 
 /// <summary>Settings as submitted from the back-office form (primitives; missing required texts arrive as empty).</summary>
+[RawInput]
 public sealed record UnvalidatedSettings(
     string CatalogVisibility,
     IReadOnlyList<string> EnabledFeatures,
@@ -141,9 +142,7 @@ public static class SettingsRules
             .Aggregate(enabled, (result, feature) => feature.RequiresAll.All(result.Contains) ? result.Add(feature.Id) : result);
 
     private static Result<CatalogVisibility, Error> ParseVisibility(string raw) =>
-        Enum.TryParse<CatalogVisibility>(raw, ignoreCase: true, out var visibility) && Enum.IsDefined(visibility)
-            ? visibility
-            : Error.Validation("settings.catalog-visibility", "Choose who can see the catalogue.");
+        Enums.Parse<CatalogVisibility>(raw, Error.Validation("settings.catalog-visibility", "Choose who can see the catalogue."));
 
     private static Result<ImmutableHashSet<FeatureId>, Error> ParseFeatures(IReadOnlyList<string> raw, ImmutableHashSet<FeatureId> available) =>
         raw.Traverse(FeatureId.Parse)
@@ -171,9 +170,7 @@ public static class SettingsRules
 
     private static Validated<StockDisplay> ParseStock(UnvalidatedSettings input) =>
         ((Func<StockDisplayMode, decimal, StockDisplay>)((mode, threshold) => new StockDisplay(mode, threshold)))
-            .Apply((Enum.TryParse<StockDisplayMode>(input.StockDisplay, ignoreCase: true, out var mode) && Enum.IsDefined(mode)
-                ? Result.Ok<StockDisplayMode, Error>(mode)
-                : Error.Validation("settings.stock-display", "Choose how stock is shown.")).ToValidated("stockDisplay"))
+            .Apply(Enums.Parse<StockDisplayMode>(input.StockDisplay, Error.Validation("settings.stock-display", "Choose how stock is shown.")).ToValidated("stockDisplay"))
             .Apply((input.LowStockThreshold is >= 0 and <= PlatformSettings.MaxQuantity
                     && decimal.Round(input.LowStockThreshold, PlatformSettings.QuantityDecimals) == input.LowStockThreshold
                 ? Result.Ok<decimal, Error>(input.LowStockThreshold)

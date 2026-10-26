@@ -16,7 +16,8 @@ public static class PersistenceJson
         options.Converters.Add(new PersistedValueConverterFactory());
         options.Converters.Add(new EquatableArrayConverterFactory());
         options.Converters.Add(new MaybeConverterFactory());
-        options.Converters.Add(new JsonStringEnumConverter());
+        // Enums by their declared names only: a number (or a name that is not declared) is corrupt data, not a value.
+        options.Converters.Add(new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false));
         return options;
     }
 }

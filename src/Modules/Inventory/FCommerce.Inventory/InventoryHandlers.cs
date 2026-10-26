@@ -9,6 +9,7 @@ using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Imports;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
+using FCommerce.SharedKernel.Validation;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Inventory;
@@ -110,7 +111,10 @@ internal static class StockSettings
     {
         var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         return platform.IsOn(Feature.StockLevels.Value)
-            ? new StockPolicy(Enum.TryParse<StockDisplayMode>(platform.StockDisplay, out var mode) ? mode : StockDisplayMode.Levels, platform.LowStockThreshold)
+            ? new StockPolicy(
+                Enums.Parse<StockDisplayMode>(platform.StockDisplay)
+                    .Match(mode => mode, error => throw new InvalidOperationException($"Settings report an unknown stock display: {error.Message}")),
+                platform.LowStockThreshold)
             : Maybe<StockPolicy>.None;
     }
 

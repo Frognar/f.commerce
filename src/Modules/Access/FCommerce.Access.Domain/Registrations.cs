@@ -33,6 +33,7 @@ public abstract record RegistrationStatus
 public sealed record RegistrationRequest(Guid Id, ApplicantCompany Company, Applicant Applicant, DateTimeOffset SubmittedAt, RegistrationStatus Status);
 
 /// <summary>The public form as submitted; missing required texts arrive as empty.</summary>
+[RawInput]
 public sealed record UnvalidatedRegistration(
     string CompanyName,
     string TaxId,

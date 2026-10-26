@@ -11,6 +11,7 @@ namespace FCommerce.Catalog.Domain;
 /// A product as received from the ERP, before validation (primitives only). Missing required texts arrive as empty,
 /// missing collections as empty ones; optional fields are absent.
 /// </summary>
+[RawInput]
 public sealed record UnvalidatedProduct(
     string Sku,
     long Version,
@@ -24,6 +25,7 @@ public sealed record UnvalidatedProduct(
     bool Active,
     bool Discontinued = false);
 
+[RawInput]
 public sealed record UnvalidatedAttribute(
     string Code,
     IReadOnlyDictionary<string, string> Name,

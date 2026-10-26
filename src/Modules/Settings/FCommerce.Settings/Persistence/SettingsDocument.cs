@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using FCommerce.Authorization.Core;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.Settings.Domain;
 using FCommerce.SharedKernel.Contact;
@@ -63,13 +64,13 @@ internal sealed record SettingsDocument(
         var known = Features(document.KnownFeatures ?? FirstFeatures).ToImmutableHashSet();
         return new PlatformSettings(
             version,
-            Enum.Parse<CatalogVisibility>(document.CatalogVisibility),
+            Stored.Enum<CatalogVisibility>(document.CatalogVisibility, "catalog visibility"),
             SettingsRules.WithNewFeatures(enabled, known, available),
             new Branding(document.StoreName, HexColor.Parse(document.AccentColor).ValueOr(_ => HexColor.DefaultAccent), document.LogoImageId.ToMaybe()),
             new SellerContact(Email(document.SupportEmail), document.SupportPhone.ToMaybe(), Email(document.OperatorNotifications)),
             new CommerceDefaults(document.DefaultPriceListCode.ToMaybe(), document.DefaultContactTemplate),
             new Domain.StockDisplay(
-                document.StockDisplay.ToMaybe().Map(Enum.Parse<StockDisplayMode>).ValueOr(Domain.StockDisplay.Default.Mode),
+                document.StockDisplay.ToMaybe().Map(mode => Stored.Enum<StockDisplayMode>(mode, "stock display")).ValueOr(Domain.StockDisplay.Default.Mode),
                 document.LowStockThreshold.ToMaybe().ValueOr(Domain.StockDisplay.Default.LowThreshold)));
     }
 

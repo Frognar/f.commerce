@@ -1,0 +1,12 @@
+M:System.Enum.Parse``1(System.String);Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.Parse``1(System.String,System.Boolean);Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.Parse``1(System.ReadOnlySpan{System.Char});Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.Parse``1(System.ReadOnlySpan{System.Char},System.Boolean);Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.Parse(System.Type,System.String);Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.Parse(System.Type,System.String,System.Boolean);Use Enums.Parse (declared names only, a Result) or Stored.Enum when reading stored data
+M:System.Enum.TryParse``1(System.String,``0@);Use Enums.Parse: TryParse accepts numbers and invites a silent default
+M:System.Enum.TryParse``1(System.String,System.Boolean,``0@);Use Enums.Parse: TryParse accepts numbers and invites a silent default
+M:System.Enum.TryParse``1(System.ReadOnlySpan{System.Char},``0@);Use Enums.Parse: TryParse accepts numbers and invites a silent default
+M:System.Enum.TryParse``1(System.ReadOnlySpan{System.Char},System.Boolean,``0@);Use Enums.Parse: TryParse accepts numbers and invites a silent default
+M:System.Enum.TryParse(System.Type,System.String,System.Object@);Use Enums.Parse: TryParse accepts numbers and invites a silent default
+M:System.Enum.TryParse(System.Type,System.String,System.Boolean,System.Object@);Use Enums.Parse: TryParse accepts numbers and invites a silent default

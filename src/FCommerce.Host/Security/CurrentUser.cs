@@ -10,6 +10,7 @@ using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
+using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Host.Security;
 
@@ -142,7 +143,8 @@ public sealed class AccessControl(CurrentUser user, IQueryHandler<GetPlatformSet
             resource,
             new AccessEnvironment(
                 time.GetUtcNow(),
-                Enum.Parse<CatalogVisibility>(current.CatalogVisibility),
+                Enums.Parse<CatalogVisibility>(current.CatalogVisibility)
+                    .Match(visibility => visibility, error => throw new InvalidOperationException($"Settings report an unknown catalog visibility: {error.Message}")),
                 [.. current.Features.Where(f => f.On).Choose(f => FeatureId.Parse(f.Id).ToMaybe())],
                 activeCustomerActive)));
     }

@@ -35,15 +35,20 @@ public sealed record CommercialTerms(Maybe<string> PriceListCode, Maybe<int> Pay
 /// <summary>A customer (company buying from the seller) as replicated from the ERP.</summary>
 public sealed record Customer(CustomerCode Code, SourceVersion Version, CustomerContent Content, bool Active);
 
+[RawInput]
 public sealed record UnvalidatedAddress(string Street, string PostalCode, string City, string Country);
 
+[RawInput]
 public sealed record UnvalidatedDeliveryAddress(string Code, Maybe<string> Name, Maybe<UnvalidatedAddress> Address, bool IsDefault);
 
+[RawInput]
 public sealed record UnvalidatedContact(string ExternalId, string Name, Maybe<string> Email, Maybe<string> Phone, bool PortalAccess, Maybe<string> AttributeTemplate);
 
+[RawInput]
 public sealed record UnvalidatedSalesperson(string Name, Maybe<string> Email, Maybe<string> Phone);
 
 /// <summary>A customer as received from the ERP; missing required texts arrive as empty, optional parts are absent.</summary>
+[RawInput]
 public sealed record UnvalidatedCustomer(
     string Code,
     long Version,

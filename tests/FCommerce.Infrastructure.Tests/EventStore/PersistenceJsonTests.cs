@@ -1,5 +1,7 @@
 using System.Text.Json;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
+using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
 using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
@@ -61,5 +63,35 @@ public sealed class PersistenceJsonTests
         Assert.Equal(labelled, JsonSerializer.Deserialize<Labelled>(JsonSerializer.Serialize(labelled, PersistenceJson.Options), PersistenceJson.Options));
     }
 
+    [Fact]
+    public void Writes_enums_by_name_and_does_not_read_numbers()
+    {
+        Assert.Equal("""{"mode":"Exact"}""", JsonSerializer.Serialize(new Shown(Mode.Exact), PersistenceJson.Options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Shown>("""{"mode":1}""", PersistenceJson.Options));
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<Shown>("""{"mode":"Hidden"}""", PersistenceJson.Options));
+    }
+
+    [Fact]
+    public void Round_trips_a_non_empty_array_as_a_plain_list_and_never_reads_an_empty_one()
+    {
+        var tagged = new Tagged(NonEmptyArray.Of("a", "b"));
+
+        var json = JsonSerializer.Serialize(tagged, PersistenceJson.Options);
+
+        Assert.Equal("""{"tags":["a","b"]}""", json);
+        Assert.Equal(tagged, JsonSerializer.Deserialize<Tagged>(json, PersistenceJson.Options));
+        Assert.Throws<StoredDataException>(() => JsonSerializer.Deserialize<Tagged>("""{"tags":[]}""", PersistenceJson.Options));
+    }
+
     private sealed record Labelled(string Name, Maybe<string> Note, Maybe<Money> Price, Maybe<int> Count);
+
+    private sealed record Shown(Mode Mode);
+
+    private sealed record Tagged(NonEmptyArray<string> Tags);
+
+    private enum Mode
+    {
+        Levels,
+        Exact,
+    }
 }
