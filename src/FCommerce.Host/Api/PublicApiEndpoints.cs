@@ -24,6 +24,8 @@ internal static partial class PublicApiEndpoints
 
         api.MapGet("/me", GetMeAsync)
             .WithSummary("The user and customer the key acts for, with the rights of the membership.");
+        MapCatalog(api);
+        MapDocuments(api);
         return app;
     }
 

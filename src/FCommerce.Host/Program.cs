@@ -137,6 +137,7 @@ builder.Services.AddRazorPages(options =>
     .AddViewLocalization();
 builder.Services.AddAntiforgery(options => options.HeaderName = "RequestVerificationToken");
 builder.Services.AddOpenApi("v1");
+builder.Services.AddPublicApiDocument();
 builder.Services.AddProblemDetails();
 builder.Services.AddHealthChecks();
 
