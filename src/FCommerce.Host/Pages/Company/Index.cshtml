@@ -22,7 +22,7 @@
     {
         <p class="alert" role="status">@T["CompanyBlocked"]</p>
     }
-    @if (Model.CanSeeOrders || Model.CanSeeDocuments || Model.CanSeeUsers || Model.CanSeeShoppingLists)
+    @if (Model.CanSeeOrders || Model.CanSeeDocuments || Model.CanSeeUsers || Model.CanSeeApiKeys || Model.CanSeeShoppingLists)
     {
         <p class="actions">
             @if (Model.CanSeeOrders)
@@ -40,6 +40,10 @@
             @if (Model.CanSeeUsers)
             {
                 <a class="button secondary" asp-page="/Company/Users">@T["CompanyUsers"]</a>
+            }
+            @if (Model.CanSeeApiKeys)
+            {
+                <a class="button secondary" asp-page="/Company/ApiKeys">@T["ApiKeys"]</a>
             }
         </p>
     }

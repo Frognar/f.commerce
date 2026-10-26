@@ -387,3 +387,6 @@ table.data .number { text-align: right; white-space: nowrap; }
 .save-list label, .inline-form label { display: grid; gap: .3rem; font-size: .9rem; color: var(--color-muted); }
 .save-list input, .inline-form input { padding: .35rem .5rem; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); color: var(--color-text); font: inherit; }
 .list-settings { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: var(--space); margin-top: var(--space); }
+
+/* A freshly created API key: one long token, easy to select whole. */
+code.api-key { display: block; padding: .5rem .75rem; overflow-wrap: anywhere; user-select: all; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; }

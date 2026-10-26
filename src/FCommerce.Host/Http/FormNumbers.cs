@@ -15,4 +15,10 @@ internal static class FormNumbers
             out var number)
             ? number
             : Error.Validation(errorCode, "Enter a number.") with { Field = field };
+
+    /// <summary>A whole number (digits only).</summary>
+    public static Result<int, Error> Whole(string raw, string errorCode, string field) =>
+        int.TryParse(raw.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+            ? number
+            : Error.Validation(errorCode, "Enter a whole number.") with { Field = field };
 }

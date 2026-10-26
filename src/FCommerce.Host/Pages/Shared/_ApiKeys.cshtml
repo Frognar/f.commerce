@@ -1,0 +1,76 @@
+@model FCommerce.Host.Pages.Shared.ApiKeysPanel
+@foreach (var created in Model.Created.AsEnumerable())
+{
+    <section class="card notice" role="status">
+        <h3>@T["ApiKeyCreatedTitle"]</h3>
+        <p>@T["ApiKeyCreatedHint"]</p>
+        <p><code class="api-key">@created.Key</code></p>
+        <p class="muted">@T["ApiKeyUsageHint"] <code>curl -H "X-Api-Key: …" @(Context.Request.Scheme)://@(Context.Request.Host)/api/v1/me</code></p>
+    </section>
+}
+<table class="data">
+    <thead>
+        <tr>
+            <th>@T["ApiKeyName"]</th><th>@T["ApiKeyId"]</th><th>@T["ApiKeyOwner"]</th><th>@T["ApiKeyCreatedAt"]</th>
+            <th>@T["ApiKeyLastUsed"]</th><th>@T["ApiKeyExpires"]</th><th>@T["Status"]</th>
+            @if (Model.CanManage) { <th></th> }
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var key in Model.Keys)
+        {
+            <tr>
+                <td>@key.Name</td>
+                <td><code>fck_@(key.KeyId)_…</code></td>
+                <td>@key.OwnerName</td>
+                <td>@key.CreatedAt.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture)</td>
+                <td>@(key.LastUsedAt is { } used ? used.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture) : T["ApiKeyNeverUsed"].Value)</td>
+                <td>@(key.ExpiresAt is { } expires ? expires.ToLocalTime().ToString("g", System.Globalization.CultureInfo.CurrentCulture) : T["ApiKeyNoExpiry"].Value)</td>
+                <td>@T[$"ApiKeyStatus.{key.Status}"]</td>
+                @if (Model.CanManage)
+                {
+                    <td class="actions">
+                        @if (key.Status == "active")
+                        {
+                            <form method="post" asp-page-handler="RevokeKey" asp-all-route-data="Model.RouteValues" asp-route-id="@key.Id">
+                                <button class="button small secondary" type="submit">@T["RevokeApiKey"]</button>
+                            </form>
+                        }
+                    </td>
+                }
+            </tr>
+        }
+    </tbody>
+</table>
+@if (Model.Keys.Count == 0)
+{
+    <p class="muted">@T["NoApiKeys"]</p>
+}
+
+@if (Model.CanCreate)
+{
+    <section class="card">
+        <h3>@T["CreateApiKey"]</h3>
+        <form method="post" asp-page-handler="CreateKey" asp-all-route-data="Model.RouteValues" class="stack">
+            <label>@T["ApiKeyName"] <input name="KeyForm.Name" required maxlength="100" /></label>
+            <label>@T["ApiKeyOwner"]
+                <select name="KeyForm.OwnerId">
+                    @foreach (var owner in Model.Owners)
+                    {
+                        <option value="@owner.UserId" selected="@Model.CurrentUserId.Exists(id => id == owner.UserId)">@owner.Name (@owner.Email)</option>
+                    }
+                </select>
+            </label>
+            <p class="muted">@T["ApiKeyOwnerHint"]</p>
+            <label>@T["ApiKeyValidity"]
+                <select name="KeyForm.ValidForDays">
+                    <option value="">@T["ApiKeyNoExpiry"]</option>
+                    <option value="30">@T["Validity.30"]</option>
+                    <option value="90">@T["Validity.90"]</option>
+                    <option value="365">@T["Validity.365"]</option>
+                </select>
+            </label>
+            <button class="button" type="submit">@T["CreateApiKey"]</button>
+        </form>
+    </section>
+}

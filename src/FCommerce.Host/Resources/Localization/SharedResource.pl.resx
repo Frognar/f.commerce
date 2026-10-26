@@ -510,4 +510,38 @@
   <data name="OwnCustomersOrdersOnly" xml:space="preserve"><value>Widzisz zamówienia swoich kontrahentów.</value></data>
   <data name="OrdersLead" xml:space="preserve"><value>Zamówienia złożone na platformie i ich statusy z ERP.</value></data>
   <data name="OrderHandledInErp" xml:space="preserve"><value>Zamówienie przyjmuje, odrzuca i anuluje ERP; tu jest podgląd.</value></data>
+  <data name="ApiKeys" xml:space="preserve"><value>Klucze API</value></data>
+  <data name="ApiKeysIntro" xml:space="preserve"><value>Klucze API pozwalają systemom Twojej firmy korzystać z katalogu, zamówień i dokumentów. Klucz działa w imieniu wybranego użytkownika, z jego uprawnieniami. Wysyłaj go w nagłówku X-Api-Key. Nowe hasło użytkownika unieważnia jego klucze.</value></data>
+  <data name="ApiKeyName" xml:space="preserve"><value>Nazwa klucza</value></data>
+  <data name="ApiKeyId" xml:space="preserve"><value>Identyfikator</value></data>
+  <data name="ApiKeyOwner" xml:space="preserve"><value>Działa jako</value></data>
+  <data name="ApiKeyOwnerHint" xml:space="preserve"><value>Klucz ma uprawnienia wybranego użytkownika, np. tylko zamawianie bez zarządzania użytkownikami.</value></data>
+  <data name="ApiKeyCreatedAt" xml:space="preserve"><value>Utworzony</value></data>
+  <data name="ApiKeyLastUsed" xml:space="preserve"><value>Ostatnie użycie</value></data>
+  <data name="ApiKeyExpires" xml:space="preserve"><value>Ważny do</value></data>
+  <data name="ApiKeyNeverUsed" xml:space="preserve"><value>jeszcze nie użyty</value></data>
+  <data name="ApiKeyNoExpiry" xml:space="preserve"><value>bez terminu ważności</value></data>
+  <data name="ApiKeyValidity" xml:space="preserve"><value>Ważność</value></data>
+  <data name="ApiKeyStatus.active" xml:space="preserve"><value>Aktywny</value></data>
+  <data name="ApiKeyStatus.expired" xml:space="preserve"><value>Wygasł</value></data>
+  <data name="ApiKeyStatus.revoked" xml:space="preserve"><value>Unieważniony</value></data>
+  <data name="CreateApiKey" xml:space="preserve"><value>Utwórz klucz</value></data>
+  <data name="RevokeApiKey" xml:space="preserve"><value>Unieważnij</value></data>
+  <data name="ApiKeyRevoked" xml:space="preserve"><value>Klucz został unieważniony.</value></data>
+  <data name="NoApiKeys" xml:space="preserve"><value>Brak kluczy API.</value></data>
+  <data name="ApiKeyCreatedTitle" xml:space="preserve"><value>Klucz został utworzony</value></data>
+  <data name="ApiKeyCreatedHint" xml:space="preserve"><value>Skopiuj go teraz i przechowaj w bezpiecznym miejscu. Po opuszczeniu tej strony nie da się go ponownie wyświetlić.</value></data>
+  <data name="ApiKeyUsageHint" xml:space="preserve"><value>Przykład:</value></data>
+  <data name="Validity.30" xml:space="preserve"><value>30 dni</value></data>
+  <data name="Validity.90" xml:space="preserve"><value>90 dni</value></data>
+  <data name="Validity.365" xml:space="preserve"><value>rok</value></data>
+  <data name="Audit.api-key.created" xml:space="preserve"><value>Utworzono klucz API</value></data>
+  <data name="Audit.api-key.revoked" xml:space="preserve"><value>Unieważniono klucz API</value></data>
+  <data name="Error.api-key.name-empty" xml:space="preserve"><value>Nadaj kluczowi nazwę.</value></data>
+  <data name="Error.api-key.name-too-long" xml:space="preserve"><value>Nazwa może mieć najwyżej 100 znaków.</value></data>
+  <data name="Error.api-key.name-invalid" xml:space="preserve"><value>Nazwa nie może zawierać znaków sterujących.</value></data>
+  <data name="Error.api-key.validity-invalid" xml:space="preserve"><value>Wybierz jeden z proponowanych okresów ważności.</value></data>
+  <data name="Error.api-key.account-inactive" xml:space="preserve"><value>Klucz może mieć tylko aktywny użytkownik.</value></data>
+  <data name="Error.api-key.no-access" xml:space="preserve"><value>Ten użytkownik nie ma dostępu do firmy.</value></data>
+  <data name="Error.api-key.not-found" xml:space="preserve"><value>Nie ma takiego klucza.</value></data>
 </root>

@@ -47,6 +47,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<AccessControl>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Shared.CustomerUsersActions>();
+builder.Services.AddScoped<FCommerce.Host.Pages.Shared.ApiKeyActions>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Company.CompanyContext>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Catalog.CatalogOffers>();
 builder.Services.AddScoped<FCommerce.Host.Pages.Cart.CartAccess>();

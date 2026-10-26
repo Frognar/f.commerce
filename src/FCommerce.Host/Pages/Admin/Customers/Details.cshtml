@@ -68,6 +68,12 @@ else
     <partial name="_CustomerUsers" model="users" />
 }
 
+@foreach (var keys in Model.ApiKeys.AsEnumerable())
+{
+    <h2>@T["ApiKeys"]</h2>
+    <partial name="_ApiKeys" model="keys" />
+}
+
 @if (Model.Audit.Count > 0)
 {
     <h2>@T["AuditLog"]</h2>

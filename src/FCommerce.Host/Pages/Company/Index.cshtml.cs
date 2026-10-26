@@ -15,6 +15,8 @@ public sealed class IndexModel(CompanyContext company, Orders.OrderAccess orders
 
     public bool CanSeeUsers { get; private set; }
 
+    public bool CanSeeApiKeys { get; private set; }
+
     public bool CanSeeDocuments { get; private set; }
 
     public bool CanSeeShoppingLists { get; private set; }
@@ -33,6 +35,7 @@ public sealed class IndexModel(CompanyContext company, Orders.OrderAccess orders
 
         Customer = customer;
         CanSeeUsers = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerUsers(code, salesperson), customer, cancellationToken);
+        CanSeeApiKeys = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.ApiKeys(code, salesperson), customer, cancellationToken);
         CanSeeDocuments = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerDocuments(code, salesperson), customer, cancellationToken);
         CanSeeShoppingLists = await company.CanAsync(AccessAction.Read, (code, _) => new Resource.ShoppingLists(code), customer, cancellationToken);
         CanSeeOrders = (await orders.ViewerAsync(cancellationToken)).Match(_ => true, () => false);

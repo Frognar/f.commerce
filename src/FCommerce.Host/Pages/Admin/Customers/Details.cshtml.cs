@@ -17,6 +17,7 @@ public sealed class DetailsModel(
     IQueryHandler<GetCustomer, Result<CustomerDetails, Error>> customers,
     IQueryHandler<GetAuditLog, IReadOnlyList<AuditEntryView>> auditLog,
     CustomerUsersActions users,
+    ApiKeyActions apiKeys,
     AccessControl access,
     CurrentUser user) : PageModel
 {
@@ -32,6 +33,9 @@ public sealed class DetailsModel(
 
     /// <summary>None when the operator may not see the customer's users.</summary>
     public Maybe<CustomerUsersPanel> Users { get; private set; }
+
+    /// <summary>None when the operator may not see the customer's API keys (or the public API is off).</summary>
+    public Maybe<ApiKeysPanel> ApiKeys { get; private set; }
 
     public IReadOnlyList<AuditLine> Audit { get; private set; } = [];
 
@@ -51,6 +55,20 @@ public sealed class DetailsModel(
 
     public Task<IActionResult> OnPostRevokeAsync(string code, Guid id, CancellationToken cancellationToken) =>
         ManageAsync(code, (actor, customer) => users.RevokeAsync(actor, customer, id, ModelState, cancellationToken), cancellationToken);
+
+    public async Task<IActionResult> OnPostRevokeKeyAsync(string code, Guid id, CancellationToken cancellationToken) =>
+        await (await LoadAsync(code, AccessAction.Read, cancellationToken)).Match(
+            Task.FromResult,
+            async () =>
+            {
+                if (!await access.CanAsync(AccessAction.Manage, new Resource.ApiKeys(Customer.Code, Company.CompanyContext.Salesperson(Customer)), cancellationToken))
+                {
+                    return Forbid();
+                }
+
+                Saved = await apiKeys.RevokeAsync(user.RequiredUserId, Customer.Code, id, ModelState, cancellationToken);
+                return (await LoadAsync(code, AccessAction.Read, cancellationToken)).ValueOr(Page);
+            });
 
     private async Task<IActionResult> ManageAsync(string code, Func<Guid, string, Task<Maybe<string>>> command, CancellationToken cancellationToken) =>
         await (await LoadAsync(code, AccessAction.Manage, cancellationToken)).Match(
@@ -88,6 +106,17 @@ public sealed class DetailsModel(
             user.UserId,
             found.Currency,
             found.DeliveryAddresses);
+        var keysResource = new Resource.ApiKeys(found.Code, salesperson);
+        ApiKeys = await access.CanAsync(AccessAction.Read, keysResource, cancellationToken)
+            ? Maybe.Some(new ApiKeysPanel(
+                await apiKeys.KeysAsync(found.Code, cancellationToken),
+                await access.CanAsync(AccessAction.Manage, keysResource, cancellationToken),
+                CanCreate: false,
+                [],
+                Maybe<CreatedApiKey>.None,
+                new Dictionary<string, string> { ["code"] = found.Code },
+                user.UserId))
+            : Maybe<ApiKeysPanel>.None;
         Audit = [.. (await auditLog.HandleAsync(new GetAuditLog($"customer:{found.Code}"), cancellationToken))
             .Select(entry => new AuditLine(entry.At, entry.Actor.ToMaybe(), entry.Action, entry.Details.ToMaybe().Bind(EmailOf)))];
         return Maybe<IActionResult>.None;

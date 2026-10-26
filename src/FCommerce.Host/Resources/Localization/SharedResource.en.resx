@@ -510,4 +510,38 @@
   <data name="OwnCustomersOrdersOnly" xml:space="preserve"><value>You see the orders of your customers.</value></data>
   <data name="OrdersLead" xml:space="preserve"><value>Orders placed on the platform and their status from the ERP.</value></data>
   <data name="OrderHandledInErp" xml:space="preserve"><value>The ERP accepts, rejects and cancels the order; this is a preview.</value></data>
+  <data name="ApiKeys" xml:space="preserve"><value>API keys</value></data>
+  <data name="ApiKeysIntro" xml:space="preserve"><value>API keys let your company's systems use the catalog, orders and documents. A key acts as the chosen user, with that user's rights. Send it in the X-Api-Key header. A new password of the user ends their keys.</value></data>
+  <data name="ApiKeyName" xml:space="preserve"><value>Key name</value></data>
+  <data name="ApiKeyId" xml:space="preserve"><value>Identifier</value></data>
+  <data name="ApiKeyOwner" xml:space="preserve"><value>Acts as</value></data>
+  <data name="ApiKeyOwnerHint" xml:space="preserve"><value>The key has the rights of the chosen user, e.g. ordering only, without managing users.</value></data>
+  <data name="ApiKeyCreatedAt" xml:space="preserve"><value>Created</value></data>
+  <data name="ApiKeyLastUsed" xml:space="preserve"><value>Last used</value></data>
+  <data name="ApiKeyExpires" xml:space="preserve"><value>Valid until</value></data>
+  <data name="ApiKeyNeverUsed" xml:space="preserve"><value>never used</value></data>
+  <data name="ApiKeyNoExpiry" xml:space="preserve"><value>does not expire</value></data>
+  <data name="ApiKeyValidity" xml:space="preserve"><value>Validity</value></data>
+  <data name="ApiKeyStatus.active" xml:space="preserve"><value>Active</value></data>
+  <data name="ApiKeyStatus.expired" xml:space="preserve"><value>Expired</value></data>
+  <data name="ApiKeyStatus.revoked" xml:space="preserve"><value>Revoked</value></data>
+  <data name="CreateApiKey" xml:space="preserve"><value>Create key</value></data>
+  <data name="RevokeApiKey" xml:space="preserve"><value>Revoke</value></data>
+  <data name="ApiKeyRevoked" xml:space="preserve"><value>The key has been revoked.</value></data>
+  <data name="NoApiKeys" xml:space="preserve"><value>No API keys.</value></data>
+  <data name="ApiKeyCreatedTitle" xml:space="preserve"><value>The key has been created</value></data>
+  <data name="ApiKeyCreatedHint" xml:space="preserve"><value>Copy it now and keep it safe. It cannot be shown again once you leave this page.</value></data>
+  <data name="ApiKeyUsageHint" xml:space="preserve"><value>Example:</value></data>
+  <data name="Validity.30" xml:space="preserve"><value>30 days</value></data>
+  <data name="Validity.90" xml:space="preserve"><value>90 days</value></data>
+  <data name="Validity.365" xml:space="preserve"><value>1 year</value></data>
+  <data name="Audit.api-key.created" xml:space="preserve"><value>API key created</value></data>
+  <data name="Audit.api-key.revoked" xml:space="preserve"><value>API key revoked</value></data>
+  <data name="Error.api-key.name-empty" xml:space="preserve"><value>Name the key.</value></data>
+  <data name="Error.api-key.name-too-long" xml:space="preserve"><value>The name must not exceed 100 characters.</value></data>
+  <data name="Error.api-key.name-invalid" xml:space="preserve"><value>The name must not contain control characters.</value></data>
+  <data name="Error.api-key.validity-invalid" xml:space="preserve"><value>Choose one of the offered validity periods.</value></data>
+  <data name="Error.api-key.account-inactive" xml:space="preserve"><value>Only an active user can have an API key.</value></data>
+  <data name="Error.api-key.no-access" xml:space="preserve"><value>This user has no access to the company.</value></data>
+  <data name="Error.api-key.not-found" xml:space="preserve"><value>There is no such key.</value></data>
 </root>

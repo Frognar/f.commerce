@@ -1,0 +1,14 @@
+@page "/company/api-keys"
+@model FCommerce.Host.Pages.Company.ApiKeysModel
+@{
+    ViewData["Title"] = T["ApiKeys"];
+}
+<nav class="breadcrumb"><a asp-page="/Company/Index">@Model.Customer.Name</a></nav>
+<h1>@T["ApiKeys"]</h1>
+<p class="muted">@T["ApiKeysIntro"]</p>
+@foreach (var saved in Model.Saved.AsEnumerable())
+{
+    <p class="notice" role="status">@saved</p>
+}
+<div asp-validation-summary="All" class="alert" role="alert"></div>
+<partial name="_ApiKeys" model="Model.Panel" />
