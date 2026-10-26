@@ -93,6 +93,7 @@ internal sealed class CartStore(
             CartSources.ShoppingList => CartSource.ShoppingList,
             CartSources.Document => CartSource.Document,
             CartSources.Order => CartSource.Order,
+            CartSources.Api => CartSource.Api,
             var other => Error.Validation("cart.source", $"Unknown cart source '{other}'."),
         };
 }

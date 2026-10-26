@@ -26,6 +26,7 @@ internal static partial class PublicApiEndpoints
             .WithSummary("The user and customer the key acts for, with the rights of the membership.");
         MapCatalog(api);
         MapDocuments(api);
+        MapOrders(api);
         return app;
     }
 

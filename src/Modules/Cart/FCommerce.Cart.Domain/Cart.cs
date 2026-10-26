@@ -19,6 +19,7 @@ public enum CartSource
     ShoppingList,
     Document,
     Order,
+    Api,
 }
 
 public enum ClearReason

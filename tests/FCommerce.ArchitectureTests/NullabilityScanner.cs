@@ -51,7 +51,7 @@ internal static class NullabilityScanner
                 yield return $"{type.FullName}.{method.Name} (return)";
             }
 
-            foreach (var parameter in method.GetParameters().Where(p => !IsPageHandler(method) && IsNullable(context.Create(p))))
+            foreach (var parameter in method.GetParameters().Where(p => !IsPageHandler(method) && !IsBound(p) && IsNullable(context.Create(p))))
             {
                 yield return $"{type.FullName}.{method.Name} ({parameter.Name})";
             }
@@ -107,6 +107,10 @@ internal static class NullabilityScanner
             yield return current;
         }
     }
+
+    /// <summary>Parameters of minimal API endpoints marked as HTTP input ([FromBody], [FromHeader], …).</summary>
+    private static bool IsBound(ParameterInfo parameter) =>
+        parameter.GetCustomAttributes(inherit: true).Any(a => BindingAttributes.Contains(a.GetType().Name));
 
     private static bool IsBound(PropertyInfo property) =>
         property.GetCustomAttributes(inherit: true).Any(a => BindingAttributes.Contains(a.GetType().Name));

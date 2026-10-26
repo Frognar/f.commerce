@@ -52,6 +52,7 @@ public static class CartSources
     public const string ShoppingList = "shopping-list";
     public const string Document = "document";
     public const string Order = "order";
+    public const string Api = "api";
 }
 
 /// <summary>How many products are in the cart (for the header).</summary>
