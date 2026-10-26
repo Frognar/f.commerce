@@ -10,7 +10,7 @@ using FCommerce.Pricing.Contracts;
 using FCommerce.Media.Contracts;
 using FCommerce.SharedKernel.Contracts;
 
-// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key> [orders [accept|deliver|invoice]]]
+// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key> [orders [accept|deliver|invoice] | api <customer api key>]]
 var baseUrl = args.Length > 0 ? args[0] : "http://localhost:5180";
 var apiKey = args.Length > 1 ? args[1] : "dev-integration-key";
 
@@ -28,6 +28,18 @@ if (args.Length > 2 && args[2] == "orders")
     }
 
     return await DemoOrders.RunAsync(client, step);
+}
+
+// "api": the whole path through the public API with a customer's key (create one in the customer area), the ERP played here.
+if (args.Length > 2 && args[2] == "api")
+{
+    if (args.Length < 4)
+    {
+        Console.Error.WriteLine($"Usage: ... {baseUrl} <integration api key> api <customer api key> (create the key at {baseUrl}/pl/company/api-keys as a company administrator).");
+        return 1;
+    }
+
+    return await DemoApi.RunAsync(client, baseUrl, args[3]);
 }
 
 await SendAsync("/integration/v1/catalog/categories", new ImportCategories(DemoCatalog.Categories), DemoCatalog.Categories.Count);
@@ -90,6 +102,9 @@ Console.WriteLine($"""
       Orders:       place an order as a buyer (company administrators set order limits and delivery addresses in
                     {baseUrl}/pl/company/users), then play the ERP: dotnet run --project tools/FCommerce.DemoSeeder --
                     {baseUrl} <api key> orders [accept|deliver|invoice] (all three steps without one).
+      Public API:   as a company administrator create a key at {baseUrl}/pl/company/api-keys (for yourself: an administrator also sees documents), then run the whole
+                    path through the API: dotnet run --project tools/FCommerce.DemoSeeder -- {baseUrl} <integration key> api <customer key>
+                    (catalog → cart → order → the ERP confirms, delivers, invoices → documents). Docs: {baseUrl}/openapi/public-v1.json
     """);
 foreach (var customer in DemoCustomers.All)
 {

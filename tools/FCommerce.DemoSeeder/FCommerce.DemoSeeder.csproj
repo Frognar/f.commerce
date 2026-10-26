@@ -4,13 +4,14 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
-  <!-- Talks to the host only over the integration API; contracts give it the request shapes. -->
+  <!-- Talks to the host only over HTTP (the integration API and the public API); contracts give it the request shapes. -->
   <ItemGroup>
     <PackageReference Include="SkiaSharp" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Modules\Cart\FCommerce.Cart.Contracts\FCommerce.Cart.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Catalog\FCommerce.Catalog.Contracts\FCommerce.Catalog.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Customers\FCommerce.Customers.Contracts\FCommerce.Customers.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Modules\Documents\FCommerce.Documents.Contracts\FCommerce.Documents.Contracts.csproj" />

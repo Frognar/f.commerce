@@ -66,6 +66,22 @@ internal static class DemoOrders
         return 0;
     }
 
+    /// <summary>The feed catches up with a new order a moment after it was placed: waits until the ERP can see it.</summary>
+    public static async Task WaitForFeedAsync(HttpClient client, string number)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(20);
+        while (!(await OpenOrdersAsync(client)).Any(order => order.Number == number))
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                Console.Error.WriteLine($"{number} did not reach the order feed.");
+                Environment.Exit(1);
+            }
+
+            await Task.Delay(500);
+        }
+    }
+
     /// <summary>Placed orders from the whole feed that were not cancelled or rejected since (handling one again changes nothing).</summary>
     private static async Task<IReadOnlyList<OrderExport>> OpenOrdersAsync(HttpClient client)
     {
