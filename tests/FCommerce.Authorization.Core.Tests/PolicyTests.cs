@@ -186,6 +186,20 @@ public sealed class PolicyTests
         AssertDenied(Decide(PlatformAdmin, AccessAction.Submit, new Resource.Orders("C1", Piotr)), "no-applicable-policy");
         AssertDenied(Decide(PlatformAdmin, AccessAction.Manage, order), "no-applicable-policy");
     }
+
+    [Fact]
+    public void Customer_administrators_manage_api_keys_of_their_customer_and_operators_within_their_scope()
+    {
+        Assert.True(Decide(Admin, AccessAction.Manage, new Resource.ApiKeys("C1", Anna)).IsPermitted);
+        Assert.True(Decide(Admin, AccessAction.Read, new Resource.ApiKeys("C1", Anna)).IsPermitted);
+        AssertDenied(Decide(Buyer, AccessAction.Manage, new Resource.ApiKeys("C1", Anna)), "cannot-manage-api-keys");
+        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.ApiKeys("C2", Anna)), "other-customer");
+        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.ApiKeys("C1", Anna), Environment(customerActive: false)), "customer-inactive");
+        AssertDenied(Decide(Admin, AccessAction.Manage, new Resource.ApiKeys("C1", Anna), Environment(off: Feature.PublicApi)), "feature-off:public-api");
+        Assert.True(Decide(SalespersonAnna, AccessAction.Manage, new Resource.ApiKeys("C1", Anna)).IsPermitted);
+        AssertDenied(Decide(SalespersonAnna, AccessAction.Read, new Resource.ApiKeys("C1", Piotr)), "outside-operator-scope");
+        AssertDenied(Decide(Subject.Anonymous, AccessAction.Read, new Resource.ApiKeys("C1", Anna)), "no-applicable-policy");
+    }
 }
 
 public sealed class GrantTests

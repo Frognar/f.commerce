@@ -56,6 +56,9 @@ public abstract record Resource
     /// <summary>One order of a customer, placed by <paramref name="PlacedBy"/>.</summary>
     public sealed record Order(string CustomerCode, Maybe<EmailAddress> Salesperson, Guid PlacedBy) : Resource;
 
+    /// <summary>The API keys of a customer: creating, listing and revoking them.</summary>
+    public sealed record ApiKeys(string CustomerCode, Maybe<EmailAddress> Salesperson) : Resource;
+
     /// <summary>The back-office list of customers.</summary>
     public sealed record Customers : Resource;
 
@@ -75,6 +78,7 @@ public abstract record Resource
             CustomerDocuments r => (r.CustomerCode, r.Salesperson),
             Cart r => (r.CustomerCode, Maybe<EmailAddress>.None),
             ShoppingLists r => (r.CustomerCode, Maybe<EmailAddress>.None),
+            ApiKeys r => (r.CustomerCode, r.Salesperson),
             Orders r => (r.CustomerCode, r.Salesperson),
             Order r => (r.CustomerCode, r.Salesperson),
             _ => Maybe<(string, Maybe<EmailAddress>)>.None,

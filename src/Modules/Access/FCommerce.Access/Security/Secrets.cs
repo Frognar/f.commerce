@@ -54,3 +54,23 @@ internal static class Tokens
     private static string Base64UrlEncode(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 }
+
+/// <summary>Material of API keys: a random identifier and secret, and the hash stored for the secret.</summary>
+internal static class ApiKeySecrets
+{
+    /// <summary>A new key: the identifier, the secret, and the hash of the secret to store.</summary>
+    public static (string Id, string Secret, string Hash) New()
+    {
+        var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(Domain.ApiKeyFormat.IdLength / 2));
+        var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        return (id, secret, HashOf(secret));
+    }
+
+    public static string HashOf(string secret) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
+
+    /// <summary>The hash a lookup of an unknown identifier is compared against, so the answer takes as long as for a real key.</summary>
+    public static readonly string Decoy = HashOf(Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)));
+
+    public static bool Matches(string storedHash, string secret) =>
+        CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(storedHash), Encoding.UTF8.GetBytes(HashOf(secret)));
+}

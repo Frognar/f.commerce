@@ -229,6 +229,56 @@ internal sealed class TokenRow
         new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash, ExpiresAt = token.ExpiresAt, UsedAt = token.UsedAt.OrNull() };
 }
 
+internal sealed class ApiKeyRow
+{
+    public Guid Id { get; init; }
+
+    public Guid UserId { get; init; }
+
+    public required string CustomerCode { get; init; }
+
+    public required string Name { get; init; }
+
+    public required string KeyId { get; init; }
+
+    public required string SecretHash { get; init; }
+
+    public required string SecurityStamp { get; init; }
+
+    public DateTimeOffset CreatedAt { get; init; }
+
+    public DateTimeOffset? ExpiresAt { get; init; }
+
+    public DateTimeOffset? LastUsedAt { get; set; }
+
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    public static ApiKeyRow From(ApiKey key) =>
+        new()
+        {
+            Id = key.Id,
+            UserId = key.UserId,
+            CustomerCode = key.CustomerCode,
+            Name = key.Name,
+            KeyId = key.KeyId,
+            SecretHash = key.SecretHash,
+            SecurityStamp = key.SecurityStamp,
+            CreatedAt = key.CreatedAt,
+            ExpiresAt = key.ExpiresAt.OrNull(),
+            LastUsedAt = key.LastUsedAt.OrNull(),
+            RevokedAt = key.RevokedAt.OrNull(),
+        };
+
+    public void Apply(ApiKey key)
+    {
+        LastUsedAt = key.LastUsedAt.OrNull();
+        RevokedAt = key.RevokedAt.OrNull();
+    }
+
+    public ApiKey ToDomain() =>
+        new(Id, UserId, CustomerCode, Name, KeyId, SecretHash, SecurityStamp, CreatedAt, ExpiresAt.ToMaybe(), LastUsedAt.ToMaybe(), RevokedAt.ToMaybe());
+}
+
 /// <summary>Append-only record of security-relevant changes, written in the same transaction as the change.</summary>
 internal sealed class AuditEntry
 {

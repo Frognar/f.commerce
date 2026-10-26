@@ -38,6 +38,7 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
     public static readonly FeatureId Ordering = FeatureId.Define("ordering");
     public static readonly FeatureId ReorderFromOrders = FeatureId.Define("reorder-from-orders");
     public static readonly FeatureId OrderFeed = FeatureId.Define("order-feed");
+    public static readonly FeatureId PublicApi = FeatureId.Define("public-api");
 
     /// <summary>The feature catalog. Modules add their features here (one list, so dependencies can be checked).</summary>
     public static ImmutableArray<Feature> All { get; } =
@@ -57,6 +58,7 @@ public sealed record Feature(FeatureId Id, string Description, bool EnabledByDef
         new(Ordering, "Orders are placed from the cart; customers see their order history.", true, [Cart]),
         new(ReorderFromOrders, "Lines of an earlier order are added to the cart.", true, [Ordering]),
         new(OrderFeed, "The ERP takes orders from a feed of the integration API and confirms them.", true, [Ordering]),
+        new(PublicApi, "Customers connect their systems to the public API with API keys.", true, [CustomerAccounts]),
     ];
 }
 

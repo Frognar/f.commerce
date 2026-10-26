@@ -3,6 +3,7 @@ using FCommerce.Cart;
 using FCommerce.Catalog;
 using FCommerce.Customers;
 using FCommerce.Documents;
+using FCommerce.Host.Api;
 using FCommerce.Host.Security;
 using FCommerce.Inventory;
 using FCommerce.Notifications;
@@ -54,6 +55,9 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     .AddCookie(options => SessionCookie.Configure(options, requireHttps: builder.Environment.IsProduction()));
 builder.Services.AddAbacAuthorization();
 builder.Services.AddAuthenticationRateLimits(builder.Configuration.GetValue("Security:AuthenticationAttemptsPerMinute", 10));
+builder.Services.AddPublicApiSecurity(
+    requestsPerMinutePerKey: builder.Configuration.GetValue("Api:RequestsPerMinute", 120),
+    requestsPerMinutePerAddress: builder.Configuration.GetValue("Api:RequestsPerMinutePerAddress", 600));
 
 // Modules. What this installation offers is set at deployment; the back-office switches within it.
 var availableFeatures = (builder.Configuration.GetSection("Features:Available").Get<string[]>()
@@ -163,6 +167,7 @@ app.MapGet("/", CultureRedirect.ToPreferredCulture).ExcludeFromDescription();
 app.MapHealthChecks("/health");
 app.MapOpenApi("/openapi/{documentName}.json");
 app.MapIntegrationApi();
+app.MapPublicApi();
 app.MapMediaEndpoints();
 
 await app.RunAsync();

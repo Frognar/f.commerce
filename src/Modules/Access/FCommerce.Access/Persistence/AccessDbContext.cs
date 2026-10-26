@@ -15,6 +15,8 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
 
     public DbSet<RegistrationRow> Registrations => Set<RegistrationRow>();
 
+    public DbSet<ApiKeyRow> ApiKeys => Set<ApiKeyRow>();
+
     public DbSet<AuditEntry> AuditLog => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -83,6 +85,26 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
             registration.Property(r => r.CustomerCode).HasColumnName("customer_code").HasMaxLength(64);
             registration.Property(r => r.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(1000);
             registration.HasIndex(r => new { r.Status, r.SubmittedAt }).HasDatabaseName("ix_registration_requests_status");
+        });
+
+        modelBuilder.Entity<ApiKeyRow>(key =>
+        {
+            key.ToTable("api_keys");
+            key.HasKey(k => k.Id);
+            key.Property(k => k.Id).HasColumnName("id");
+            key.Property(k => k.UserId).HasColumnName("user_id");
+            key.Property(k => k.CustomerCode).HasColumnName("customer_code").HasMaxLength(64);
+            key.Property(k => k.Name).HasColumnName("name").HasMaxLength(100);
+            key.Property(k => k.KeyId).HasColumnName("key_id").HasMaxLength(16);
+            key.HasIndex(k => k.KeyId).IsUnique().HasDatabaseName("ux_api_keys_key_id");
+            key.Property(k => k.SecretHash).HasColumnName("secret_hash").HasMaxLength(64);
+            key.Property(k => k.SecurityStamp).HasColumnName("security_stamp").HasMaxLength(64);
+            key.Property(k => k.CreatedAt).HasColumnName("created_at");
+            key.Property(k => k.ExpiresAt).HasColumnName("expires_at");
+            key.Property(k => k.LastUsedAt).HasColumnName("last_used_at");
+            key.Property(k => k.RevokedAt).HasColumnName("revoked_at");
+            key.HasIndex(k => k.CustomerCode).HasDatabaseName("ix_api_keys_customer_code");
+            key.HasOne<AccountRow>().WithMany().HasForeignKey(k => k.UserId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<AuditEntry>(entry =>

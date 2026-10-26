@@ -63,6 +63,8 @@ public partial class HostFixture : IAsyncLifetime
             .UseSetting("Media:StoragePath", Path.Combine(dataPath, "media"))
             .UseSetting("Access:BootstrapAdminEmail", AdminEmail)
             .UseSetting("Security:AuthenticationAttemptsPerMinute", "10000")
+            .UseSetting("Api:RequestsPerMinute", "100000")
+            .UseSetting("Api:RequestsPerMinutePerAddress", "100000")
             .ConfigureTestServices(services =>
             {
                 services.AddSingleton<IIntegrationEventHandler<ProductChanged>>(Events);

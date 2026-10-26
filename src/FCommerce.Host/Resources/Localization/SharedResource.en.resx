@@ -164,6 +164,7 @@
   <data name="Feature.ordering" xml:space="preserve"><value>Orders</value></data>
   <data name="Feature.reorder-from-orders" xml:space="preserve"><value>Cart from an order</value></data>
   <data name="Feature.order-feed" xml:space="preserve"><value>Order feed for the ERP</value></data>
+  <data name="Feature.public-api" xml:space="preserve"><value>Public API</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Customers sign in to the customer area.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>A user can act for several companies.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Company administrators invite their colleagues.</value></data>
@@ -179,6 +180,7 @@
   <data name="FeatureHint.ordering" xml:space="preserve"><value>Customers place orders from the cart and see their order history.</value></data>
   <data name="FeatureHint.reorder-from-orders" xml:space="preserve"><value>Lines of an earlier order go to the cart in one click.</value></data>
   <data name="FeatureHint.order-feed" xml:space="preserve"><value>The ERP takes orders through the integration API and confirms them. Switch off for another kind of integration.</value></data>
+  <data name="FeatureHint.public-api" xml:space="preserve"><value>Customers connect their systems to the API with API keys they create in the customer area.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Someone changed the settings in the meantime. Reload the page and try again.</value></data>
   <data name="Error.settings.stock-display" xml:space="preserve"><value>Choose how stock is shown.</value></data>
   <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>The threshold must be a number of zero or more, with at most 3 decimal places.</value></data>

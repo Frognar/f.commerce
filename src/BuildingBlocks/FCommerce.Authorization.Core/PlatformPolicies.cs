@@ -23,6 +23,7 @@ public static class PlatformPolicies
         CustomerDocuments,
         Cart,
         Orders,
+        ApiKeys,
         BackOffice,
         Registrations,
     ];
@@ -42,6 +43,7 @@ public static class PlatformPolicies
             (Resource.Cart, _) => Feature.Cart,
             (Resource.ShoppingLists, _) => Feature.ShoppingLists,
             (Resource.Orders or Resource.Order, _) => Feature.Ordering,
+            (Resource.ApiKeys, _) => Feature.PublicApi,
             (Resource.Registrations, _) => Feature.SelfRegistration,
             (Resource.CustomerUsers, Subject.CustomerUser) when request.Action == AccessAction.Manage => Feature.CustomerAdminInvitations,
             (Resource.CustomerProfile or Resource.CustomerUsers, Subject.CustomerUser) => Feature.CustomerAccounts,
@@ -127,6 +129,16 @@ public static class PlatformPolicies
             (Resource.Order order, AccessAction.Manage, Subject.CustomerUser user) =>
                 PolicyResult.PermitIf(user.Attributes.CanOrder && (order.PlacedBy == user.UserId || user.Attributes.OrderScope == OrderScope.Company), "cannot-manage-order"),
             (Resource.Orders or Resource.Order, AccessAction.Read, Subject.Operator) => PolicyResult.Permit,
+            _ => PolicyResult.NotApplicable,
+        };
+
+    /// <summary>Keys are an integration right: only administrators of the customer manage them; operators read and revoke.</summary>
+    private static PolicyResult ApiKeys(AccessRequest request) =>
+        (request.Resource, request.Action, request.Subject) switch
+        {
+            (Resource.ApiKeys, AccessAction.Read or AccessAction.Manage, Subject.CustomerUser user) =>
+                PolicyResult.PermitIf(user.Attributes.CanManageUsers, "cannot-manage-api-keys"),
+            (Resource.ApiKeys, AccessAction.Read or AccessAction.Manage, Subject.Operator) => PolicyResult.Permit,
             _ => PolicyResult.NotApplicable,
         };
 

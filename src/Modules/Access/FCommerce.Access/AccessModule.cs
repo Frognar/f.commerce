@@ -67,6 +67,10 @@ public static class AccessModule
         services.AddScoped<ICommandHandler<RevokeMembership, Result<Unit, Error>>, RevokeMembershipHandler>();
         services.AddScoped<IQueryHandler<GetCustomerUsers, IReadOnlyList<CustomerUserSummary>>, GetCustomerUsersHandler>();
         services.AddScoped<IQueryHandler<GetAuditLog, IReadOnlyList<AuditEntryView>>, GetAuditLogHandler>();
+        services.AddScoped<ICommandHandler<CreateApiKey, Result<CreatedApiKey, Error>>, CreateApiKeyHandler>();
+        services.AddScoped<ICommandHandler<RevokeApiKey, Result<Unit, Error>>, RevokeApiKeyHandler>();
+        services.AddScoped<IQueryHandler<GetCustomerApiKeys, IReadOnlyList<ApiKeySummary>>, GetCustomerApiKeysHandler>();
+        services.AddScoped<ICommandHandler<AuthenticateApiKey, Result<ApiKeyIdentity, Error>>, AuthenticateApiKeyHandler>();
         services.AddIntegrationEventHandler<PortalContactsChanged, ErpContactInvitations>();
         services.AddScoped<ICommandHandler<SubmitRegistration, Result<Guid, Error>>, SubmitRegistrationHandler>();
         services.AddScoped<ICommandHandler<ApproveRegistration, Result<Unit, Error>>, ApproveRegistrationHandler>();

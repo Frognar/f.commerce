@@ -22,6 +22,9 @@ public sealed class CurrentUser(
 {
     public const string StampClaim = "fc:stamp";
 
+    /// <summary>The customer an API key is bound to; it replaces the user's choice (cookie) for API requests.</summary>
+    public const string CustomerClaim = "fc:customer";
+
     /// <summary>The customer the user chose to act for; only a preference, checked against the memberships on every request.</summary>
     public const string CustomerCookie = "fc.customer";
 
@@ -54,8 +57,8 @@ public sealed class CurrentUser(
     }
 
     /// <summary>
-    /// The membership the user acts under: the chosen customer (with the multi-customer feature on) or the first one.
-    /// None for anonymous users, operators and users without customers.
+    /// The membership the user acts under: the customer of the API key, or the chosen customer (with the multi-customer
+    /// feature on) or the first one. None for anonymous users, operators and users without customers.
     /// </summary>
     public async Task<Maybe<MembershipView>> ActiveMembershipAsync(CancellationToken cancellationToken = default)
     {
@@ -63,6 +66,12 @@ public sealed class CurrentUser(
         return await customerUser.Match(
             async session =>
             {
+                var keyCustomer = Http.User.FindFirstValue(CustomerClaim).ToMaybe();
+                if (keyCustomer.Exists(_ => true))
+                {
+                    return keyCustomer.Bind(code => session.Memberships.FirstOrNone(m => m.CustomerCode == code));
+                }
+
                 var multiCustomer = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.MultiCustomerAccounts.Value);
                 var chosen = Http.Request.Cookies[CustomerCookie].ToMaybe().Where(_ => multiCustomer);
                 return session.Memberships.FirstOrNone(m => chosen.Exists(code => code == m.CustomerCode)).Or(() => session.Memberships.FirstOrNone());

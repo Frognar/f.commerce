@@ -164,6 +164,7 @@
   <data name="Feature.ordering" xml:space="preserve"><value>Zamówienia</value></data>
   <data name="Feature.reorder-from-orders" xml:space="preserve"><value>Koszyk z zamówienia</value></data>
   <data name="Feature.order-feed" xml:space="preserve"><value>Feed zamówień dla ERP</value></data>
+  <data name="Feature.public-api" xml:space="preserve"><value>Publiczne API</value></data>
   <data name="FeatureHint.customer-accounts" xml:space="preserve"><value>Klienci logują się do strefy klienta.</value></data>
   <data name="FeatureHint.multi-customer-accounts" xml:space="preserve"><value>Użytkownik może działać w imieniu kilku firm.</value></data>
   <data name="FeatureHint.customer-admin-invitations" xml:space="preserve"><value>Administratorzy firm sami zapraszają współpracowników.</value></data>
@@ -179,6 +180,7 @@
   <data name="FeatureHint.ordering" xml:space="preserve"><value>Klienci składają zamówienia z koszyka i widzą historię zamówień.</value></data>
   <data name="FeatureHint.reorder-from-orders" xml:space="preserve"><value>Pozycje wcześniejszego zamówienia trafiają do koszyka jednym kliknięciem.</value></data>
   <data name="FeatureHint.order-feed" xml:space="preserve"><value>ERP pobiera zamówienia przez API integracyjne i potwierdza je. Wyłącz przy innym sposobie integracji.</value></data>
+  <data name="FeatureHint.public-api" xml:space="preserve"><value>Klienci łączą swoje systemy z API przy użyciu kluczy API, które tworzą w strefie klienta.</value></data>
   <data name="Error.settings.changed-meanwhile" xml:space="preserve"><value>Ktoś zmienił ustawienia w międzyczasie. Odśwież stronę i spróbuj ponownie.</value></data>
   <data name="Error.settings.stock-display" xml:space="preserve"><value>Wybierz, jak pokazywać stany.</value></data>
   <data name="Error.settings.low-stock-threshold" xml:space="preserve"><value>Próg musi być liczbą nie mniejszą od zera, z najwyżej 3 miejscami po przecinku.</value></data>
