@@ -37,6 +37,8 @@ public sealed class ImageRulesTests
     public void Size_limits_are_enforced()
     {
         Assert.Equal("image.empty", ImageRules.CheckSize(0).ShouldFail().Code);
+        Assert.Equal("image.empty", ImageRules.CheckSize(-1).ShouldFail().Code);
+        Assert.Equal(ImageRules.MaxBytes, ImageRules.CheckSize(ImageRules.MaxBytes).ShouldSucceed().Bytes);
         Assert.Equal("image.too-large", ImageRules.CheckSize(ImageRules.MaxBytes + 1).ShouldFail().Code);
         Assert.Equal("image.too-small", ImageRules.CheckDimensions(10, 100).ShouldFail().Code);
     }
@@ -62,7 +64,7 @@ public sealed class ImageProcessorTests
     {
         var processed = ImageProcessor.Process(Png(1200, 800)).ShouldSucceed();
 
-        Assert.Equal((1200, 800), (processed.Width, processed.Height));
+        Assert.Equal((1200, 800), (processed.Dimensions.Width, processed.Dimensions.Height));
         var sizes = processed.Variants.Select(v =>
         {
             using var codec = SKCodec.Create(SKData.CreateCopy(v.Content));

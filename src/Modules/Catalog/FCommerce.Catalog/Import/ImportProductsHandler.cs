@@ -71,10 +71,22 @@ internal sealed class ImportProductsHandler(
     private static IEnumerable<IIntegrationEvent> PublicEvents(Change<Product> change) =>
         change switch
         {
-            Change<Product>.Created c => [new ProductChanged(c.Current.Sku.Value, c.Current.Active)],
-            Change<Product>.Updated u => [new ProductChanged(u.Current.Sku.Value, u.Current.Active)],
+            Change<Product>.Created c => [Changed(c.Current)],
+            Change<Product>.Updated u => [Changed(u.Current)],
             _ => [],
         };
+
+    private static ProductChanged Changed(Product product) =>
+        new(
+            product.Sku.Value,
+            product.Offered,
+            product.Status switch
+            {
+                ProductStatus.Active => ProductStatuses.Active,
+                ProductStatus.Discontinued => ProductStatuses.Discontinued,
+                ProductStatus.Inactive => ProductStatuses.Inactive,
+                _ => throw new ArgumentOutOfRangeException(nameof(product), product.Status, "Unknown product status."),
+            });
 
     private static UnvalidatedProduct ToUnvalidated(ProductData data) =>
         new(

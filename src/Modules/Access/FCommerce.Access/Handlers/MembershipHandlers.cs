@@ -128,7 +128,7 @@ internal sealed class MembershipManagement(
     {
         store.Db.Memberships.Add(MembershipRow.From(membership, store.Now));
         return account.State is AccountState.Invited
-            ? store.Invite(account, "customer", customerName)
+            ? store.InviteCustomerUser(account, customerName)
             : store.Enqueue(new MembershipGranted(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, customerName));
     }
 

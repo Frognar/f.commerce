@@ -53,12 +53,19 @@ internal sealed class AccessStore(AccessDbContext db, Outbox<AccessDbContext> ou
     public void Audit(Maybe<Guid> actor, string action, string subject, object details) =>
         Audit(actor, action, subject, JsonSerializer.Serialize(details));
 
-    /// <summary>Issues an invitation link token for the account and queues the e-mail event.</summary>
-    public Result<Unit, Error> Invite(Account account, string audience, Maybe<string> customerName)
+    /// <summary>Issues an invitation link token for an operator's account and queues the e-mail event.</summary>
+    public Result<Unit, Error> InviteOperator(Account account) =>
+        outbox.Enqueue(new OperatorInvited(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, IssueInvitation(account)));
+
+    /// <summary>Issues an invitation link token for a customer user's account and queues the e-mail event.</summary>
+    public Result<Unit, Error> InviteCustomerUser(Account account, string customerName) =>
+        outbox.Enqueue(new CustomerUserInvited(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, IssueInvitation(account), customerName));
+
+    private string IssueInvitation(Account account)
     {
         var (token, hash) = Tokens.New();
         db.Tokens.Add(TokenRow.From(OneTimeToken.Issue(account.Id, TokenPurpose.Invitation, hash, Now)));
-        return outbox.Enqueue(new InvitationIssued(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, token, audience, customerName.OrNull()));
+        return token;
     }
 
     private void Audit(Maybe<Guid> actor, string action, string subject, Maybe<string> details) =>

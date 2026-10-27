@@ -6,7 +6,7 @@ using FCommerce.SharedKernel.Optional;
 namespace FCommerce.Media.Processing;
 
 /// <summary>A decoded upload with its WebP display variants.</summary>
-internal sealed record ProcessedImage(int Width, int Height, IReadOnlyList<(ImageVariant Variant, byte[] Content)> Variants);
+internal sealed record ProcessedImage(ImageDimensions Dimensions, IReadOnlyList<(ImageVariant Variant, byte[] Content)> Variants);
 
 /// <summary>Decodes JPEG/PNG/WebP, applies EXIF orientation and renders every <see cref="ImageVariant"/> as WebP.</summary>
 internal static class ImageProcessor
@@ -23,20 +23,20 @@ internal static class ImageProcessor
                 codec =>
                 {
                     var (width, height) = Oriented(codec.Info.Width, codec.Info.Height, codec.EncodedOrigin);
-                    return ImageRules.CheckDimensions(width, height).Bind(_ => Render(codec, width, height));
+                    return ImageRules.CheckDimensions(width, height).Bind(dimensions => Render(codec, dimensions));
                 },
                 () => Error.Validation("image.unsupported-format", "Only JPEG, PNG and WebP images are supported."));
     }
 
-    private static Result<ProcessedImage, Error> Render(SKCodec codec, int width, int height)
+    private static Result<ProcessedImage, Error> Render(SKCodec codec, ImageDimensions dimensions)
     {
         using var created = SKBitmap.Decode(codec);
         return created.ToMaybe().Match(
             decoded =>
             {
                 using var upright = ApplyOrigin(decoded, codec.EncodedOrigin);
-                var variants = ImageVariant.All.Select(variant => (variant, Encode(upright, variant.Fit(width, height)))).ToList();
-                return Result.Ok<ProcessedImage, Error>(new ProcessedImage(width, height, variants));
+                var variants = ImageVariant.All.Select(variant => (variant, Encode(upright, variant.Fit(dimensions)))).ToList();
+                return Result.Ok<ProcessedImage, Error>(new ProcessedImage(dimensions, variants));
             },
             () => Error.Validation("image.corrupt", "The image could not be decoded."));
     }

@@ -55,13 +55,13 @@ internal sealed class ProductSearchIndex(ISearchEngine engine, CatalogDbContext 
         var products = rows.Select(r => r.ToDomain()).ToList();
         var tree = await CategoryTreeAsync(cancellationToken);
 
-        var removed = skus.Except(products.Where(p => p.Active).Select(p => p.Sku.Value))
+        var removed = skus.Except(products.Where(p => p.Offered).Select(p => p.Sku.Value))
             .Choose(sku => Sku.Parse(sku).ToMaybe().Map(CatalogSearch.DocumentId))
             .ToList();
 
         foreach (var culture in cultures.All)
         {
-            var entries = products.Where(p => p.Active).Select(p => ProductSearchDocument.From(Entry(p, tree, culture))).ToList();
+            var entries = products.Where(p => p.Offered).Select(p => ProductSearchDocument.From(Entry(p, tree, culture))).ToList();
             await engine.UpsertAsync(IndexName(culture), entries, cancellationToken);
             await engine.DeleteAsync(IndexName(culture), removed, cancellationToken);
         }

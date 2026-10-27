@@ -27,20 +27,21 @@ public sealed class EmailTests
             Task.FromResult(new PlatformSettingsView(1, "Public", [], new BrandingView("Hurtownia <Śruba>", "#1f5eff", null), new ContactView(null, null, operatorMailbox), null, "buyer", "Levels", 10));
     }
 
-    private static async Task<EmailMessage> SendInvitationAsync(string culture, string name, string audience)
+    private static async Task<EmailMessage> SendInvitationAsync(string culture, string name, bool forOperator = false)
     {
         var recorder = new Recorder();
-        await new SendInvitation(recorder, Options, new Settings()).HandleAsync(
-            new InvitationIssued(Guid.NewGuid(), "jan@firma.pl", name, culture, "tok+en/1", audience, "Firma S.A."),
-            TestContext.Current.CancellationToken);
+        var handler = new SendInvitation(recorder, Options, new Settings());
+        await (forOperator
+            ? handler.HandleAsync(new OperatorInvited(Guid.NewGuid(), "jan@firma.pl", name, culture, "tok+en/1"), TestContext.Current.CancellationToken)
+            : handler.HandleAsync(new CustomerUserInvited(Guid.NewGuid(), "jan@firma.pl", name, culture, "tok+en/1", "Firma S.A."), TestContext.Current.CancellationToken));
         return Assert.Single(recorder.Sent);
     }
 
     [Fact]
     public async Task Invitation_is_written_in_the_recipients_language_with_a_link_to_the_invitation_page()
     {
-        var polish = await SendInvitationAsync("pl", "Jan", "customer");
-        var english = await SendInvitationAsync("en", "Jan", "operator");
+        var polish = await SendInvitationAsync("pl", "Jan");
+        var english = await SendInvitationAsync("en", "Jan", forOperator: true);
 
         Assert.Equal("Twoje konto w Hurtownia <Śruba>", polish.Subject);
         Assert.Contains("w imieniu firmy Firma S.A.", polish.Text, StringComparison.Ordinal);
@@ -52,7 +53,7 @@ public sealed class EmailTests
     [Fact]
     public async Task User_provided_text_is_html_encoded()
     {
-        var email = await SendInvitationAsync("pl", "<script>alert(1)</script>", "customer");
+        var email = await SendInvitationAsync("pl", "<script>alert(1)</script>");
 
         Assert.DoesNotContain("<script>", email.Html, StringComparison.Ordinal);
         Assert.Contains("&lt;script&gt;", email.Html, StringComparison.Ordinal);

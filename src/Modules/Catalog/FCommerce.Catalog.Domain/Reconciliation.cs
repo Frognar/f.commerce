@@ -22,7 +22,7 @@ public static class Reconciliation
             product => product.Sku.Value);
 
     public static Change<Product> Reconcile(Maybe<Product> stored, Product incoming) =>
-        ImportBatch.Reconcile(stored, incoming, p => p.Version, (a, b) => a.Content == b.Content && a.Active == b.Active);
+        ImportBatch.Reconcile(stored, incoming, p => p.Version, (a, b) => a.Content == b.Content && a.Status == b.Status);
 
     public static Change<Category> Reconcile(Maybe<Category> stored, Category incoming) =>
         ImportBatch.Reconcile(stored, incoming, c => c.Version, (a, b) => a.Content == b.Content && a.Active == b.Active);

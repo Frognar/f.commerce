@@ -110,7 +110,7 @@ internal sealed class GetProductHandler(CatalogDbContext db) : IQueryHandler<Get
             [.. product.Content.Images.Select(i => i.Value)],
             [.. product.Content.Attributes.Select(a => new ProductAttributeView(a.Code.Value, a.Name.Resolve(cultures), a.Value.Resolve(cultures)))],
             [.. path.Select(c => new CategoryReference(c.Code.Value, c.Content.Name.Text.Resolve(cultures)))],
-            product.Content.Discontinued);
+            product.Status == ProductStatus.Discontinued);
     }
 }
 
@@ -140,7 +140,7 @@ internal sealed class GetProductsBySkuHandler(CatalogDbContext db) : IQueryHandl
             product.Content.Unit.Value,
             product.Content.Images.Select(i => i.Value).FirstOrNone().OrNull(),
             product.Content.Category.Map(c => c.Value).OrNull(),
-            product.Content.Discontinued);
+            product.Status == ProductStatus.Discontinued);
 }
 
 internal sealed class GetCategoryTreeHandler(CatalogDbContext db) : IQueryHandler<GetCategoryTree, Result<IReadOnlyList<CategoryView>, Error>>

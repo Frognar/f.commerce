@@ -1,3 +1,4 @@
+using FCommerce.Media.Domain;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Media.Persistence;
@@ -36,4 +37,14 @@ internal sealed class ImageRow
     public int OriginalBytes { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
+
+    public static ImageRow From(StoredImage image, DateTimeOffset now) =>
+        new()
+        {
+            Id = image.Id.Value,
+            Width = image.Dimensions.Width,
+            Height = image.Dimensions.Height,
+            OriginalBytes = image.Original.Bytes,
+            CreatedAt = now,
+        };
 }

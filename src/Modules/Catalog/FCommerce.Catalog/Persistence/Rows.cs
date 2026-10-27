@@ -1,6 +1,7 @@
 using FCommerce.SharedKernel.Imports;
 using System.Text.Json;
 using FCommerce.Catalog.Domain;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Localization;
@@ -10,7 +11,7 @@ namespace FCommerce.Catalog.Persistence;
 
 /// <summary>
 /// Storage shape of a product: columns for filtering, JSON (in its persisted raw form) for nested content.
-/// Mapping back to the domain trusts stored data (it was validated when written).
+/// Mapping back to the domain trusts stored values (they were validated when written) but not their combination.
 /// </summary>
 internal sealed class ProductRow
 {
@@ -63,8 +64,8 @@ internal sealed class ProductRow
         Gtin = product.Content.Gtin.Map(g => g.Value).OrNull();
         Images = Json.Write(product.Content.Images);
         Attributes = Json.Write(product.Content.Attributes);
-        Active = product.Active;
-        Discontinued = product.Content.Discontinued;
+        Active = product.Offered;
+        Discontinued = product.Status == ProductStatus.Discontinued;
         UpdatedAt = now;
     }
 
@@ -79,9 +80,12 @@ internal sealed class ProductRow
                 Persisted.Rehydrate<UnitCode, string>(Unit),
                 Gtin.ToMaybe().Map(Persisted.Rehydrate<Domain.Gtin, string>),
                 Json.Read<EquatableArray<ImageId>>(Images),
-                Json.Read<EquatableArray<ProductAttribute>>(Attributes),
-                Discontinued),
-            Active);
+                Json.Read<EquatableArray<ProductAttribute>>(Attributes)),
+            (Active, Discontinued) switch
+            {
+                (false, true) => throw Stored.Corrupt($"product {Sku} is inactive and discontinued"),
+                var (active, discontinued) => Product.StatusOf(active, discontinued),
+            });
 }
 
 internal sealed class CategoryRow
@@ -118,14 +122,14 @@ internal sealed class CategoryRow
     }
 
     public Category ToDomain() =>
-        new(
+        Persisted.Rehydrate<Category, Category.Stored>(new(
             Persisted.Rehydrate<CategoryCode, string>(Code),
             Persisted.Rehydrate<SourceVersion, long>(Version),
             new CategoryContent(
                 ParentCode.ToMaybe().Map(Persisted.Rehydrate<CategoryCode, string>),
                 Json.Read<CategoryName>(Name),
                 SortOrder),
-            Active);
+            Active));
 }
 
 internal static class Json
@@ -133,5 +137,5 @@ internal static class Json
     public static string Write<T>(T value) => JsonSerializer.Serialize(value, PersistenceJson.Options);
 
     public static T Read<T>(string json) =>
-        JsonSerializer.Deserialize<T>(json, PersistenceJson.Options) ?? throw new JsonException($"Stored {typeof(T).Name} is null.");
+        JsonSerializer.Deserialize<T>(json, PersistenceJson.Options) is { } value ? value : throw Stored.Corrupt($"{typeof(T).Name} is missing.");
 }

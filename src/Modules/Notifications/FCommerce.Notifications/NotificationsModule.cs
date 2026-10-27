@@ -32,7 +32,8 @@ public static class NotificationsModule
     {
         services.AddSingleton(options);
         services.AddScoped<OrderMail>();
-        services.AddIntegrationEventHandler<InvitationIssued, SendInvitation>();
+        services.AddIntegrationEventHandler<OperatorInvited, SendInvitation>();
+        services.AddIntegrationEventHandler<CustomerUserInvited, SendInvitation>();
         services.AddIntegrationEventHandler<PasswordResetRequested, SendPasswordReset>();
         services.AddIntegrationEventHandler<MembershipGranted, SendMembershipGranted>();
         services.AddIntegrationEventHandler<RegistrationSubmitted, NotifyOperatorsOfRegistration>();
@@ -61,21 +62,51 @@ internal static class Links
 }
 
 internal sealed class SendInvitation(IEmailSender sender, NotificationsOptions options, IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
-    : IIntegrationEventHandler<InvitationIssued>
+    : IIntegrationEventHandler<OperatorInvited>, IIntegrationEventHandler<CustomerUserInvited>
 {
-    public async Task HandleAsync(InvitationIssued invitation, CancellationToken cancellationToken = default)
+    public async Task HandleAsync(OperatorInvited invitation, CancellationToken cancellationToken = default)
     {
-        var storeName = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).Branding.StoreName;
+        var storeName = await StoreNameAsync(cancellationToken);
         var culture = invitation.Culture;
-        var forOperator = invitation.Audience == "operator";
+        await SendAsync(
+            invitation.Email,
+            invitation.Name,
+            culture,
+            storeName,
+            invitation.Token,
+            EmailRenderer.Text("InvitationOperatorSubject", culture, storeName),
+            EmailRenderer.Text("InvitationOperatorBody", culture, storeName),
+            cancellationToken);
+    }
+
+    public async Task HandleAsync(CustomerUserInvited invitation, CancellationToken cancellationToken = default)
+    {
+        var storeName = await StoreNameAsync(cancellationToken);
+        var culture = invitation.Culture;
+        await SendAsync(
+            invitation.Email,
+            invitation.Name,
+            culture,
+            storeName,
+            invitation.Token,
+            EmailRenderer.Text("InvitationCustomerSubject", culture, storeName),
+            EmailRenderer.Text("InvitationCustomerBody", culture, storeName, invitation.CustomerName),
+            cancellationToken);
+    }
+
+    private async Task<string> StoreNameAsync(CancellationToken cancellationToken) =>
+        (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).Branding.StoreName;
+
+    private Task SendAsync(string to, string name, string culture, string storeName, string token, string subject, string body, CancellationToken cancellationToken)
+    {
         var email = new ActionEmail(
-            EmailRenderer.Text(forOperator ? "InvitationOperatorSubject" : "InvitationCustomerSubject", culture, storeName),
-            EmailRenderer.Text("Greeting", culture, invitation.Name),
-            EmailRenderer.Text(forOperator ? "InvitationOperatorBody" : "InvitationCustomerBody", culture, storeName, invitation.CustomerName.OrEmpty()),
+            subject,
+            EmailRenderer.Text("Greeting", culture, name),
+            body,
             EmailRenderer.Text("InvitationAction", culture),
-            Links.To(options, culture, "invitation", invitation.Token),
+            Links.To(options, culture, "invitation", token),
             EmailRenderer.Text("InvitationExpiry", culture));
-        await sender.SendAsync(EmailRenderer.Render(Links.Address(invitation.Email), invitation.Name, culture, storeName, email), cancellationToken);
+        return sender.SendAsync(EmailRenderer.Render(Links.Address(to), name, culture, storeName, email), cancellationToken);
     }
 }
 

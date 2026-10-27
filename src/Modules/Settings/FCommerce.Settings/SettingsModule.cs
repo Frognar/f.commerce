@@ -84,20 +84,20 @@ internal sealed class GetPlatformSettingsHandler(SettingsSnapshot snapshot) : IQ
             settings.CatalogVisibility.ToString(),
             [.. Feature.All.Where(f => available.Contains(f.Id)).Select(f => new FeatureView(
                 f.Id.Value, f.Description, settings.EnabledFeatures.Contains(f.Id), features.IsOn(f.Id), [.. f.RequiresAll.Select(r => r.Value)]))],
-            new BrandingView(settings.Branding.StoreName, settings.Branding.AccentColor.Value, settings.Branding.LogoImageId.OrNull()),
+            new BrandingView(settings.Branding.StoreName.Value, settings.Branding.AccentColor.Value, settings.Branding.Logo.Map(l => l.Id).OrNull()),
             new ContactView(
                 settings.Contact.SupportEmail.Map(e => e.Value).OrNull(),
-                settings.Contact.SupportPhone.OrNull(),
+                settings.Contact.SupportPhone.Map(p => p.Value).OrNull(),
                 settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull()),
-            settings.Commerce.DefaultPriceListCode.OrNull(),
-            settings.Commerce.DefaultContactTemplate,
+            settings.Commerce.DefaultPriceList.Map(p => p.Value).OrNull(),
+            settings.Commerce.DefaultContactTemplate.Value,
             settings.Stock.Mode switch
             {
                 StockDisplayMode.Levels => StockDisplayModes.Levels,
                 StockDisplayMode.Exact => StockDisplayModes.Exact,
                 _ => throw new ArgumentOutOfRangeException(nameof(settings), settings.Stock.Mode, "A stock display without a name."),
             },
-            settings.Stock.LowThreshold);
+            settings.Stock.LowThreshold.Value);
     }
 }
 
@@ -107,13 +107,10 @@ internal sealed class UpdatePlatformSettingsHandler(SettingsDbContext db, Outbox
     public async Task<Result<long, Error>> HandleAsync(UpdatePlatformSettings command, CancellationToken cancellationToken = default)
     {
         var row = await db.Settings.SingleAsync(s => s.Id == SettingsRow.SingletonId, cancellationToken);
-        if (row.Version != command.Version)
-        {
-            return ChangedMeanwhile();
-        }
-
         var before = SettingsDocument.Read(row.Document, row.Version, snapshot.Available);
-        var validated = SettingsRules.Validate(
+        var updated = SettingsRules.Update(
+            before,
+            command.Version,
             new UnvalidatedSettings(
                 command.CatalogVisibility.OrEmpty(),
                 command.EnabledFeatures.OrEmpty(),
@@ -127,10 +124,9 @@ internal sealed class UpdatePlatformSettingsHandler(SettingsDbContext db, Outbox
                 command.DefaultContactTemplate.OrEmpty(),
                 command.StockDisplay.OrEmpty(),
                 command.LowStockThreshold),
-            snapshot.Available,
-            row.Version).ToResult();
+            snapshot.Available);
 
-        return await validated
+        return await updated
             .Bind(after => outbox.Enqueue(new PlatformSettingsChanged(after.Version)).Map(_ => after))
             .BindAsync(async after =>
             {
@@ -154,16 +150,13 @@ internal sealed class UpdatePlatformSettingsHandler(SettingsDbContext db, Outbox
                 }
                 catch (DbUpdateConcurrencyException)
                 {
-                    return ChangedMeanwhile();
+                    return SettingsRules.ChangedMeanwhile;
                 }
 
                 snapshot.Replace(after);
                 return Result.Ok<long, Error>(after.Version);
             });
     }
-
-    private static Error ChangedMeanwhile() =>
-        Error.Conflict("settings.changed-meanwhile", "The settings were changed by someone else in the meantime. Reload and try again.");
 }
 
 internal sealed class GetSettingsHistoryHandler(SettingsDbContext db) : IQueryHandler<GetSettingsHistory, IReadOnlyList<SettingsChange>>

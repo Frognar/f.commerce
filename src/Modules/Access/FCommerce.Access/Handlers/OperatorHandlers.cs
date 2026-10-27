@@ -48,7 +48,7 @@ internal sealed class OperatorManagement(AccessStore store)
             {
                 row.Switch(stored => stored.Apply(account), () => store.Db.Accounts.Add(AccountRow.From(account, store.Now)));
 
-                var invited = account.State is AccountState.Invited ? store.Invite(account, "operator", Maybe<string>.None) : Unit.Value;
+                var invited = account.State is AccountState.Invited ? store.InviteOperator(account) : Unit.Value;
                 return await invited.MapAsync(async _ =>
                 {
                     store.Audit(actor.Map(a => a.Id), "operator.invited", $"account:{account.Id}", AccessStore.ToView(invitee.Attributes));

@@ -11,8 +11,9 @@ using FCommerce.SharedKernel.Optional;
 namespace FCommerce.Settings.Persistence;
 
 /// <summary>
-/// Storage shape of <see cref="PlatformSettings"/>; reading it back trusts what was validated when saved. Fields added
-/// later are at the end and missing in older documents (read as defaults).
+/// Storage shape of <see cref="PlatformSettings"/>; reading it back trusts the values validated when saved, but not a
+/// document that cannot be one (a malformed colour, half of a group). Fields added later are at the end and missing
+/// in older documents: a missing group reads as its default.
 /// </summary>
 /// <param name="KnownFeatures">The feature catalogue when saved: features added since then get their default state.</param>
 internal sealed record SettingsDocument(
@@ -38,40 +39,53 @@ internal sealed record SettingsDocument(
         JsonSerializer.Serialize(
             new SettingsDocument(
                 settings.CatalogVisibility.ToString(),
-                [.. settings.EnabledFeatures.Select(f => f.Value).Order(StringComparer.Ordinal)],
-                settings.Branding.StoreName,
+                [.. settings.EnabledFeatures.Ids.Select(f => f.Value).Order(StringComparer.Ordinal)],
+                settings.Branding.StoreName.Value,
                 settings.Branding.AccentColor.Value,
-                settings.Branding.LogoImageId.OrNull(),
+                settings.Branding.Logo.Map(l => l.Id).OrNull(),
                 settings.Contact.SupportEmail.Map(e => e.Value).OrNull(),
-                settings.Contact.SupportPhone.OrNull(),
+                settings.Contact.SupportPhone.Map(p => p.Value).OrNull(),
                 settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull(),
-                settings.Commerce.DefaultPriceListCode.OrNull(),
-                settings.Commerce.DefaultContactTemplate,
+                settings.Commerce.DefaultPriceList.Map(p => p.Value).OrNull(),
+                settings.Commerce.DefaultContactTemplate.Value,
                 settings.Stock.Mode.ToString(),
-                settings.Stock.LowThreshold,
+                settings.Stock.LowThreshold.Value,
                 [.. Feature.All.Select(f => f.Id.Value).Order(StringComparer.Ordinal)]),
             PersistenceJson.Options);
 
     /// <summary>
     /// Features no longer known to the code or no longer available in this installation are dropped (they are off);
-    /// features added to the code since saving are on when on by default.
+    /// features added to the code since saving are on when on by default (see <see cref="Domain.EnabledFeatures.Restore"/>).
     /// </summary>
     public static PlatformSettings Read(string json, long version, ImmutableHashSet<FeatureId> available)
     {
-        var document = JsonSerializer.Deserialize<SettingsDocument>(json, PersistenceJson.Options)
-            ?? throw new JsonException("The settings document is empty.");
-        var enabled = Features(document.EnabledFeatures).Where(available.Contains).ToImmutableHashSet();
-        var known = Features(document.KnownFeatures ?? FirstFeatures).ToImmutableHashSet();
-        return new PlatformSettings(
+        var document = Stored.Required(JsonSerializer.Deserialize<SettingsDocument>(json, PersistenceJson.Options), "settings document");
+        return Persisted.Rehydrate<PlatformSettings, PlatformSettings.Stored>(new(
             version,
-            Stored.Enum<CatalogVisibility>(document.CatalogVisibility, "catalog visibility"),
-            SettingsRules.WithNewFeatures(enabled, known, available),
-            new Branding(document.StoreName, HexColor.Parse(document.AccentColor).ValueOr(_ => HexColor.DefaultAccent), document.LogoImageId.ToMaybe()),
-            new SellerContact(Email(document.SupportEmail), document.SupportPhone.ToMaybe(), Email(document.OperatorNotifications)),
-            new CommerceDefaults(document.DefaultPriceListCode.ToMaybe(), document.DefaultContactTemplate),
-            new Domain.StockDisplay(
-                document.StockDisplay.ToMaybe().Map(mode => Stored.Enum<StockDisplayMode>(mode, "stock display")).ValueOr(Domain.StockDisplay.Default.Mode),
-                document.LowStockThreshold.ToMaybe().ValueOr(Domain.StockDisplay.Default.LowThreshold)));
+            Stored.Enum<CatalogVisibility>(Stored.Required(document.CatalogVisibility, "catalog visibility"), "catalog visibility"),
+            Domain.EnabledFeatures.Restore(
+                Features(Stored.Required(document.EnabledFeatures, "enabled features")),
+                [.. Features(document.KnownFeatures ?? FirstFeatures)],
+                available),
+            new Branding(
+                Persisted.Rehydrate<StoreName, string>(Stored.Required(document.StoreName, "store name")),
+                Persisted.Rehydrate<HexColor, string>(Stored.Required(document.AccentColor, "accent colour")),
+                document.LogoImageId.ToMaybe().Map(Persisted.Rehydrate<LogoImage, string>)),
+            new SellerContact(
+                Email(document.SupportEmail),
+                document.SupportPhone.ToMaybe().Map(Persisted.Rehydrate<Phone, string>),
+                Email(document.OperatorNotifications)),
+            new CommerceDefaults(
+                document.DefaultPriceListCode.ToMaybe().Map(Persisted.Rehydrate<PriceListReference, string>),
+                Persisted.Rehydrate<ContactTemplate, string>(Stored.Required(document.DefaultContactTemplate, "default contact template"))),
+            (document.StockDisplay, document.LowStockThreshold) switch
+            {
+                (null, null) => Domain.StockDisplay.Default,
+                ({ } mode, { } threshold) => new Domain.StockDisplay(
+                    Stored.Enum<StockDisplayMode>(mode, "stock display"),
+                    Persisted.Rehydrate<LowStockThreshold, decimal>(threshold)),
+                _ => throw Stored.Corrupt("stock display without its low threshold, or the other way round."),
+            }));
     }
 
     private static IEnumerable<FeatureId> Features(IEnumerable<string> ids) => ids.Choose(id => FeatureId.Parse(id).ToMaybe());

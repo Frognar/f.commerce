@@ -64,7 +64,7 @@ public static class CatalogSearch
             attributes.Select(a => FacetToken(a.Code, a.Value)).Distinct().ToEquatableArray(),
             attributes.Select(a => FacetToken(a.Code, a.Name)).Distinct().ToEquatableArray(),
             attributes.Select(a => a.Value).Distinct().ToEquatableArray(),
-            product.Content.Discontinued);
+            product.Status == ProductStatus.Discontinued);
     }
 
     /// <summary>

@@ -18,19 +18,20 @@ internal sealed class UploadImageHandler(MediaDbContext db, IBlobStore blobs, Ti
     : ICommandHandler<UploadImage, Result<UploadedImage, Error>>
 {
     public Task<Result<UploadedImage, Error>> HandleAsync(UploadImage command, CancellationToken cancellationToken = default) =>
-        ImageRules.CheckSize(command.Content.Length)
-            .Bind(_ => ImageId.Parse(Convert.ToHexStringLower(SHA256.HashData(command.Content.Span))))
-            .BindAsync(id => StoreAsync(id, command.Content, cancellationToken));
+        (from size in ImageRules.CheckSize(command.Content.Length)
+         from id in ImageId.Parse(Convert.ToHexStringLower(SHA256.HashData(command.Content.Span)))
+         select (id, size))
+            .BindAsync(upload => StoreAsync(upload.id, upload.size, command.Content, cancellationToken));
 
-    private async Task<Result<UploadedImage, Error>> StoreAsync(ImageId id, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
+    private async Task<Result<UploadedImage, Error>> StoreAsync(ImageId id, ImageFileSize size, ReadOnlyMemory<byte> content, CancellationToken cancellationToken)
     {
         var existing = await db.Images.AsNoTracking().SingleOrNoneAsync(i => i.Id == id.Value, cancellationToken);
         return await existing.Match(
             stored => Task.FromResult(Result.Ok<UploadedImage, Error>(new UploadedImage(id.Value, stored.Width, stored.Height, AlreadyStored: true))),
-            () => ProcessAsync(id, content, cancellationToken));
+            () => ProcessAsync(id, size, content, cancellationToken));
     }
 
-    private Task<Result<UploadedImage, Error>> ProcessAsync(ImageId id, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
+    private Task<Result<UploadedImage, Error>> ProcessAsync(ImageId id, ImageFileSize size, ReadOnlyMemory<byte> content, CancellationToken cancellationToken) =>
         ImageProcessor.Process(content).MapAsync(async processed =>
         {
             // Blobs first: metadata only appears once every variant is readable.
@@ -40,9 +41,10 @@ internal sealed class UploadImageHandler(MediaDbContext db, IBlobStore blobs, Ti
                 await blobs.PutAsync(variant.StorageKey(id), bytes, cancellationToken);
             }
 
-            db.Images.Add(new ImageRow { Id = id.Value, Width = processed.Width, Height = processed.Height, OriginalBytes = content.Length, CreatedAt = time.GetUtcNow() });
+            var image = new StoredImage(id, processed.Dimensions, size);
+            db.Images.Add(ImageRow.From(image, time.GetUtcNow()));
             await db.SaveChangesAsync(cancellationToken);
-            return new UploadedImage(id.Value, processed.Width, processed.Height, AlreadyStored: false);
+            return new UploadedImage(id.Value, image.Dimensions.Width, image.Dimensions.Height, AlreadyStored: false);
         });
 }
 

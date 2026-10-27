@@ -53,7 +53,8 @@ public static class ImportBatch
     /// <summary>
     /// Validates every item of a batch independently (one bad item does not reject the batch) and rejects all
     /// occurrences of a key that appears more than once. <paramref name="rawKey"/> is the key as received
-    /// (absent when the item has none).
+    /// (absent when the item has none). An item that is not there at all (null in the JSON of the request) is
+    /// rejected like any invalid item.
     /// </summary>
     public static ValidatedBatch<T> Validate<TInput, T>(
         IReadOnlyList<TInput> inputs,
@@ -62,7 +63,10 @@ public static class ImportBatch
         where TInput : notnull
         where T : notnull
     {
-        Maybe<string> KeyOf(TInput input) => rawKey(input).Map(key => key.Trim());
+        // Deserialized lists may hold nulls although the contract types say otherwise.
+        Maybe<TInput> Present(TInput input) => input is null ? Maybe<TInput>.None : Maybe.Some(input);
+
+        Maybe<string> KeyOf(TInput input) => Present(input).Bind(rawKey).Map(key => key.Trim());
 
         var duplicates = inputs
             .Choose(KeyOf)
@@ -76,7 +80,9 @@ public static class ImportBatch
             var key = KeyOf(input);
             var validated = key.Where(duplicates.Contains).Match(
                 duplicate => Validated.Invalid<T>(Error.Conflict("batch.duplicate-key", $"'{duplicate}' occurs more than once in the batch.")),
-                () => validate(input));
+                () => Present(input).Match(
+                    validate,
+                    () => Validated.Invalid<T>(Error.Validation("batch.item-missing", "The item is empty."))));
             return validated.Match(
                 item => Result.Ok<(int Index, T Item), Rejection>((index, item)),
                 errors => Result.Fail<(int Index, T Item), Rejection>(new Rejection(index, key, errors)));

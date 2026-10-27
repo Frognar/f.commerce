@@ -30,7 +30,7 @@ public sealed class ReconciliationTests
         var stored = Valid(version: 1);
         var incoming = Product.Validate(Input(version: 2) with { Discontinued = true }).ShouldBeValid();
 
-        Assert.True(incoming.Content.Discontinued);
+        Assert.Equal(ProductStatus.Discontinued, incoming.Status);
         Assert.Equal(new Change<Product>.Updated(stored, incoming), Reconciliation.Reconcile(stored, incoming));
     }
 
@@ -38,9 +38,19 @@ public sealed class ReconciliationTests
     public void Deactivation_is_an_update()
     {
         var stored = Valid(version: 1);
-        var incoming = Valid(version: 2) with { Active = false };
+        var incoming = Valid(version: 2) with { Status = ProductStatus.Inactive };
 
         Assert.IsType<Change<Product>.Updated>(Reconciliation.Reconcile(stored, incoming));
+    }
+
+    [Theory]
+    [InlineData(true, false, ProductStatus.Active)]
+    [InlineData(true, true, ProductStatus.Discontinued)]
+    [InlineData(false, false, ProductStatus.Inactive)]
+    [InlineData(false, true, ProductStatus.Inactive)]
+    public void An_inactive_product_is_inactive_discontinued_or_not(bool active, bool discontinued, ProductStatus expected)
+    {
+        Assert.Equal(expected, Product.Validate(Input() with { Active = active, Discontinued = discontinued }).ShouldBeValid().Status);
     }
 
     [Fact]
@@ -99,5 +109,19 @@ public sealed class ReconciliationTests
         Assert.Equal([2], batch.Valid.Select(v => v.Index));
         Assert.Equal([0, 1], batch.Rejected.Select(r => r.Index));
         Assert.All(batch.Rejected, r => Assert.Equal("batch.duplicate-key", Assert.Single(r.Errors).Code));
+    }
+
+    [Fact]
+    public void A_missing_item_of_a_batch_is_rejected()
+    {
+        UnvalidatedProduct[] inputs = [Input("A"), null!];
+
+        var batch = ImportBatch.Validate(inputs, i => i.Sku, Product.Validate);
+
+        Assert.Equal([0], batch.Valid.Select(v => v.Index));
+        var rejected = Assert.Single(batch.Rejected);
+        Assert.Equal(1, rejected.Index);
+        rejected.Key.ShouldBeNone();
+        Assert.Equal("batch.item-missing", Assert.Single(rejected.Errors).Code);
     }
 }

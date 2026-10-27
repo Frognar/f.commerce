@@ -40,7 +40,8 @@ public static class AccessModule
         services.AddSingleton(options);
         services.AddModuleDbContext<AccessDbContext>(AccessDbContext.Schema);
         services.AddOutbox<AccessDbContext>();
-        services.AddMessageType<InvitationIssued>("access.invitation-issued.v1");
+        services.AddMessageType<OperatorInvited>("access.operator-invited.v1");
+        services.AddMessageType<CustomerUserInvited>("access.customer-user-invited.v1");
         services.AddMessageType<PasswordResetRequested>("access.password-reset-requested.v1");
         services.AddMessageType<MembershipGranted>("access.membership-granted.v1");
         services.AddMessageType<RegistrationSubmitted>("access.registration-submitted.v1");

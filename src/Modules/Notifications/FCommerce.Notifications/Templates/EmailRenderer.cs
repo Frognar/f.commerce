@@ -20,7 +20,7 @@ internal static class EmailRenderer
     public static string Text(string key, string culture, params object[] arguments)
     {
         var info = CultureInfo.GetCultureInfo(culture);
-        var format = Texts.GetString(key, info) ?? key;
+        var format = Texts.GetString(key, info) ?? throw new InvalidOperationException($"The e-mail text '{key}' is missing.");
         return string.Format(info, format, arguments);
     }
 

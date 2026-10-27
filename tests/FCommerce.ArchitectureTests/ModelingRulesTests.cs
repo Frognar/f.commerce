@@ -34,23 +34,14 @@ public sealed class ModelingRulesTests
         ["FCommerce.Catalog.Domain.FacetValue"] = "built from search results for display",
         ["FCommerce.Cart.Domain.PastedLineError"] = "reports a line of the raw pasted text",
         ["FCommerce.Inventory.Domain.WarehouseContent"] = "the sort order: any number orders warehouses",
+        ["FCommerce.Catalog.Domain.CategoryContent"] = "the sort order: any number orders categories",
     };
 
     /// <summary>
-    /// Types still to be remodelled, by phase of the refactoring. A fixed type must leave the list (the test fails
-    /// otherwise), so the list only shrinks; it is empty when every phase is done.
+    /// Types still to be remodelled. A fixed type must leave the list (the test fails otherwise), so the list only
+    /// shrinks; every phase of the refactoring is done, so it stays empty.
     /// </summary>
-    private static readonly string[] KnownViolations =
-    [
-        // Phase 7: Catalog, Settings, Media
-        "FCommerce.Catalog.Domain.CategoryContent",
-        "FCommerce.Media.Domain.ImageVariant",
-        "FCommerce.Settings.Domain.Branding",
-        "FCommerce.Settings.Domain.CommerceDefaults",
-        "FCommerce.Settings.Domain.PlatformSettings",
-        "FCommerce.Settings.Domain.SellerContact",
-        "FCommerce.Settings.Domain.StockDisplay",
-    ];
+    private static readonly string[] KnownViolations = [];
 
     [Fact]
     public void Domain_types_are_valid_by_construction()

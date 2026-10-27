@@ -348,7 +348,9 @@ public sealed class CatalogTests(HostFixture host)
             await Task.Delay(100, Token);
         }
 
-        Assert.Equal([new ProductChanged(sku, true), new ProductChanged(sku, false)], host.Events.ProductChanges.Where(e => e.Sku == sku));
+        Assert.Equal(
+            [new ProductChanged(sku, true, ProductStatuses.Active), new ProductChanged(sku, false, ProductStatuses.Inactive)],
+            host.Events.ProductChanges.Where(e => e.Sku == sku));
     }
 
     [Fact]
