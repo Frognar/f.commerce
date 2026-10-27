@@ -320,15 +320,15 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Access
                         .HasColumnType("uuid")
                         .HasColumnName("account_id");
 
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("expires_at");
-
                     b.Property<string>("Hash")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasColumnName("hash");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
 
                     b.Property<string>("Purpose")
                         .IsRequired()

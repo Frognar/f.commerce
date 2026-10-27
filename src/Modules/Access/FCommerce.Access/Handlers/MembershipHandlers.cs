@@ -11,7 +11,6 @@ using FCommerce.Settings.Contracts;
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Features;
 using FCommerce.SharedKernel.Localization;
-using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
@@ -20,7 +19,7 @@ using Microsoft.EntityFrameworkCore;
 namespace FCommerce.Access.Handlers;
 
 /// <summary>A person to give access to a customer.</summary>
-internal sealed record CustomerInvitee(EmailAddress Email, PersonName Name, CultureCode Culture, MembershipRights Rights);
+internal sealed record CustomerInvitee(EmailAddress Email, PersonName Name, CultureCode Culture, MembershipAttributes Rights);
 
 /// <summary>Granting, changing and revoking customer memberships under the ABAC grant rules.</summary>
 internal sealed class MembershipManagement(
@@ -28,12 +27,9 @@ internal sealed class MembershipManagement(
     IQueryHandler<GetCustomer, Result<CustomerDetails, Error>> customers,
     IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings)
 {
-    /// <summary>Attributes of a revoked membership: the grant rules see revoking as taking every right away.</summary>
-    private static readonly MembershipAttributes NoRights = new(false, OrderScope.Own, Maybe<Money>.None, false, false, DeliveryAddressScope.All);
-
     public async Task<Result<Guid, Error>> InviteAsync(Guid actorId, string customerCode, string email, string name, string culture, MembershipRightsView rights, CancellationToken cancellationToken)
     {
-        var input = ((Func<EmailAddress, PersonName, CultureCode, MembershipRights, CustomerInvitee>)((e, n, c, r) => new CustomerInvitee(e, n, c, r)))
+        var input = ((Func<EmailAddress, PersonName, CultureCode, MembershipAttributes, CustomerInvitee>)((e, n, c, r) => new CustomerInvitee(e, n, c, r)))
             .Apply(EmailAddress.Parse(email).ToValidated("email"))
             .Apply(PersonName.Parse(name).ToValidated("name"))
             .Apply(CultureCode.Parse(culture).ToValidated("culture"))
@@ -55,6 +51,7 @@ internal sealed class MembershipManagement(
     /// </summary>
     public async Task<Result<Guid, Error>> StageAsync(Guid actorId, CustomerDetails customer, CustomerInvitee invitee, Maybe<MembershipSource> source, CancellationToken cancellationToken)
     {
+        var code = CustomerCodes.Of(customer);
         var actor = await SubjectAsync(actorId, customer.Code, cancellationToken);
         var row = await store.FindAsync(invitee.Email, cancellationToken);
         var existing = row.Map(r => r.ToDomain());
@@ -62,15 +59,14 @@ internal sealed class MembershipManagement(
             async found => (await store.MembershipsOfAsync([found.Id], cancellationToken))[found.Id].ToList(),
             () => Task.FromResult(new List<Membership>()));
         var multiCustomer = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.MultiCustomerAccounts.Value);
-        var account = existing.ValueOr(() => new Account(
-            Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, AccountStatus.Invited, Maybe<string>.None,
-            Tokens.NewSecurityStamp(), 0, Maybe<DateTimeOffset>.None, Maybe<OperatorAttributes>.None));
+        var account = existing.ValueOr(() => Account.Invite(
+            Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, Tokens.NewSecurityStamp(), Maybe<OperatorAttributes>.None));
 
         var admitted =
             from grantor in actor
-            from attributes in Grants.Membership(grantor, customer.Code, Maybe<MembershipAttributes>.None, invitee.Rights.ApplyTo(MembershipAttributes.Buyer), 0)
+            from attributes in Grants.Membership(grantor, customer.Code, Maybe<MembershipAttributes>.None, invitee.Rights, 0)
             from membership in MembershipRules.Admit(
-                existing, memberships, multiCustomer, new Membership(account.Id, customer.Code, attributes, source.ValueOr(() => SourceOf(grantor)), Maybe<string>.None))
+                existing, memberships, multiCustomer, new Membership(account.Id, code, attributes, source.ValueOr(() => SourceOf(grantor))))
             select membership;
 
         return admitted.Bind(membership =>
@@ -86,7 +82,7 @@ internal sealed class MembershipManagement(
     }
 
     /// <summary>Changes a member's rights; no <paramref name="rights"/> revokes the membership.</summary>
-    public async Task<Result<Unit, Error>> ChangeAsync(Guid actorId, Guid userId, string customerCode, Maybe<MembershipRights> rights, CancellationToken cancellationToken)
+    public async Task<Result<Unit, Error>> ChangeAsync(Guid actorId, Guid userId, string customerCode, Maybe<MembershipAttributes> rights, CancellationToken cancellationToken)
     {
         var members = await store.Db.Memberships.Where(m => m.CustomerCode == customerCode).ToListAsync(cancellationToken);
         var found = await members.FirstOrNone(m => m.UserId == userId).Match(
@@ -98,31 +94,30 @@ internal sealed class MembershipManagement(
     }
 
     private async Task<Result<Unit, Error>> ChangeAsync(
-        Guid actorId, MembershipRow row, Account account, List<MembershipRow> members, string customerCode, Maybe<MembershipRights> rights, CancellationToken cancellationToken)
+        Guid actorId, MembershipRow row, Account account, List<MembershipRow> members, string customerCode, Maybe<MembershipAttributes> rights, CancellationToken cancellationToken)
     {
-        var userId = account.Id;
         var current = row.ToDomain();
-        var requested = rights.Match(r => r.ApplyTo(current.Attributes), () => NoRights);
-        var granted =
-            from grantor in await SubjectAsync(actorId, customerCode, cancellationToken)
-            from attributes in Grants.Membership(grantor, customerCode, current.Attributes, requested, MembershipRules.OtherAdministrators(members.Select(m => m.ToDomain()), userId))
-            select attributes;
+        var others = MembershipRules.OtherAdministrators(members.Select(m => m.ToDomain()), account.Id);
+        var grantor = await SubjectAsync(actorId, customerCode, cancellationToken);
 
-        return await granted.MapAsync(async attributes =>
+        // Changing keeps the membership with other rights; revoking removes it (an account without access to the customer).
+        var applied = rights.Match(
+            requested => grantor.Bind(g => Grants.Membership(g, customerCode, current.Attributes, requested, others)).Map(attributes =>
+            {
+                var changed = current with { Attributes = attributes };
+                row.Apply(changed.Attributes);
+                store.Audit(actorId, "membership.changed", Subject(customerCode), Details(account.Email, changed));
+                return Unit.Value;
+            }),
+            () => grantor.Bind(g => Grants.MembershipRevocation(g, customerCode, current.Attributes, others)).Map(_ =>
+            {
+                store.Db.Memberships.Remove(row);
+                store.Audit(actorId, "membership.revoked", Subject(customerCode), Details(account.Email, current));
+                return Unit.Value;
+            }));
+
+        return await applied.MapAsync(async _ =>
         {
-            rights.Switch(
-                _ =>
-                {
-                    var changed = current with { Attributes = attributes };
-                    row.Apply(changed);
-                    store.Audit(actorId, "membership.changed", Subject(customerCode), Details(account.Email, changed));
-                },
-                () =>
-                {
-                    store.Db.Memberships.Remove(row);
-                    store.Audit(actorId, "membership.revoked", Subject(customerCode), Details(account.Email, current));
-                });
-
             await store.Db.SaveChangesAsync(cancellationToken);
             return Unit.Value;
         });
@@ -132,7 +127,7 @@ internal sealed class MembershipManagement(
     public Result<Unit, Error> Grant(Account account, Membership membership, string customerName)
     {
         store.Db.Memberships.Add(MembershipRow.From(membership, store.Now));
-        return account.Status == AccountStatus.Invited
+        return account.State is AccountState.Invited
             ? store.Invite(account, "customer", customerName)
             : store.Enqueue(new MembershipGranted(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value, customerName));
     }
@@ -140,12 +135,12 @@ internal sealed class MembershipManagement(
     public static string Subject(string customerCode) => $"customer:{customerCode}";
 
     public static object Details(EmailAddress email, Membership membership) =>
-        new { email = email.Value, source = membership.Source.ToString(), rights = AccessStore.ToView(MembershipRights.Of(membership.Attributes)) };
+        new { email = email.Value, source = membership.Source.Name, rights = AccessStore.ToRightsView(membership.Attributes) };
 
     /// <summary>The actor as the grant rules see them: an operator, or a member acting for this customer.</summary>
     private async Task<Result<Subject, Error>> SubjectAsync(Guid actorId, string customerCode, CancellationToken cancellationToken)
     {
-        var actor = (await store.FindAsync(actorId, cancellationToken)).Map(row => row.ToDomain()).Where(a => a.Status == AccountStatus.Active);
+        var actor = (await store.FindAsync(actorId, cancellationToken)).Map(row => row.ToDomain()).Where(a => a.State is AccountState.Active);
         return await actor.Match(
             active => AccessStore.AsOperator(active).Match(
                 op => Task.FromResult(Result.Ok<Subject, Error>(op)),
@@ -160,6 +155,13 @@ internal sealed class MembershipManagement(
 
     private static MembershipSource SourceOf(Subject grantor) =>
         grantor is Subject.Operator ? MembershipSource.Operator : MembershipSource.CustomerAdmin;
+}
+
+/// <summary>The code of a customer read from the customers module (which validated it).</summary>
+internal static class CustomerCodes
+{
+    public static Domain.CustomerCode Of(CustomerDetails customer) =>
+        Domain.CustomerCode.Parse(customer.Code).Match(code => code, error => throw new InvalidOperationException($"The customers module returned an invalid customer code: {error.Message}"));
 }
 
 internal sealed class InviteCustomerUserHandler(MembershipManagement memberships) : ICommandHandler<InviteCustomerUser, Result<Guid, Error>>
@@ -177,7 +179,7 @@ internal sealed class ChangeMembershipHandler(MembershipManagement memberships) 
 internal sealed class RevokeMembershipHandler(MembershipManagement memberships) : ICommandHandler<RevokeMembership, Result<Unit, Error>>
 {
     public Task<Result<Unit, Error>> HandleAsync(RevokeMembership command, CancellationToken cancellationToken = default) =>
-        memberships.ChangeAsync(command.ActorId, command.UserId, command.CustomerCode, Maybe<MembershipRights>.None, cancellationToken);
+        memberships.ChangeAsync(command.ActorId, command.UserId, command.CustomerCode, Maybe<MembershipAttributes>.None, cancellationToken);
 }
 
 internal sealed class GetCustomerUsersHandler(AccessDbContext db) : IQueryHandler<GetCustomerUsers, IReadOnlyList<CustomerUserSummary>>
@@ -199,8 +201,8 @@ internal sealed class GetCustomerUsersHandler(AccessDbContext db) : IQueryHandle
                 account.Email.Value,
                 account.Name.Value,
                 account.Status.ToString(),
-                membership.Source.ToString(),
-                AccessStore.ToView(MembershipRights.Of(membership.Attributes)));
+                membership.Source.Name,
+                AccessStore.ToRightsView(membership.Attributes));
         })];
     }
 }

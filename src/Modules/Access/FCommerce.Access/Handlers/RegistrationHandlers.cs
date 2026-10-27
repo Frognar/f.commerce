@@ -25,7 +25,7 @@ internal sealed class SubmitRegistrationHandler(AccessStore store) : ICommandHan
             {
                 var request = Registrations.Submit(Guid.CreateVersion7(), form.Company, form.Applicant, store.Now);
                 store.Db.Registrations.Add(RegistrationRow.From(request));
-                return await store.Enqueue(new RegistrationSubmitted(request.Id, request.Company.Name, request.Company.TaxId.Value, request.Applicant.Name.Value, request.Applicant.Email.Value))
+                return await store.Enqueue(new RegistrationSubmitted(request.Id, request.Company.Name.Value, request.Company.TaxId.Value, request.Applicant.Name.Value, request.Applicant.Email.Value))
                     .MapAsync(async _ =>
                     {
                         store.Audit(AccessStore.SystemActor, "registration.submitted", $"registration:{request.Id}", new { email = request.Applicant.Email.Value, taxId = request.Company.TaxId.Value });
@@ -60,9 +60,9 @@ internal sealed class ApproveRegistrationHandler(
     {
         var request = row.ToDomain();
         return await (await customers.HandleAsync(new GetCustomer(command.CustomerCode.OrEmpty()), cancellationToken)).BindAsync(async customer =>
-            await Registrations.Approve(request, command.ActorId, customer.Code, store.Now).BindAsync(async approved =>
+            await Registrations.Approve(request, command.ActorId, CustomerCodes.Of(customer), store.Now).BindAsync(async approved =>
             {
-                var invitee = new CustomerInvitee(request.Applicant.Email, request.Applicant.Name, request.Applicant.Culture, MembershipRights.Of(template));
+                var invitee = new CustomerInvitee(request.Applicant.Email, request.Applicant.Name, request.Applicant.Culture, template);
                 return await (await memberships.StageAsync(command.ActorId, customer, invitee, MembershipSource.Registration, cancellationToken)).MapAsync(async _ =>
                 {
                     row.Apply(approved);
@@ -91,11 +91,11 @@ internal sealed class RejectRegistrationHandler(AccessStore store) : ICommandHan
     private async Task<Result<Unit, Error>> RejectAsync(RegistrationRow row, Account actor, string reasonText, CancellationToken cancellationToken)
     {
         var request = row.ToDomain();
-        return await Registrations.Reject(request, actor.Id, reasonText, store.Now).BindAsync(async rejected =>
+        return await Registrations.Reject(request, actor.Id, reasonText, store.Now).BindAsync(async decided =>
         {
-            var reason = ((RegistrationStatus.Rejected)rejected.Status).Reason;
+            var (rejected, reason) = (decided.Request, decided.Reason.Value);
             row.Apply(rejected);
-            return await store.Enqueue(new RegistrationRejected(request.Id, request.Applicant.Email.Value, request.Applicant.Name.Value, request.Applicant.Culture.Value, request.Company.Name, reason))
+            return await store.Enqueue(new RegistrationRejected(request.Id, request.Applicant.Email.Value, request.Applicant.Name.Value, request.Applicant.Culture.Value, request.Company.Name.Value, reason))
                 .MapAsync(async _ =>
                 {
                     store.Audit(actor.Id, "registration.rejected", $"registration:{request.Id}", new { reason });
@@ -113,11 +113,17 @@ internal sealed class GetRegistrationRequestsHandler(AccessDbContext db) : IQuer
     public async Task<IReadOnlyList<RegistrationSummary>> HandleAsync(GetRegistrationRequests query, CancellationToken cancellationToken = default)
     {
         var all = db.Registrations.AsNoTracking();
-        var requests = RegistrationViews.StatusOf(query.Status.OrEmpty()).Match(status => all.Where(r => r.Status == status), () => all);
+        var filter = query.Status.ToMaybe().Map(s => s.Trim()).Where(s => s.Length > 0);
+        if (filter.Exists(s => !RegistrationViews.StatusOf(s).Exists(_ => true)))
+        {
+            return [];
+        }
+
+        var requests = filter.Bind(RegistrationViews.StatusOf).Match(status => all.Where(r => r.Status == status), () => all);
 
         return [.. (await requests.OrderByDescending(r => r.SubmittedAt).Take(MaxItems).ToListAsync(cancellationToken))
             .Select(row => row.ToDomain())
-            .Select(r => new RegistrationSummary(r.Id, r.Company.Name, r.Company.TaxId.Value, r.Applicant.Name.Value, r.Applicant.Email.Value, r.SubmittedAt, RegistrationViews.StatusName(r.Status)))];
+            .Select(r => new RegistrationSummary(r.Id, r.Company.Name.Value, r.Company.TaxId.Value, r.Applicant.Name.Value, r.Applicant.Email.Value, r.SubmittedAt, RegistrationViews.StatusName(r.Status)))];
     }
 }
 
@@ -135,8 +141,8 @@ internal sealed class GetRegistrationRequestHandler(AccessDbContext db) : IQuery
     {
         var (decidedById, decidedAt, customer, reason) = request.Status switch
         {
-            RegistrationStatus.Approved a => (Maybe.Some(a.DecidedBy), Maybe.Some(a.At), Maybe.Some(a.CustomerCode), Maybe<string>.None),
-            RegistrationStatus.Rejected r => (Maybe.Some(r.DecidedBy), Maybe.Some(r.At), Maybe<string>.None, Maybe.Some(r.Reason)),
+            RegistrationStatus.Approved a => (Maybe.Some(a.DecidedBy), Maybe.Some(a.At), Maybe.Some(a.CustomerCode.Value), Maybe<string>.None),
+            RegistrationStatus.Rejected r => (Maybe.Some(r.DecidedBy), Maybe.Some(r.At), Maybe<string>.None, Maybe.Some(r.Reason.Value)),
             _ => (Maybe<Guid>.None, Maybe<DateTimeOffset>.None, Maybe<string>.None, Maybe<string>.None),
         };
         var decidedBy = await decidedById.Match(
@@ -145,15 +151,15 @@ internal sealed class GetRegistrationRequestHandler(AccessDbContext db) : IQuery
         var (company, applicant) = (request.Company, request.Applicant);
         return new RegistrationDetails(
             request.Id,
-            company.Name,
+            company.Name.Value,
             company.TaxId.Value,
-            company.Address.Street,
+            company.Address.Street.Value,
             company.Address.PostalCode.Value,
-            company.Address.City,
+            company.Address.City.Value,
             company.Address.Country.Value,
             applicant.Name.Value,
             applicant.Email.Value,
-            applicant.Phone.OrNull(),
+            applicant.Phone.Map(p => p.Value).OrNull(),
             applicant.Culture.Value,
             request.SubmittedAt,
             RegistrationViews.StatusName(request.Status),
@@ -171,10 +177,11 @@ internal static class RegistrationViews
         {
             RegistrationStatus.Approved => "approved",
             RegistrationStatus.Rejected => "rejected",
-            _ => "pending",
+            RegistrationStatus.PendingDecision => "pending",
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "A registration status without a name."),
         };
 
-    /// <summary>The stored status for a status filter; none for no filter.</summary>
+    /// <summary>The stored status for a status filter; none for an unknown one.</summary>
     public static Maybe<string> StatusOf(string filter) =>
         filter switch
         {

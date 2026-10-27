@@ -219,7 +219,8 @@ public sealed partial class OrderPagesTests(HostFixture host)
 
         var toSalesperson = await host.Mail.WaitForAsync(salesperson, m => m.Subject.Contains(number, StringComparison.Ordinal));
         using var operatorBrowser = await host.AdminAsync();
-        var list = await EventuallyAsync(operatorBrowser, $"/pl/admin/orders?number={Uri.EscapeDataString(number)}", html => html.Contains(number, StringComparison.Ordinal));
+        // The number is in the search field at once; the order's row (its link) only when the order list caught up.
+        var list = await EventuallyAsync(operatorBrowser, $"/pl/admin/orders?number={Uri.EscapeDataString(number)}", html => html.Contains($"/pl/admin/orders/{id}", StringComparison.Ordinal));
         var details = (await operatorBrowser.GetAsync($"/pl/admin/orders/{id}")).Html;
         var buyerInBackOffice = await buyer.GetAsync("/pl/admin/orders");
 

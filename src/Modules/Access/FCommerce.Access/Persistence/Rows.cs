@@ -22,15 +22,18 @@ internal sealed class AccountRow
 
     public required string Status { get; set; }
 
+    /// <summary>Only of an active account.</summary>
     public string? PasswordHash { get; set; }
 
     public required string SecurityStamp { get; set; }
 
+    /// <summary>Of an active account that is not locked out.</summary>
     public int FailedSignIns { get; set; }
 
+    /// <summary>Of an active account that was locked out.</summary>
     public DateTimeOffset? LockedUntil { get; set; }
 
-    /// <summary>Operator attributes as JSON; null for customer users.</summary>
+    /// <summary>Operator attributes as JSON (<see cref="OperatorDocument"/>); null for customer users.</summary>
     public string? Operator { get; set; }
 
     public DateTimeOffset CreatedAt { get; init; }
@@ -44,29 +47,49 @@ internal sealed class AccountRow
 
     public void Apply(Account account)
     {
-        Email = account.Email.Value;
-        Name = account.Name.Value;
-        Culture = account.Culture.Value;
-        Status = account.Status.ToString();
-        PasswordHash = account.PasswordHash.OrNull();
-        SecurityStamp = account.SecurityStamp;
-        FailedSignIns = account.FailedSignIns;
-        LockedUntil = account.LockedUntil.OrNull();
-        Operator = account.Operator.Map(attributes => JsonSerializer.Serialize(attributes, PersistenceJson.Options)).OrNull();
+        var stored = Persisted.Dehydrate<Account, Account.Stored>(account);
+        Email = stored.Email.Value;
+        Name = stored.Name.Value;
+        Culture = stored.Culture.Value;
+        Status = stored.Status.ToString();
+        PasswordHash = stored.Password.Map(hash => hash.Value).OrNull();
+        SecurityStamp = stored.SecurityStamp.Value;
+        FailedSignIns = stored.FailedSignIns;
+        LockedUntil = stored.LockedUntil.OrNull();
+        Operator = stored.Operator.Map(OperatorDocument.Write).OrNull();
     }
 
     public Account ToDomain() =>
-        new(
+        Persisted.Rehydrate<Account, Account.Stored>(new Account.Stored(
             Id,
             Persisted.Rehydrate<EmailAddress, string>(Email),
             Persisted.Rehydrate<PersonName, string>(Name),
             Persisted.Rehydrate<CultureCode, string>(Culture),
             Stored.Enum<AccountStatus>(Status, "account status"),
-            PasswordHash.ToMaybe(),
-            SecurityStamp,
+            PasswordHash.ToMaybe().Map(Persisted.Rehydrate<PasswordHash, string>),
+            Persisted.Rehydrate<SecurityStamp, string>(SecurityStamp),
             FailedSignIns,
             LockedUntil.ToMaybe(),
-            Operator.ToMaybe().Bind(json => JsonSerializer.Deserialize<OperatorAttributes>(json, PersistenceJson.Options).ToMaybe()));
+            Operator.ToMaybe().Map(OperatorDocument.Read)));
+
+    /// <summary>Stored shape of <see cref="OperatorAttributes"/>: every right must be there (a missing one is not "no").</summary>
+    private sealed record OperatorDocument(bool? CanManageSettings, bool? CanManageOperators, bool? CanDecideRegistrations, CustomerScope? CustomerScope)
+    {
+        public static string Write(OperatorAttributes attributes) =>
+            JsonSerializer.Serialize(
+                new OperatorDocument(attributes.CanManageSettings, attributes.CanManageOperators, attributes.CanDecideRegistrations, attributes.CustomerScope),
+                PersistenceJson.Options);
+
+        public static OperatorAttributes Read(string json)
+        {
+            var document = Stored.Required(JsonSerializer.Deserialize<OperatorDocument>(json, PersistenceJson.Options), "operator attributes");
+            return new OperatorAttributes(
+                Stored.Required(document.CanManageSettings, "operator right to manage settings"),
+                Stored.Required(document.CanManageOperators, "operator right to manage operators"),
+                Stored.Required(document.CanDecideRegistrations, "operator right to decide registrations"),
+                Stored.Required(document.CustomerScope, "operator customer scope"));
+        }
+    }
 }
 
 internal sealed class MembershipRow
@@ -78,9 +101,11 @@ internal sealed class MembershipRow
     /// <summary>Membership attributes as JSON (<see cref="AttributesDocument"/>).</summary>
     public required string Attributes { get; set; }
 
+    /// <summary>"Erp", "Operator", "CustomerAdmin" or "Registration".</summary>
     public required string Source { get; init; }
 
-    public string? ErpContactId { get; set; }
+    /// <summary>The ERP contact of an "Erp" membership; null for every other source.</summary>
+    public string? ErpContactId { get; init; }
 
     public DateTimeOffset CreatedAt { get; init; }
 
@@ -88,30 +113,40 @@ internal sealed class MembershipRow
         new()
         {
             UserId = membership.UserId,
-            CustomerCode = membership.CustomerCode,
+            CustomerCode = membership.CustomerCode.Value,
             Attributes = AttributesDocument.Write(membership.Attributes),
-            Source = membership.Source.ToString(),
-            ErpContactId = membership.ErpContactId.OrNull(),
+            Source = membership.Source.Name,
+            ErpContactId = membership.Source is MembershipSource.Erp erp ? erp.Contact.Value : null,
             CreatedAt = now,
         };
 
-    public void Apply(Membership membership)
-    {
-        Attributes = AttributesDocument.Write(membership.Attributes);
-        ErpContactId = membership.ErpContactId.OrNull();
-    }
+    /// <summary>A membership changes only its attributes; its customer and source stay.</summary>
+    public void Apply(MembershipAttributes attributes) => Attributes = AttributesDocument.Write(attributes);
 
     public Membership ToDomain() =>
-        new(UserId, CustomerCode, AttributesDocument.Read(Attributes), Stored.Enum<MembershipSource>(Source, "membership source"), ErpContactId.ToMaybe());
+        new(UserId, Persisted.Rehydrate<Domain.CustomerCode, string>(CustomerCode), AttributesDocument.Read(Attributes), SourceOf(Source, ErpContactId));
 
-    /// <summary>Flat storage shape of <see cref="MembershipAttributes"/> (its address scope is a closed hierarchy).</summary>
+    private static MembershipSource SourceOf(string source, string? contact) =>
+        (source, contact) switch
+        {
+            ("Erp", { } id) => new MembershipSource.Erp(Persisted.Rehydrate<Domain.ErpContactId, string>(id)),
+            ("Operator", null) => MembershipSource.Operator,
+            ("CustomerAdmin", null) => MembershipSource.CustomerAdmin,
+            ("Registration", null) => MembershipSource.Registration,
+            _ => throw Stored.Corrupt($"membership source '{source}' with ERP contact '{contact}'"),
+        };
+
+    /// <summary>
+    /// Flat storage shape of <see cref="MembershipAttributes"/>: a limit (amount with currency) and address codes only
+    /// with the right to order; no codes means all addresses.
+    /// </summary>
     private sealed record AttributesDocument(
-        bool CanOrder,
-        OrderScope OrderScope,
+        bool? CanOrder,
+        OrderScope? OrderScope,
         decimal? OrderLimit,
         string? OrderLimitCurrency,
-        bool CanViewDocuments,
-        bool CanManageUsers,
+        bool? CanViewDocuments,
+        bool? CanManageUsers,
         IReadOnlyList<string>? DeliveryAddressCodes)
     {
         public static string Write(MembershipAttributes attributes) =>
@@ -119,8 +154,8 @@ internal sealed class MembershipRow
                 new AttributesDocument(
                     attributes.CanOrder,
                     attributes.OrderScope,
-                    attributes.OrderLimit.Map(limit => limit.Amount).OrNull(),
-                    attributes.OrderLimit.Map(limit => limit.Currency.Code).OrNull(),
+                    attributes.OrderLimit.Map(limit => limit.Value.Amount).OrNull(),
+                    attributes.OrderLimit.Map(limit => limit.Value.Currency.Code).OrNull(),
                     attributes.CanViewDocuments,
                     attributes.CanManageUsers,
                     attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null),
@@ -128,15 +163,35 @@ internal sealed class MembershipRow
 
         public static MembershipAttributes Read(string json)
         {
-            var document = JsonSerializer.Deserialize<AttributesDocument>(json, PersistenceJson.Options) ?? throw new JsonException("Stored membership attributes are null.");
+            var document = Stored.Required(JsonSerializer.Deserialize<AttributesDocument>(json, PersistenceJson.Options), "membership attributes");
+            var ordering = (Stored.Required(document.CanOrder, "right to order"), document.OrderLimit, document.OrderLimitCurrency, document.DeliveryAddressCodes) switch
+            {
+                (false, null, null, null) => OrderingRight.NotAllowed,
+                (true, var amount, var currency, var codes) => new OrderingRight.Allowed(Limit(amount, currency), Addresses(codes)),
+                _ => throw Stored.Corrupt("a membership without the right to order has a limit or delivery addresses"),
+            };
             return new MembershipAttributes(
-                document.CanOrder,
-                document.OrderScope,
-                document is { OrderLimit: { } amount, OrderLimitCurrency: { } currency } ? new Money(amount, Persisted.Rehydrate<Currency, string>(currency)) : Maybe<Money>.None,
-                document.CanViewDocuments,
-                document.CanManageUsers,
-                document.DeliveryAddressCodes is { } codes ? DeliveryAddressScope.Only([.. codes]) : DeliveryAddressScope.All);
+                ordering,
+                Stored.Required(document.OrderScope, "order scope"),
+                Stored.Required(document.CanViewDocuments, "right to view documents"),
+                Stored.Required(document.CanManageUsers, "right to manage users"));
         }
+
+        private static Maybe<OrderLimit> Limit(decimal? amount, string? currency) =>
+            (amount, currency) switch
+            {
+                (null, null) => Maybe<OrderLimit>.None,
+                ({ } value, { } code) => Persisted.Rehydrate<OrderLimit, Money>(new Money(value, Persisted.Rehydrate<Currency, string>(code))),
+                _ => throw Stored.Corrupt("an order limit without its amount or currency"),
+            };
+
+        private static DeliveryAddressScope Addresses(IReadOnlyList<string>? codes) =>
+            codes switch
+            {
+                null => DeliveryAddressScope.All,
+                [] => throw Stored.Corrupt("an empty list of allowed delivery addresses"),
+                _ => DeliveryAddressScope.Of(codes),
+            };
     }
 }
 
@@ -158,12 +213,16 @@ internal sealed class RegistrationRow
 
     public DateTimeOffset SubmittedAt { get; init; }
 
+    /// <summary>Of a decided request.</summary>
     public DateTimeOffset? DecidedAt { get; set; }
 
+    /// <summary>Of a decided request.</summary>
     public Guid? DecidedBy { get; set; }
 
+    /// <summary>Of an approved request.</summary>
     public string? CustomerCode { get; set; }
 
+    /// <summary>Of a rejected request.</summary>
     public string? RejectionReason { get; set; }
 
     public static RegistrationRow From(RegistrationRequest request)
@@ -172,42 +231,39 @@ internal sealed class RegistrationRow
         {
             Id = request.Id,
             Status = string.Empty,
-            CompanyName = request.Company.Name,
+            CompanyName = request.Company.Name.Value,
             TaxId = request.Company.TaxId.Value,
             Email = request.Applicant.Email.Value,
-            Form = JsonSerializer.Serialize(FormDocument.Of(request), PersistenceJson.Options),
+            Form = JsonSerializer.Serialize(new FormDocument(request.Company, request.Applicant), PersistenceJson.Options),
             SubmittedAt = request.SubmittedAt,
         };
         row.Apply(request);
         return row;
     }
 
-    public void Apply(RegistrationRequest request)
-    {
+    public void Apply(RegistrationRequest request) =>
         (Status, DecidedAt, DecidedBy, CustomerCode, RejectionReason) = request.Status switch
         {
-            RegistrationStatus.Approved a => ("Approved", (DateTimeOffset?)a.At, (Guid?)a.DecidedBy, a.CustomerCode, (string?)null),
-            RegistrationStatus.Rejected r => ("Rejected", r.At, r.DecidedBy, null, r.Reason),
-            _ => ("Pending", null, null, null, null),
+            RegistrationStatus.Approved a => ("Approved", (DateTimeOffset?)a.At, (Guid?)a.DecidedBy, a.CustomerCode.Value, (string?)null),
+            RegistrationStatus.Rejected r => ("Rejected", r.At, r.DecidedBy, null, r.Reason.Value),
+            RegistrationStatus.PendingDecision => ("Pending", null, null, null, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(request), request.Status, "A registration status without a stored form."),
         };
-    }
 
     public RegistrationRequest ToDomain()
     {
-        var form = JsonSerializer.Deserialize<FormDocument>(Form, PersistenceJson.Options) ?? throw new JsonException("Stored registration form is null.");
-        RegistrationStatus status = Status switch
+        var form = Stored.Required(JsonSerializer.Deserialize<FormDocument>(Form, PersistenceJson.Options), "registration form");
+        RegistrationStatus status = (Status, DecidedAt, DecidedBy, CustomerCode, RejectionReason) switch
         {
-            "Approved" => new RegistrationStatus.Approved(DecidedBy!.Value, DecidedAt!.Value, CustomerCode!),
-            "Rejected" => new RegistrationStatus.Rejected(DecidedBy!.Value, DecidedAt!.Value, RejectionReason!),
-            _ => RegistrationStatus.Pending,
+            ("Pending", null, null, null, null) => RegistrationStatus.Pending,
+            ("Approved", { } at, { } by, { } customer, null) => new RegistrationStatus.Approved(by, at, Persisted.Rehydrate<Domain.CustomerCode, string>(customer)),
+            ("Rejected", { } at, { } by, null, { } reason) => new RegistrationStatus.Rejected(by, at, Persisted.Rehydrate<FormText, string>(reason)),
+            _ => throw Stored.Corrupt($"registration {Id} with status '{Status}' and decision fields that do not fit it"),
         };
-        return new RegistrationRequest(Id, form.Company, form.Applicant, SubmittedAt, status);
+        return Persisted.Rehydrate<RegistrationRequest, RegistrationRequest.Stored>(new RegistrationRequest.Stored(Id, form.Company, form.Applicant, SubmittedAt, status));
     }
 
-    private sealed record FormDocument(ApplicantCompany Company, Applicant Applicant)
-    {
-        public static FormDocument Of(RegistrationRequest request) => new(request.Company, request.Applicant);
-    }
+    private sealed record FormDocument(ApplicantCompany Company, Applicant Applicant);
 }
 
 internal sealed class TokenRow
@@ -220,14 +276,18 @@ internal sealed class TokenRow
 
     public required string Hash { get; init; }
 
-    public DateTimeOffset ExpiresAt { get; init; }
+    public DateTimeOffset IssuedAt { get; init; }
 
     public DateTimeOffset? UsedAt { get; set; }
 
-    public OneTimeToken ToDomain() => new(AccountId, Stored.Enum<TokenPurpose>(Purpose, "token purpose"), Hash, ExpiresAt, UsedAt.ToMaybe());
+    public OneTimeToken ToDomain() =>
+        Persisted.Rehydrate<OneTimeToken, OneTimeToken.Stored>(new OneTimeToken.Stored(
+            AccountId, Stored.Enum<TokenPurpose>(Purpose, "token purpose"), Persisted.Rehydrate<SecretHash, string>(Hash), IssuedAt, UsedAt.ToMaybe()));
+
+    public void Apply(OneTimeToken token) => UsedAt = token.UsedAt.OrNull();
 
     public static TokenRow From(OneTimeToken token) =>
-        new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash, ExpiresAt = token.ExpiresAt, UsedAt = token.UsedAt.OrNull() };
+        new() { AccountId = token.AccountId, Purpose = token.Purpose.ToString(), Hash = token.Hash.Value, IssuedAt = token.IssuedAt, UsedAt = token.UsedAt.OrNull() };
 }
 
 internal sealed class ApiKeyRow
@@ -259,11 +319,11 @@ internal sealed class ApiKeyRow
         {
             Id = key.Id,
             UserId = key.UserId,
-            CustomerCode = key.CustomerCode,
-            Name = key.Name,
-            KeyId = key.KeyId,
-            SecretHash = key.SecretHash,
-            SecurityStamp = key.SecurityStamp,
+            CustomerCode = key.CustomerCode.Value,
+            Name = key.Name.Value,
+            KeyId = key.KeyId.Value,
+            SecretHash = key.SecretHash.Value,
+            SecurityStamp = key.SecurityStamp.Value,
             CreatedAt = key.CreatedAt,
             ExpiresAt = key.ExpiresAt.OrNull(),
             LastUsedAt = key.LastUsedAt.OrNull(),
@@ -277,7 +337,18 @@ internal sealed class ApiKeyRow
     }
 
     public ApiKey ToDomain() =>
-        new(Id, UserId, CustomerCode, Name, KeyId, SecretHash, SecurityStamp, CreatedAt, ExpiresAt.ToMaybe(), LastUsedAt.ToMaybe(), RevokedAt.ToMaybe());
+        Persisted.Rehydrate<ApiKey, ApiKey.Stored>(new ApiKey.Stored(
+            Id,
+            UserId,
+            Persisted.Rehydrate<Domain.CustomerCode, string>(CustomerCode),
+            Persisted.Rehydrate<ApiKeyName, string>(Name),
+            Persisted.Rehydrate<ApiKeyId, string>(KeyId),
+            Persisted.Rehydrate<Domain.SecretHash, string>(SecretHash),
+            Persisted.Rehydrate<Domain.SecurityStamp, string>(SecurityStamp),
+            CreatedAt,
+            ExpiresAt.ToMaybe(),
+            LastUsedAt.ToMaybe(),
+            RevokedAt.ToMaybe()));
 }
 
 /// <summary>Append-only record of security-relevant changes, written in the same transaction as the change.</summary>

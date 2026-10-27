@@ -81,47 +81,70 @@ internal sealed class AccessStore(AccessDbContext db, Outbox<AccessDbContext> ou
 
     public static MembershipView ToView(Membership membership) =>
         new(
-            membership.CustomerCode,
+            membership.CustomerCode.Value,
             membership.Attributes.CanOrder,
             ToView(membership.Attributes.OrderScope),
-            membership.Attributes.OrderLimit.Map(limit => limit.Amount).OrNull(),
-            membership.Attributes.OrderLimit.Map(limit => limit.Currency.Code).OrNull(),
+            membership.Attributes.OrderLimit.Map(limit => limit.Value.Amount).OrNull(),
+            membership.Attributes.OrderLimit.Map(limit => limit.Value.Currency.Code).OrNull(),
             membership.Attributes.CanViewDocuments,
             membership.Attributes.CanManageUsers,
-            membership.Attributes.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null);
+            Codes(membership.Attributes.DeliveryAddresses).OrNull());
 
-    public static MembershipRightsView ToView(MembershipRights rights) =>
+    public static MembershipRightsView ToRightsView(MembershipAttributes attributes) =>
         new(
-            rights.CanOrder,
-            ToView(rights.OrderScope),
-            rights.CanViewDocuments,
-            rights.CanManageUsers,
-            rights.OrderLimit.Map(limit => limit.Amount).OrNull(),
-            rights.OrderLimit.Map(limit => limit.Currency.Code).OrNull(),
-            rights.DeliveryAddresses is DeliveryAddressScope.OnlyAddresses only ? [.. only.Codes] : null);
+            attributes.CanOrder,
+            ToView(attributes.OrderScope),
+            attributes.CanViewDocuments,
+            attributes.CanManageUsers,
+            attributes.OrderLimit.Map(limit => limit.Value.Amount).OrNull(),
+            attributes.OrderLimit.Map(limit => limit.Value.Currency.Code).OrNull(),
+            Codes(attributes.DeliveryAddresses).OrNull());
 
-    public static Result<MembershipRights, Error> FromView(MembershipRightsView view) =>
+    public static Result<MembershipAttributes, Error> FromView(MembershipRightsView view) =>
         from scope in view.OrderScope switch
         {
             "own" => Result.Ok<OrderScope, Error>(OrderScope.Own),
             "company" => OrderScope.Company,
             _ => Error.Validation("membership.order-scope-invalid", "Order scope must be 'own' or 'company'.") with { Field = "orderScope" },
         }
-        from limit in MembershipRights.Limit(view.OrderLimit.ToMaybe(), view.OrderLimitCurrency.OrEmpty())
-        from addresses in MembershipRights.Addresses(view.DeliveryAddressCodes.ToMaybe())
-        select new MembershipRights(view.CanOrder, scope, view.CanViewDocuments, view.CanManageUsers, limit, addresses);
+        from attributes in MembershipRights.Parse(
+            view.CanOrder, scope, view.CanViewDocuments, view.CanManageUsers, view.OrderLimit.ToMaybe(), view.OrderLimitCurrency.OrEmpty(), view.DeliveryAddressCodes.ToMaybe())
+        select attributes;
 
-    private static string ToView(OrderScope scope) => scope == OrderScope.Company ? "company" : "own";
+    /// <summary>The allowed codes; none for all addresses.</summary>
+    private static Maybe<IReadOnlyList<string>> Codes(DeliveryAddressScope scope) =>
+        scope switch
+        {
+            DeliveryAddressScope.OnlyAddresses only => Maybe.Some<IReadOnlyList<string>>([.. only.Codes]),
+            DeliveryAddressScope.AllAddresses => Maybe<IReadOnlyList<string>>.None,
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "A delivery address scope without a view."),
+        };
+
+    private static string ToView(OrderScope scope) =>
+        scope switch
+        {
+            OrderScope.Company => "company",
+            OrderScope.Own => "own",
+            _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "An order scope without a name."),
+        };
 
     /// <summary>The account as an acting operator: active and with operator attributes.</summary>
     public static Maybe<Subject.Operator> AsOperator(Account account) =>
         account.Operator
-            .Where(_ => account.Status == AccountStatus.Active)
+            .Where(_ => account.State is AccountState.Active)
             .Map(attributes => new Subject.Operator(account.Id, account.Email, attributes));
 
     public static OperatorView ToView(OperatorAttributes attributes) =>
-        new(attributes.CanManageSettings, attributes.CanManageOperators, attributes.CanDecideRegistrations,
-            attributes.CustomerScope == CustomerScope.All ? "all" : "as-salesperson");
+        new(
+            attributes.CanManageSettings,
+            attributes.CanManageOperators,
+            attributes.CanDecideRegistrations,
+            attributes.CustomerScope switch
+            {
+                CustomerScope.All => "all",
+                CustomerScope.AsSalesperson => "as-salesperson",
+                _ => throw new ArgumentOutOfRangeException(nameof(attributes), attributes.CustomerScope, "A customer scope without a name."),
+            });
 
     public static Result<OperatorAttributes, Error> FromView(OperatorView view) =>
         view.CustomerScope switch

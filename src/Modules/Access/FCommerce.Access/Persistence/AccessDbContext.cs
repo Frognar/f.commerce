@@ -51,7 +51,7 @@ internal sealed class AccessDbContext(DbContextOptions<AccessDbContext> options)
             token.Property(t => t.Purpose).HasColumnName("purpose").HasMaxLength(32);
             token.Property(t => t.Hash).HasColumnName("hash").HasMaxLength(64);
             token.HasIndex(t => t.Hash).IsUnique().HasDatabaseName("ux_one_time_tokens_hash");
-            token.Property(t => t.ExpiresAt).HasColumnName("expires_at");
+            token.Property(t => t.IssuedAt).HasColumnName("issued_at");
             token.Property(t => t.UsedAt).HasColumnName("used_at");
         });
 

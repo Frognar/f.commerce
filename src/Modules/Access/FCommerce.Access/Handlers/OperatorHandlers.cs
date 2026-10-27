@@ -37,21 +37,21 @@ internal sealed class OperatorManagement(AccessStore store)
         {
             var row = await store.FindAsync(invitee.Email, cancellationToken);
             var existing = row.Map(r => r.ToDomain());
+            var memberships = await existing.Match(
+                async found => (await store.MembershipsOfAsync([found.Id], cancellationToken))[found.Id].ToList(),
+                () => Task.FromResult(new List<Membership>()));
             var granted = await GrantAsync(actor, existing, invitee.Attributes, cancellationToken);
-            return await granted.BindAsync(async attributes =>
+            var appointed = granted.Bind(rights => existing.Match(
+                found => OperatorRules.Appoint(found, memberships, rights),
+                () => Account.Invite(Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, Tokens.NewSecurityStamp(), rights)));
+            return await appointed.BindAsync(async account =>
             {
-                var account = existing.Match(
-                    found => found with { Operator = attributes },
-                    () => new Account(
-                        Guid.CreateVersion7(), invitee.Email, invitee.Name, invitee.Culture, AccountStatus.Invited, Maybe<string>.None,
-                        Tokens.NewSecurityStamp(), 0, Maybe<DateTimeOffset>.None, attributes));
-
                 row.Switch(stored => stored.Apply(account), () => store.Db.Accounts.Add(AccountRow.From(account, store.Now)));
 
-                var invited = account.Status == AccountStatus.Invited ? store.Invite(account, "operator", Maybe<string>.None) : Unit.Value;
+                var invited = account.State is AccountState.Invited ? store.Invite(account, "operator", Maybe<string>.None) : Unit.Value;
                 return await invited.MapAsync(async _ =>
                 {
-                    store.Audit(actor.Map(a => a.Id), "operator.invited", $"account:{account.Id}", AccessStore.ToView(attributes));
+                    store.Audit(actor.Map(a => a.Id), "operator.invited", $"account:{account.Id}", AccessStore.ToView(invitee.Attributes));
                     await store.Db.SaveChangesAsync(cancellationToken);
                     return account.Id;
                 });
@@ -72,21 +72,32 @@ internal sealed class OperatorManagement(AccessStore store)
 
     private async Task<Result<Unit, Error>> ChangeAsync(Account actor, AccountRow row, Account target, Maybe<OperatorAttributes> attributes, CancellationToken cancellationToken)
     {
-        // Revoking is checked like a change to "no rights at all".
-        var requested = attributes.ValueOr(() => new OperatorAttributes(false, false, false, CustomerScope.AsSalesperson));
-        return await (await GrantAsync(actor, target, requested, cancellationToken)).MapAsync(async _ =>
-        {
-            attributes.Switch(
-                changed =>
+        var applied = await attributes.Match(
+            async changed => (await GrantAsync(actor, target, changed, cancellationToken))
+                .Bind(granted => OperatorRules.Appoint(target, [], granted))
+                .Map(appointed =>
                 {
-                    row.Apply(target with { Operator = changed });
+                    row.Apply(appointed);
                     store.Audit(actor.Id, "operator.changed", $"account:{target.Id}", AccessStore.ToView(changed));
-                },
-                () =>
-                {
-                    row.Apply(target with { Operator = Maybe<OperatorAttributes>.None, SecurityStamp = Tokens.NewSecurityStamp() }); // signed out everywhere
-                    store.Audit(actor.Id, "operator.revoked", $"account:{target.Id}");
-                });
+                    return Unit.Value;
+                }),
+            async () =>
+            {
+                var otherManagers = await OtherManagersAsync(target, cancellationToken);
+                return OperatorSubject(actor)
+                    .Bind(subject => target.Operator.Match(
+                        current => Grants.OperatorRevocation(subject, current, otherManagers),
+                        () => Result.Ok<Unit, Error>(Unit.Value)))
+                    .Map(_ =>
+                    {
+                        row.Apply(OperatorRules.Revoke(target, Tokens.NewSecurityStamp())); // signed out everywhere
+                        store.Audit(actor.Id, "operator.revoked", $"account:{target.Id}");
+                        return Unit.Value;
+                    });
+            });
+
+        return await applied.MapAsync(async _ =>
+        {
             await store.Db.SaveChangesAsync(cancellationToken);
             return Unit.Value;
         });
@@ -96,14 +107,19 @@ internal sealed class OperatorManagement(AccessStore store)
         await actor.Match(
             async grantor =>
             {
-                var otherManagers = (await store.Db.Accounts.AsNoTracking().Where(a => a.Operator != null && a.Status == nameof(AccountStatus.Active)).ToListAsync(cancellationToken))
-                    .Select(a => a.ToDomain())
-                    .Count(a => !target.Exists(t => t.Id == a.Id) && a.Operator.Exists(o => o.CanManageOperators));
-                return AccessStore.AsOperator(grantor).Match(
-                    subject => Grants.Operator(subject, target.Bind(t => t.Operator), requested, otherManagers),
-                    () => Error.Forbidden("grant.not-allowed", "Only operators can manage operators."));
+                var otherManagers = await OtherManagersAsync(target, cancellationToken);
+                return OperatorSubject(grantor).Bind(subject => Grants.Operator(subject, target.Bind(t => t.Operator), requested, otherManagers));
             },
             () => Task.FromResult(Result.Ok<OperatorAttributes, Error>(requested)));
+
+    /// <summary>Active operators other than <paramref name="target"/> who manage operators.</summary>
+    private async Task<int> OtherManagersAsync(Maybe<Account> target, CancellationToken cancellationToken) =>
+        (await store.Db.Accounts.AsNoTracking().Where(a => a.Operator != null).ToListAsync(cancellationToken))
+            .Select(a => a.ToDomain())
+            .Count(a => !target.Exists(t => t.Id == a.Id) && AccessStore.AsOperator(a).Exists(o => o.Attributes.CanManageOperators));
+
+    private static Result<Subject.Operator, Error> OperatorSubject(Account account) =>
+        AccessStore.AsOperator(account).ToResult(() => Error.Forbidden("grant.not-allowed", "Only operators can manage operators."));
 }
 
 internal sealed class InviteOperatorHandler(AccessStore store, OperatorManagement operators) : ICommandHandler<InviteOperator, Result<Guid, Error>>

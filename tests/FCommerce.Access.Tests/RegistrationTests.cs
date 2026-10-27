@@ -1,5 +1,6 @@
 using FCommerce.Access.Domain;
 using FCommerce.Testing;
+using static FCommerce.Access.Tests.AccessValues;
 
 namespace FCommerce.Access.Tests;
 
@@ -21,7 +22,7 @@ public sealed class RegistrationTests
     {
         var (company, applicant) = Registrations.Validate(Input()).ShouldBeValid();
 
-        Assert.Equal(("Nowa Firma sp. z o.o.", "PL5261040828", "00-950", "PL"), (company.Name, company.TaxId.Value, company.Address.PostalCode.Value, company.Address.Country.Value));
+        Assert.Equal(("Nowa Firma sp. z o.o.", "PL5261040828", "00-950", "PL"), (company.Name.Value, company.TaxId.Value, company.Address.PostalCode.Value, company.Address.Country.Value));
         Assert.Equal("jan@firma.pl", applicant.Email.Value);
     }
 
@@ -39,20 +40,30 @@ public sealed class RegistrationTests
     public void A_request_is_decided_once()
     {
         var operatorId = Guid.NewGuid();
-        var approved = Registrations.Approve(Pending(), operatorId, "K-001", Now).ShouldSucceed();
+        var approved = Registrations.Approve(Pending(), operatorId, Customer("K-001"), Now).ShouldSucceed();
 
-        Assert.Equal(new RegistrationStatus.Approved(operatorId, Now, "K-001"), approved.Status);
-        Assert.Equal("registration.already-decided", Registrations.Approve(approved, operatorId, "K-002", Now).ShouldFail().Code);
+        Assert.Equal(new RegistrationStatus.Approved(operatorId, Now, Customer("K-001")), approved.Status);
+        Assert.Equal("registration.already-decided", Registrations.Approve(approved, operatorId, Customer("K-002"), Now).ShouldFail().Code);
         Assert.Equal("registration.already-decided", Registrations.Reject(approved, operatorId, "Duplicate", Now).ShouldFail().Code);
     }
 
     [Fact]
-    public void A_rejection_needs_a_reason()
+    public void A_rejection_needs_a_reason_and_tells_it()
     {
         var error = Registrations.Reject(Pending(), Guid.NewGuid(), "  ", Now).ShouldFail();
-        var rejected = Registrations.Reject(Pending(), Guid.NewGuid(), " Not a business customer. ", Now).ShouldSucceed();
+        var (rejected, reason) = Registrations.Reject(Pending(), Guid.NewGuid(), " Not a business customer. ", Now).ShouldSucceed();
 
         Assert.Equal(("reason.empty", "reason"), (error.Code, error.Field));
-        Assert.Equal("Not a business customer.", Assert.IsType<RegistrationStatus.Rejected>(rejected.Status).Reason);
+        Assert.Equal("Not a business customer.", reason.Value);
+        Assert.Equal(reason, Assert.IsType<RegistrationStatus.Rejected>(rejected.Status).Reason);
+    }
+
+    [Fact]
+    public void A_stored_request_is_never_decided_before_it_was_submitted()
+    {
+        var request = Pending();
+        var stored = new RegistrationRequest.Stored(request.Id, request.Company, request.Applicant, Now, new RegistrationStatus.Approved(Guid.NewGuid(), Now.AddDays(-1), Customer("K-001")));
+
+        Assert.False(IsWellFormed<RegistrationRequest, RegistrationRequest.Stored>(stored));
     }
 }

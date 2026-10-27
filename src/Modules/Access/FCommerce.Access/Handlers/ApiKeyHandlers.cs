@@ -26,13 +26,17 @@ internal sealed class CreateApiKeyHandler(AccessStore store) : ICommandHandler<C
     private Task<Result<CreatedApiKey, Error>> CreateAsync(Account owner, CreateApiKey command, CancellationToken cancellationToken)
     {
         var (keyId, secret, hash) = ApiKeySecrets.New();
-        return ApiKey.Issue(Guid.CreateVersion7(), owner, command.CustomerCode, command.Name.OrEmpty(), command.ValidForDays.ToMaybe(), keyId, hash, store.Now)
+        return (from customer in CustomerCode.Parse(command.CustomerCode.OrEmpty())
+                from name in ApiKeyName.Parse(command.Name.OrEmpty())
+                from validity in ApiKey.Validity(command.ValidForDays.ToMaybe())
+                from key in ApiKey.Issue(Guid.CreateVersion7(), owner, customer, name, validity, keyId, hash, store.Now)
+                select key)
             .MapAsync(async key =>
             {
                 store.Db.ApiKeys.Add(ApiKeyRow.From(key));
-                store.Audit(command.ActorId, "api-key.created", MembershipManagement.Subject(command.CustomerCode), new { keyId = key.KeyId, name = key.Name, email = owner.Email.Value, expiresAt = key.ExpiresAt.OrNull() });
+                store.Audit(command.ActorId, "api-key.created", MembershipManagement.Subject(command.CustomerCode), new { keyId = key.KeyId.Value, name = key.Name.Value, email = owner.Email.Value, expiresAt = key.ExpiresAt.OrNull() });
                 await store.Db.SaveChangesAsync(cancellationToken);
-                return new CreatedApiKey(key.Id, ApiKeyFormat.Compose(keyId, secret), keyId);
+                return new CreatedApiKey(key.Id, ApiKeyFormat.Compose(keyId, secret), keyId.Value);
             });
     }
 }
@@ -48,7 +52,7 @@ internal sealed class RevokeApiKeyHandler(AccessStore store) : ICommandHandler<R
                 if (revoked != key)
                 {
                     row.Apply(revoked);
-                    store.Audit(command.ActorId, "api-key.revoked", MembershipManagement.Subject(command.CustomerCode), new { keyId = key.KeyId, name = key.Name });
+                    store.Audit(command.ActorId, "api-key.revoked", MembershipManagement.Subject(command.CustomerCode), new { keyId = key.KeyId.Value, name = key.Name.Value });
                     await store.Db.SaveChangesAsync(cancellationToken);
                 }
 
@@ -73,8 +77,8 @@ internal sealed class GetCustomerApiKeysHandler(AccessDbContext db, TimeProvider
             var key = x.key.ToDomain();
             return new ApiKeySummary(
                 key.Id,
-                key.Name,
-                key.KeyId,
+                key.Name.Value,
+                key.KeyId.Value,
                 key.UserId,
                 x.Name,
                 key.CreatedAt,
@@ -97,7 +101,7 @@ internal sealed class AuthenticateApiKeyHandler(AccessStore store) : ICommandHan
 
     private async Task<Result<ApiKeyIdentity, Error>> AuthenticateAsync(ApiKeyParts parts, CancellationToken cancellationToken)
     {
-        var row = await store.Db.ApiKeys.SingleOrNoneAsync(k => k.KeyId == parts.Id, cancellationToken);
+        var row = await store.Db.ApiKeys.SingleOrNoneAsync(k => k.KeyId == parts.Id.Value, cancellationToken);
 
         // The hash is compared in any case, so an unknown identifier takes as long as a wrong secret.
         var secretMatches = ApiKeySecrets.Matches(row.Map(r => r.SecretHash).ValueOr(ApiKeySecrets.Decoy), parts.Secret) && row.Exists(_ => true);
@@ -107,7 +111,7 @@ internal sealed class AuthenticateApiKeyHandler(AccessStore store) : ICommandHan
             {
                 var key = found.ToDomain();
                 var owner = (await store.FindAsync(key.UserId, cancellationToken)).Map(a => a.ToDomain());
-                var hasCustomer = await store.Db.Memberships.AnyAsync(m => m.UserId == key.UserId && m.CustomerCode == key.CustomerCode, cancellationToken);
+                var hasCustomer = await store.Db.Memberships.AnyAsync(m => m.UserId == key.UserId && m.CustomerCode == key.CustomerCode.Value, cancellationToken);
                 var checkedKey = owner.Match(
                     account => key.Check(secretMatches, account, hasCustomer, store.Now).Match(_ => Maybe.Some(account), _ => Maybe<Account>.None),
                     () => Maybe<Account>.None);
@@ -117,11 +121,11 @@ internal sealed class AuthenticateApiKeyHandler(AccessStore store) : ICommandHan
                     {
                         if (key.ShouldRecordUse(store.Now))
                         {
-                            found.Apply(key with { LastUsedAt = store.Now });
+                            found.Apply(key.RecordUse(store.Now));
                             await store.Db.SaveChangesAsync(cancellationToken);
                         }
 
-                        return Result.Ok<ApiKeyIdentity, Error>(new ApiKeyIdentity(key.Id, key.Name, account.Id, account.SecurityStamp, key.CustomerCode));
+                        return Result.Ok<ApiKeyIdentity, Error>(new ApiKeyIdentity(key.Id, key.Name.Value, account.Id, account.SecurityStamp.Value, key.CustomerCode.Value));
                     },
                     () => Task.FromResult(Result.Fail<ApiKeyIdentity, Error>(Invalid())));
             },

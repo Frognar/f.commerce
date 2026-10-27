@@ -1,4 +1,5 @@
 using FCommerce.Access.Domain;
+using FCommerce.Authorization.Core;
 using FCommerce.Access.Persistence;
 using FCommerce.Access.Security;
 using FCommerce.Application.Messaging;
@@ -46,13 +47,25 @@ internal sealed partial class ErpContactInvitations(
 
     private async Task SyncAsync(CustomerDetails customer, PortalContactsChanged changed, PlatformSettingsView current, CancellationToken cancellationToken)
     {
-        var contacts = changed.Contacts
-            .Choose(c =>
-                (from email in EmailAddress.Parse(c.Email.OrEmpty())
-                 from name in PersonName.Parse(c.Name.OrEmpty())
-                 select new ErpContactSync.Contact(c.ExternalId, email, name, MembershipRules.FromTemplate(c.AttributeTemplate.ToMaybe().Or(current.DefaultContactTemplate))))
-                .ToMaybe())
+        var code = CustomerCodes.Of(customer);
+        var subject = MembershipManagement.Subject(customer.Code);
+
+        // A contact Access cannot read (address, name, template) is skipped and audited, never given other rights.
+        var read = changed.Contacts
+            .Select(c =>
+                (Email: c.Email.OrEmpty(),
+                 Contact: from id in ErpContactId.Parse(c.ExternalId.OrEmpty())
+                          from email in EmailAddress.Parse(c.Email.OrEmpty())
+                          from name in PersonName.Parse(c.Name.OrEmpty())
+                          from attributes in MembershipAttributes.Template(c.AttributeTemplate.ToMaybe().ValueOr(current.DefaultContactTemplate))
+                          select new ErpContactSync.Contact(id, email, name, attributes)))
             .ToList();
+        foreach (var (email, error) in read.Choose(r => r.Contact.Match(_ => Maybe<(string, Error)>.None, error => (r.Email, error))))
+        {
+            store.Audit(AccessStore.SystemActor, "membership.erp-skipped", subject, new { email, reason = error.Code });
+        }
+
+        var contacts = read.Choose(r => r.Contact.ToMaybe()).ToList();
 
         var emails = contacts.Select(c => c.Email.Value).ToList();
         var memberIds = await store.Db.Memberships.Where(m => m.CustomerCode == customer.Code).Select(m => m.UserId).ToListAsync(cancellationToken);
@@ -62,7 +75,7 @@ internal sealed partial class ErpContactInvitations(
         var accountMemberships = await store.MembershipsOfAsync([.. accounts.Select(a => a.Id)], cancellationToken);
         var existing = accounts.Select(a => new ErpContactSync.Member(a, [.. accountMemberships[a.Id]])).ToList();
 
-        var steps = ErpContactSync.Plan(customer.Code, contacts, existing, current.IsOn(Feature.MultiCustomerAccounts.Value));
+        var steps = ErpContactSync.Plan(code, contacts, existing, current.IsOn(Feature.MultiCustomerAccounts.Value));
         var applied = steps.Select(step => Apply(step, customer)).ToList();
 
         await applied.Sequence().Match(
@@ -78,10 +91,9 @@ internal sealed partial class ErpContactInvitations(
             case ErpContactSync.Step.CreateAccount create:
                 return CultureCode.Parse(options.DefaultCulture).Bind(culture =>
                 {
-                    var account = new Account(
-                        Guid.CreateVersion7(), create.Contact.Email, create.Contact.Name, culture, AccountStatus.Invited, Maybe<string>.None,
-                        Tokens.NewSecurityStamp(), 0, Maybe<DateTimeOffset>.None, Maybe<Authorization.Core.OperatorAttributes>.None);
-                    var membership = ErpContactSync.ErpMembership(account.Id, customer.Code, create.Contact);
+                    var account = Account.Invite(
+                        Guid.CreateVersion7(), create.Contact.Email, create.Contact.Name, culture, Tokens.NewSecurityStamp(), Maybe<Authorization.Core.OperatorAttributes>.None);
+                    var membership = ErpContactSync.ErpMembership(account.Id, CustomerCodes.Of(customer), create.Contact);
                     store.Db.Accounts.Add(AccountRow.From(account, store.Now));
                     store.Audit(AccessStore.SystemActor, "membership.granted", subject, MembershipManagement.Details(account.Email, membership));
                     return memberships.Grant(account, membership, customer.Name);

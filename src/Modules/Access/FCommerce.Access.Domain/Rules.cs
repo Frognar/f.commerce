@@ -1,4 +1,6 @@
+using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Optional;
+using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Access.Domain;
@@ -9,7 +11,7 @@ public static class PasswordPolicy
     public const int MinLength = 12;
     public const int MaxLength = 128;
 
-    public static Result<string, Error> Check(string password, string email)
+    public static Result<ValidPassword, Error> Check(string password, EmailAddress email)
     {
         if (password.Length < MinLength)
         {
@@ -26,10 +28,10 @@ public static class PasswordPolicy
             return Error.Validation("password.too-simple", "The password repeats too few characters.") with { Field = "password" };
         }
 
-        var localPart = email.Split('@')[0];
+        var localPart = email.Value.Split('@')[0];
         return localPart.Length >= 4 && password.Contains(localPart, StringComparison.OrdinalIgnoreCase)
             ? Error.Validation("password.contains-email", "The password must not contain your e-mail address.") with { Field = "password" }
-            : password;
+            : new ValidPassword(password);
     }
 }
 
@@ -55,12 +57,12 @@ public static class SignIn
     /// <param name="account">The account with the e-mail signed in with, if there is one.</param>
     public static Outcome Decide(Maybe<Account> account, bool passwordMatches, DateTimeOffset now) =>
         account
-            .Where(a => a.Status == AccountStatus.Active && a.PasswordHash.Match(_ => true, () => false))
+            .Bind(a => a.State is AccountState.Active active ? Maybe.Some((Account: a, State: active)) : Maybe<(Account Account, AccountState.Active State)>.None)
             .Match(
-                active => Decide(active, passwordMatches, now),
+                found => Decide(found.Account, found.State, passwordMatches, now),
                 () => new Outcome(SignInFailure.InvalidCredentials, Maybe<Account>.None));
 
-    private static Outcome Decide(Account account, bool passwordMatches, DateTimeOffset now)
+    private static Outcome Decide(Account account, AccountState.Active active, bool passwordMatches, DateTimeOffset now)
     {
         if (account.IsLocked(now))
         {
@@ -69,14 +71,15 @@ public static class SignIn
 
         if (!passwordMatches)
         {
-            var failures = account.FailedSignIns + 1;
-            var updated = failures >= MaxFailures
-                ? account with { FailedSignIns = 0, LockedUntil = now + LockoutDuration }
-                : account with { FailedSignIns = failures };
+            var failures = (active.Guard is SignInGuard.Open open ? open.Failures : 0) + 1;
+            var updated = account.With(active with
+            {
+                Guard = failures >= MaxFailures ? new SignInGuard.LockedOut(now + LockoutDuration) : new SignInGuard.Open(failures),
+            });
             return new Outcome(updated.IsLocked(now) ? SignInFailure.LockedOut : SignInFailure.InvalidCredentials, updated);
         }
 
-        var signedIn = account with { FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
+        var signedIn = account.With(active with { Guard = SignInGuard.Clear });
         return new Outcome(signedIn, signedIn == account ? Maybe<Account>.None : signedIn);
     }
 }
@@ -87,36 +90,66 @@ public enum TokenPurpose
     PasswordReset,
 }
 
-/// <summary>A one-time link token as stored: only its hash, never the token itself.</summary>
-public sealed record OneTimeToken(Guid AccountId, TokenPurpose Purpose, string Hash, DateTimeOffset ExpiresAt, Maybe<DateTimeOffset> UsedAt)
+/// <summary>A one-time link token as stored: only its hash, never the token itself. It expires a fixed time after it was issued.</summary>
+public sealed record OneTimeToken : IPersistedValue<OneTimeToken, OneTimeToken.Stored>
 {
     public static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
     public static readonly TimeSpan PasswordResetLifetime = TimeSpan.FromHours(1);
 
-    public static OneTimeToken Issue(Guid accountId, TokenPurpose purpose, string hash, DateTimeOffset now) =>
-        new(accountId, purpose, hash, now + (purpose == TokenPurpose.Invitation ? InvitationLifetime : PasswordResetLifetime), Maybe<DateTimeOffset>.None);
+    private OneTimeToken(Guid accountId, TokenPurpose purpose, SecretHash hash, DateTimeOffset issuedAt, Maybe<DateTimeOffset> usedAt)
+    {
+        AccountId = accountId;
+        Purpose = purpose;
+        Hash = hash;
+        IssuedAt = issuedAt;
+        UsedAt = usedAt;
+    }
+
+    public Guid AccountId { get; }
+
+    public TokenPurpose Purpose { get; }
+
+    public SecretHash Hash { get; }
+
+    public DateTimeOffset IssuedAt { get; }
+
+    public Maybe<DateTimeOffset> UsedAt { get; }
+
+    public DateTimeOffset ExpiresAt => IssuedAt + (Purpose == TokenPurpose.Invitation ? InvitationLifetime : PasswordResetLifetime);
+
+    public static OneTimeToken Issue(Guid accountId, TokenPurpose purpose, SecretHash hash, DateTimeOffset now) =>
+        new(accountId, purpose, hash, now, Maybe<DateTimeOffset>.None);
 
     /// <summary>Marks the token used, if it is unused and not expired.</summary>
     public Result<OneTimeToken, Error> Redeem(TokenPurpose purpose, DateTimeOffset now) =>
         UsedAt.Match(_ => true, () => purpose != Purpose || now >= ExpiresAt)
             ? Error.Validation("token.invalid", "The link is invalid or has expired.")
-            : this with { UsedAt = now };
+            : new OneTimeToken(AccountId, Purpose, Hash, IssuedAt, now);
+
+    /// <param name="UsedAt">Never before it was issued.</param>
+    public sealed record Stored(Guid AccountId, TokenPurpose Purpose, SecretHash Hash, DateTimeOffset IssuedAt, Maybe<DateTimeOffset> UsedAt);
+
+    static bool IPersistedValue<OneTimeToken, Stored>.IsWellFormed(Stored raw) =>
+        Enum.IsDefined(raw.Purpose) && !raw.UsedAt.Exists(used => used < raw.IssuedAt);
+
+    static OneTimeToken IPersistedValue<OneTimeToken, Stored>.Rehydrate(Stored raw) => new(raw.AccountId, raw.Purpose, raw.Hash, raw.IssuedAt, raw.UsedAt);
+
+    Stored IPersistedValue<OneTimeToken, Stored>.Dehydrate() => new(AccountId, Purpose, Hash, IssuedAt, UsedAt);
 }
 
 /// <summary>Credential changes: each one rotates the security stamp, which signs the account out everywhere.</summary>
 public static class Credentials
 {
-    /// <summary>Accepting an invitation activates the account with its first password.</summary>
-    public static Result<Account, Error> Activate(Account account, string passwordHash, string newStamp) =>
-        account.Status == AccountStatus.Disabled
+    /// <summary>Accepting an invitation activates the account with its first password (again, for one already active).</summary>
+    public static Result<Account, Error> Activate(Account account, PasswordHash password, SecurityStamp newStamp) =>
+        account.State is AccountState.Disabled
             ? Error.Forbidden("account.disabled", "This account is disabled.")
-            : account with { Status = AccountStatus.Active, PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
+            : account.With(new AccountState.Active(password, SignInGuard.Clear), newStamp);
 
-    public static Result<Account, Error> ChangePassword(Account account, string passwordHash, string newStamp) =>
-        account.Status != AccountStatus.Active
-            ? Error.Forbidden("account.not-active", "This account is not active.")
-            : account with { PasswordHash = passwordHash, SecurityStamp = newStamp, FailedSignIns = 0, LockedUntil = Maybe<DateTimeOffset>.None };
+    public static Result<Account, Error> ChangePassword(Account account, PasswordHash password, SecurityStamp newStamp) =>
+        account.State is AccountState.Active
+            ? account.With(new AccountState.Active(password, SignInGuard.Clear), newStamp)
+            : Error.Forbidden("account.not-active", "This account is not active.");
 
-    public static Account Disable(Account account, string newStamp) =>
-        account with { Status = AccountStatus.Disabled, SecurityStamp = newStamp };
+    public static Account Disable(Account account, SecurityStamp newStamp) => account.With(new AccountState.Disabled(), newStamp);
 }

@@ -16,41 +16,49 @@ public static class Grants
         string customerCode,
         Maybe<MembershipAttributes> current,
         MembershipAttributes requested,
-        int otherAdministrators)
-    {
-        var allowed = grantor switch
-        {
-            Subject.Operator => true,
-            Subject.CustomerUser user => user.ActiveCustomer == customerCode && user.Attributes.CanManageUsers,
-            _ => false,
-        };
+        int otherAdministrators) =>
+        MayManage(grantor, customerCode)
+            .Bind(_ => KeepsAnAdministrator(current, requested.CanManageUsers, otherAdministrators))
+            .Map(_ => requested);
 
-        if (!allowed)
-        {
-            return Error.Forbidden("grant.not-allowed", "You cannot change memberships of this customer.");
-        }
-
-        var removesLastAdministrator = current.Exists(c => c.CanManageUsers) && !requested.CanManageUsers && otherAdministrators == 0;
-        return removesLastAdministrator
-            ? Error.Conflict("grant.last-administrator", "The customer needs at least one user who can manage users.")
-            : requested;
-    }
+    /// <summary>Whether <paramref name="grantor"/> may take a membership away; the last administrator keeps theirs.</summary>
+    public static Result<Unit, Error> MembershipRevocation(Subject grantor, string customerCode, MembershipAttributes current, int otherAdministrators) =>
+        MayManage(grantor, customerCode).Bind(_ => KeepsAnAdministrator(current, keepsRight: false, otherAdministrators));
 
     /// <summary>Only operators who manage operators change operator attributes; the last such operator keeps the right.</summary>
     public static Result<OperatorAttributes, Error> Operator(
         Subject grantor,
         Maybe<OperatorAttributes> current,
         OperatorAttributes requested,
-        int otherOperatorManagers)
-    {
-        if (grantor is not Subject.Operator { Attributes.CanManageOperators: true })
-        {
-            return Error.Forbidden("grant.not-allowed", "Only operators who manage operators can change operator rights.");
-        }
+        int otherOperatorManagers) =>
+        MayManageOperators(grantor)
+            .Bind(_ => KeepsAnOperatorManager(current, requested.CanManageOperators, otherOperatorManagers))
+            .Map(_ => requested);
 
-        var removesLastManager = current.Exists(c => c.CanManageOperators) && !requested.CanManageOperators && otherOperatorManagers == 0;
-        return removesLastManager
+    /// <summary>Whether <paramref name="grantor"/> may take operator rights away; the last operator manager keeps theirs.</summary>
+    public static Result<Unit, Error> OperatorRevocation(Subject grantor, OperatorAttributes current, int otherOperatorManagers) =>
+        MayManageOperators(grantor).Bind(_ => KeepsAnOperatorManager(current, keepsRight: false, otherOperatorManagers));
+
+    private static Result<Unit, Error> MayManage(Subject grantor, string customerCode) =>
+        grantor switch
+        {
+            Subject.Operator => Unit.Value,
+            Subject.CustomerUser user when user.ActiveCustomer == customerCode && user.Attributes.CanManageUsers => Unit.Value,
+            _ => Error.Forbidden("grant.not-allowed", "You cannot change memberships of this customer."),
+        };
+
+    private static Result<Unit, Error> KeepsAnAdministrator(Maybe<MembershipAttributes> current, bool keepsRight, int otherAdministrators) =>
+        current.Exists(c => c.CanManageUsers) && !keepsRight && otherAdministrators == 0
+            ? Error.Conflict("grant.last-administrator", "The customer needs at least one user who can manage users.")
+            : Unit.Value;
+
+    private static Result<Unit, Error> MayManageOperators(Subject grantor) =>
+        grantor is Subject.Operator { Attributes.CanManageOperators: true }
+            ? Unit.Value
+            : Error.Forbidden("grant.not-allowed", "Only operators who manage operators can change operator rights.");
+
+    private static Result<Unit, Error> KeepsAnOperatorManager(Maybe<OperatorAttributes> current, bool keepsRight, int otherOperatorManagers) =>
+        current.Exists(c => c.CanManageOperators) && !keepsRight && otherOperatorManagers == 0
             ? Error.Conflict("grant.last-operator-manager", "At least one operator must be able to manage operators.")
-            : requested;
-    }
+            : Unit.Value;
 }

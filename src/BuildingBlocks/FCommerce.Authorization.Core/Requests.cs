@@ -100,7 +100,18 @@ public enum CatalogVisibility
     SignedInOnly,
 }
 
-/// <param name="ActiveCustomerActive">Whether the subject's active customer is active in the ERP (true when not applicable).</param>
-public sealed record AccessEnvironment(DateTimeOffset Now, CatalogVisibility CatalogVisibility, ImmutableHashSet<FeatureId> FeaturesOn, bool ActiveCustomerActive = true);
+/// <summary>The customer a customer user acts for, as the ERP has it.</summary>
+public enum ActiveCustomerStatus
+{
+    /// <summary>The subject does not act for a customer.</summary>
+    NotApplicable,
+    Active,
+
+    /// <summary>Inactive in the ERP, or not known at all.</summary>
+    Inactive,
+}
+
+/// <param name="ActiveCustomer">The status of the subject's active customer; a customer user is let in only for an active one.</param>
+public sealed record AccessEnvironment(DateTimeOffset Now, CatalogVisibility CatalogVisibility, ImmutableHashSet<FeatureId> FeaturesOn, ActiveCustomerStatus ActiveCustomer);
 
 public sealed record AccessRequest(Subject Subject, AccessAction Action, Resource Resource, AccessEnvironment Environment);

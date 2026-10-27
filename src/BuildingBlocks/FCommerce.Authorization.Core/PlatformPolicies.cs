@@ -57,7 +57,7 @@ public static class PlatformPolicies
             : PolicyResult.NotApplicable;
 
     private static PolicyResult InactiveCustomer(AccessRequest request) =>
-        request.Subject is Subject.CustomerUser && request.Resource.Owner.Exists(_ => !request.Environment.ActiveCustomerActive)
+        request.Subject is Subject.CustomerUser && request.Resource.Owner.Exists(_ => request.Environment.ActiveCustomer != ActiveCustomerStatus.Active)
             ? PolicyResult.Deny("customer-inactive")
             : PolicyResult.NotApplicable;
 

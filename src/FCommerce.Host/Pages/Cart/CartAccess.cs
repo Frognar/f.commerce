@@ -41,10 +41,14 @@ public sealed class CartAccess(CurrentUser user, AccessControl access, IQueryHan
             () => Task.FromResult(Maybe<CartOwner>.None));
     }
 
-    /// <summary>The order limit of the active membership; none when unlimited.</summary>
+    /// <summary>The order limit of the active membership; none when unlimited (a limit without its currency is a broken contract, not "unlimited").</summary>
     public async Task<Maybe<CartOrderLimit>> OrderLimitAsync(CancellationToken cancellationToken = default) =>
-        (await user.ActiveMembershipAsync(cancellationToken))
-            .Bind(m => from amount in m.OrderLimit.ToMaybe() from currency in m.OrderLimitCurrency.ToMaybe() select new CartOrderLimit(amount, currency));
+        (await user.ActiveMembershipAsync(cancellationToken)).Bind(m => (m.OrderLimit, m.OrderLimitCurrency) switch
+        {
+            (null, null) => Maybe<CartOrderLimit>.None,
+            ({ } amount, { } currency) => new CartOrderLimit(amount, currency),
+            _ => throw new InvalidOperationException("Access reports an order limit without its amount or currency."),
+        });
 
     /// <summary>Products in the cart, for the header; none when the user has no cart.</summary>
     public async Task<Maybe<int>> SizeAsync(CancellationToken cancellationToken = default) =>

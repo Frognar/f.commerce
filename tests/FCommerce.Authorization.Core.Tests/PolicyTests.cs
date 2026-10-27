@@ -18,7 +18,7 @@ public sealed class PolicyTests
     private static readonly Subject SalespersonAnna = new Subject.Operator(Guid.NewGuid(), Anna, OperatorAttributes.Salesperson);
 
     private static AccessEnvironment Environment(CatalogVisibility visibility = CatalogVisibility.Public, bool customerActive = true, params FeatureId[] off) =>
-        new(Now, visibility, [.. Feature.All.Select(f => f.Id).Except(off)], customerActive);
+        new(Now, visibility, [.. Feature.All.Select(f => f.Id).Except(off)], customerActive ? ActiveCustomerStatus.Active : ActiveCustomerStatus.Inactive);
 
     private static Decision Decide(Subject subject, AccessAction action, Resource resource, AccessEnvironment? environment = null) =>
         PlatformPolicies.Decide(new AccessRequest(subject, action, resource, environment ?? Environment()));
@@ -77,6 +77,9 @@ public sealed class PolicyTests
     public void An_inactive_customer_locks_out_its_users()
     {
         AssertDenied(Decide(Admin, AccessAction.Read, new Resource.CustomerProfile("C1", default), Environment(customerActive: false)), "customer-inactive");
+        AssertDenied(
+            Decide(Admin, AccessAction.Read, new Resource.CustomerProfile("C1", default), Environment() with { ActiveCustomer = ActiveCustomerStatus.NotApplicable }),
+            "customer-inactive"); // a customer user's customer is known, or nothing is allowed
     }
 
     [Fact]
@@ -225,6 +228,22 @@ public sealed class GrantTests
 
         Assert.Equal("grant.last-administrator", demote.ShouldFail().Code);
         Assert.Equal(MembershipAttributes.Buyer, demoteWithAnother.ShouldSucceed());
+        Assert.Equal("grant.last-administrator", Grants.MembershipRevocation(Operator, "C1", MembershipAttributes.Administrator, otherAdministrators: 0).ShouldFail().Code);
+        Grants.MembershipRevocation(Admin, "C1", MembershipAttributes.Buyer, otherAdministrators: 0).ShouldSucceed();
+        Assert.Equal("grant.not-allowed", Grants.MembershipRevocation(Buyer, "C1", MembershipAttributes.Buyer, otherAdministrators: 1).ShouldFail().Code);
+    }
+
+    [Fact]
+    public void A_limit_and_addresses_exist_only_with_the_right_to_order()
+    {
+        var limit = OrderLimit.Parse(500, "PLN").ShouldSucceed();
+        var buyer = MembershipAttributes.Buyer with { Ordering = new OrderingRight.Allowed(limit, DeliveryAddressScope.Of(["MAG", " MAG "])) };
+
+        Assert.Equal((true, limit), (buyer.CanOrder, buyer.OrderLimit.ShouldBeSome()));
+        Assert.Equal(["MAG"], Assert.IsType<DeliveryAddressScope.OnlyAddresses>(buyer.DeliveryAddresses).Codes);
+        Assert.False(MembershipAttributes.Accounting.CanOrder);
+        MembershipAttributes.Accounting.OrderLimit.ShouldBeNone();
+        Assert.Equal(DeliveryAddressScope.All, MembershipAttributes.Accounting.DeliveryAddresses);
     }
 
     [Fact]
@@ -236,6 +255,9 @@ public sealed class GrantTests
         Assert.Equal("grant.not-allowed", Grants.Operator(salesperson, default, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
         Assert.Equal("grant.not-allowed", Grants.Operator(Admin, default, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
         Assert.Equal("grant.last-operator-manager", Grants.Operator(Operator, OperatorAttributes.PlatformAdministrator, OperatorAttributes.Salesperson, 0).ShouldFail().Code);
+        Assert.Equal("grant.last-operator-manager", Grants.OperatorRevocation(Operator, OperatorAttributes.PlatformAdministrator, 0).ShouldFail().Code);
+        Grants.OperatorRevocation(Operator, OperatorAttributes.Salesperson, 0).ShouldSucceed();
+        Assert.Equal("grant.not-allowed", Grants.OperatorRevocation(salesperson, OperatorAttributes.Salesperson, 1).ShouldFail().Code);
     }
 }
 

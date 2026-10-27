@@ -28,6 +28,7 @@ public sealed class ModelingRulesTests
         ["FCommerce.Authorization.Core.Resource+Order"] = "customer codes stay text in the shared building block",
         ["FCommerce.Authorization.Core.Resource+Orders"] = "customer codes stay text in the shared building block",
         ["FCommerce.Authorization.Core.Resource+ShoppingLists"] = "customer codes stay text in the shared building block",
+        ["FCommerce.Authorization.Core.DeliveryAddressScope+OnlyAddresses"] = "address codes stay text in the shared building block (never empty: NonEmptyArray)",
         ["FCommerce.Catalog.Domain.SearchEntry"] = "a document of the search index: texts already resolved from a valid product",
         ["FCommerce.Catalog.Domain.Facet"] = "built from search results for display",
         ["FCommerce.Catalog.Domain.FacetValue"] = "built from search results for display",
@@ -40,20 +41,6 @@ public sealed class ModelingRulesTests
     /// </summary>
     private static readonly string[] KnownViolations =
     [
-        // Phase 2: Access and Authorization.Core
-        "FCommerce.Access.Domain.Account",
-        "FCommerce.Access.Domain.ApiKey",
-        "FCommerce.Access.Domain.ApiKeyParts",
-        "FCommerce.Access.Domain.Applicant",
-        "FCommerce.Access.Domain.ApplicantCompany",
-        "FCommerce.Access.Domain.CompanyAddress",
-        "FCommerce.Access.Domain.ErpContactSync+Contact",
-        "FCommerce.Access.Domain.Membership",
-        "FCommerce.Access.Domain.OneTimeToken",
-        "FCommerce.Access.Domain.RegistrationStatus+Approved",
-        "FCommerce.Access.Domain.RegistrationStatus+Rejected",
-        "FCommerce.Authorization.Core.DeliveryAddressScope+OnlyAddresses",
-
         // Phase 3: Documents
         "FCommerce.Documents.Domain.DocumentAmounts",
         "FCommerce.Documents.Domain.DocumentContent",

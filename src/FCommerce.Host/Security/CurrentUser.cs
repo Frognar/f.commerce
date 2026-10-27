@@ -110,22 +110,42 @@ public sealed class CurrentUser(
                 op => Task.FromResult<Subject>(new Subject.Operator(
                     session.UserId,
                     EmailAddress.Parse(session.Email).Match(e => e, e => throw new InvalidOperationException(e.Message)),
-                    new OperatorAttributes(op.CanManageSettings, op.CanManageOperators, op.CanDecideRegistrations, op.CustomerScope == "all" ? CustomerScope.All : CustomerScope.AsSalesperson))),
+                    new OperatorAttributes(op.CanManageSettings, op.CanManageOperators, op.CanDecideRegistrations, Scope(op.CustomerScope)))),
                 async () => (await ActiveMembershipAsync(cancellationToken)).Match<Subject>(
                     membership => new Subject.CustomerUser(session.UserId, membership.CustomerCode, Attributes(membership)),
                     () => new Subject.SignedInUser(session.UserId))),
             () => Task.FromResult(Subject.Anonymous));
 
+    /// <summary>The membership as Access reports it; a value that does not fit is a broken contract, never fewer limits.</summary>
     private static MembershipAttributes Attributes(MembershipView view) =>
         new(
-            view.CanOrder,
-            view.OrderScope == "company" ? OrderScope.Company : OrderScope.Own,
-            from amount in view.OrderLimit.ToMaybe()
-            from currency in view.OrderLimitCurrency.ToMaybe().Bind(code => Currency.Parse(code).ToMaybe())
-            select new Money(amount, currency),
+            view.CanOrder
+                ? new OrderingRight.Allowed(Limit(view), DeliveryAddressScope.Of(view.DeliveryAddressCodes ?? []))
+                : OrderingRight.NotAllowed,
+            view.OrderScope switch
+            {
+                "company" => OrderScope.Company,
+                "own" => OrderScope.Own,
+                _ => throw new InvalidOperationException($"Access reports an unknown order scope '{view.OrderScope}'."),
+            },
             view.CanViewDocuments,
-            view.CanManageUsers,
-            view.DeliveryAddressCodes.ToMaybe().Match(codes => DeliveryAddressScope.Only([.. codes]), () => DeliveryAddressScope.All));
+            view.CanManageUsers);
+
+    private static Maybe<OrderLimit> Limit(MembershipView view) =>
+        (view.OrderLimit, view.OrderLimitCurrency) switch
+        {
+            (null, null) => Maybe<OrderLimit>.None,
+            ({ } value, { } code) => OrderLimit.Parse(value, code).Match(Maybe.Some, error => throw new InvalidOperationException($"Access reports an invalid order limit: {error.Message}")),
+            _ => throw new InvalidOperationException("Access reports an order limit without its amount or currency."),
+        };
+
+    private static CustomerScope Scope(string scope) =>
+        scope switch
+        {
+            "all" => CustomerScope.All,
+            "as-salesperson" => CustomerScope.AsSalesperson,
+            _ => throw new InvalidOperationException($"Access reports an unknown customer scope '{scope}'."),
+        };
 }
 
 /// <summary>The policy decision point for the current request; the environment comes from the platform settings.</summary>
@@ -135,8 +155,11 @@ public sealed class AccessControl(CurrentUser user, IQueryHandler<GetPlatformSet
     {
         var current = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         var subject = await user.SubjectAsync(cancellationToken);
-        var activeCustomerActive = subject is not Subject.CustomerUser customerUser
-            || (await user.CompaniesAsync(cancellationToken)).FirstOrNone(c => c.Code == customerUser.ActiveCustomer).Exists(c => c.Active);
+        var activeCustomer = subject is Subject.CustomerUser customerUser
+            ? (await user.CompaniesAsync(cancellationToken)).FirstOrNone(c => c.Code == customerUser.ActiveCustomer).Exists(c => c.Active)
+                ? ActiveCustomerStatus.Active
+                : ActiveCustomerStatus.Inactive
+            : ActiveCustomerStatus.NotApplicable;
         return PlatformPolicies.Decide(new AccessRequest(
             subject,
             action,
@@ -146,7 +169,7 @@ public sealed class AccessControl(CurrentUser user, IQueryHandler<GetPlatformSet
                 Enums.Parse<CatalogVisibility>(current.CatalogVisibility)
                     .Match(visibility => visibility, error => throw new InvalidOperationException($"Settings report an unknown catalog visibility: {error.Message}")),
                 [.. current.Features.Where(f => f.On).Choose(f => FeatureId.Parse(f.Id).ToMaybe())],
-                activeCustomerActive)));
+                activeCustomer)));
     }
 
     public async Task<bool> CanAsync(AccessAction action, Resource resource, CancellationToken cancellationToken = default) =>

@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
+using FCommerce.Access.Domain;
+using FCommerce.SharedKernel.Results;
 
 namespace FCommerce.Access.Security;
 
@@ -14,9 +16,12 @@ internal static class PasswordHashing
     private const int HashBytes = 32;
 
     /// <summary>A valid hash of a random password: verifying against it costs the same as a real check.</summary>
-    public static readonly string Decoy = Hash(Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)));
+    public static readonly string Decoy = Format(Convert.ToBase64String(RandomNumberGenerator.GetBytes(24)));
 
-    public static string Hash(string password)
+    /// <summary>Only a password that passed the policy is hashed.</summary>
+    public static PasswordHash Hash(ValidPassword password) => Secrets.Valid(PasswordHash.Parse(Format(password.Value)));
+
+    private static string Format(string password)
     {
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         var hash = Rfc2898DeriveBytes.Pbkdf2(Encoding.UTF8.GetBytes(password), salt, Iterations, HashAlgorithmName.SHA256, HashBytes);
@@ -41,15 +46,15 @@ internal static class PasswordHashing
 internal static class Tokens
 {
     /// <summary>A new token for a link (URL-safe) and the hash to store.</summary>
-    public static (string Token, string Hash) New()
+    public static (string Token, SecretHash Hash) New()
     {
         var token = Base64UrlEncode(RandomNumberGenerator.GetBytes(32));
-        return (token, HashOf(token));
+        return (token, Secrets.Valid(SecretHash.Parse(HashOf(token))));
     }
 
     public static string HashOf(string token) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 
-    public static string NewSecurityStamp() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16));
+    public static SecurityStamp NewSecurityStamp() => Secrets.Valid(SecurityStamp.Parse(Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16))));
 
     private static string Base64UrlEncode(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -59,11 +64,11 @@ internal static class Tokens
 internal static class ApiKeySecrets
 {
     /// <summary>A new key: the identifier, the secret, and the hash of the secret to store.</summary>
-    public static (string Id, string Secret, string Hash) New()
+    public static (ApiKeyId Id, string Secret, SecretHash Hash) New()
     {
-        var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(Domain.ApiKeyFormat.IdLength / 2));
+        var id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(ApiKeyFormat.IdLength / 2));
         var secret = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        return (id, secret, HashOf(secret));
+        return (Secrets.Valid(ApiKeyId.Parse(id)), secret, Secrets.Valid(SecretHash.Parse(HashOf(secret))));
     }
 
     public static string HashOf(string secret) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(secret)));
@@ -73,4 +78,12 @@ internal static class ApiKeySecrets
 
     public static bool Matches(string storedHash, string secret) =>
         CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(storedHash), Encoding.UTF8.GetBytes(HashOf(secret)));
+}
+
+internal static class Secrets
+{
+    /// <summary>A value this shell generated itself; failing its domain rules is a bug.</summary>
+    public static T Valid<T>(Result<T, Error> generated)
+        where T : notnull =>
+        generated.Match(value => value, error => throw new InvalidOperationException($"A generated secret is invalid: {error.Message}"));
 }

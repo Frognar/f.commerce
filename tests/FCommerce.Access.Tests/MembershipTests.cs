@@ -1,24 +1,18 @@
 using FCommerce.Access.Domain;
 using FCommerce.Authorization.Core;
-using FCommerce.SharedKernel.Contact;
-using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
+using static FCommerce.Access.Tests.AccessValues;
 
 namespace FCommerce.Access.Tests;
 
 public sealed class MembershipTests
 {
-    private static EmailAddress Email(string value) => EmailAddress.Parse(value).ShouldSucceed();
-
-    private static Account Account(string email, AccountStatus status = AccountStatus.Active, Maybe<OperatorAttributes> op = default) =>
-        new(Guid.NewGuid(), Email(email), PersonName.Parse("Jan").ShouldSucceed(), Values.Culture("pl"), status, "hash", "stamp", 0, default, op);
-
-    private static Membership Member(Account account, string customer, MembershipSource source = MembershipSource.Erp, Maybe<MembershipAttributes> attributes = default) =>
-        new(account.Id, customer, attributes.ValueOr(MembershipAttributes.Buyer), source, source == MembershipSource.Erp ? "C1" : Maybe<string>.None);
+    private static Membership Member(Account account, string customer, MembershipSource? source = null, Maybe<MembershipAttributes> attributes = default) =>
+        new(account.Id, Customer(customer), attributes.ValueOr(MembershipAttributes.Buyer), source ?? new MembershipSource.Erp(ContactId("C1")));
 
     private static ErpContactSync.Contact Contact(string email, string id = "C1") =>
-        new(id, Email(email), PersonName.Parse("Jan Kowalski").ShouldSucceed(), MembershipAttributes.Administrator);
+        new(ContactId(id), Email(email), PersonName.Parse("Jan Kowalski").ShouldSucceed(), MembershipAttributes.Administrator);
 
     [Fact]
     public void Operators_disabled_accounts_and_existing_members_are_not_admitted()
@@ -39,20 +33,21 @@ public sealed class MembershipTests
         var current = Member(account, "K1");
 
         Assert.Equal("membership.single-customer", MembershipRules.Admit(account, [current], false, Member(account, "K2")).ShouldFail().Code);
-        Assert.Equal("K2", MembershipRules.Admit(account, [current], true, Member(account, "K2")).ShouldSucceed().CustomerCode);
-        Assert.Equal("K1", MembershipRules.Admit(default, [], false, Member(account, "K1")).ShouldSucceed().CustomerCode);
+        Assert.Equal("K2", MembershipRules.Admit(account, [current], true, Member(account, "K2")).ShouldSucceed().CustomerCode.Value);
+        Assert.Equal("K1", MembershipRules.Admit(default, [], false, Member(account, "K1")).ShouldSucceed().CustomerCode.Value);
     }
 
     [Fact]
-    public void Rights_carry_every_attribute_the_ui_edits()
+    public void A_limit_and_addresses_belong_to_the_right_to_order()
     {
-        var limit = new Money(5000, Currency.Parse("PLN").ShouldSucceed());
-        var rights = new MembershipRights(false, OrderScope.Company, true, true, limit, DeliveryAddressScope.Only(["MAG"]));
+        var buyer = MembershipRights.Parse(true, OrderScope.Own, false, false, 5000m, "pln", Maybe.Some<IReadOnlyList<string>>([" MAG", "BUD", "MAG"])).ShouldSucceed();
+        var accountant = MembershipRights.Parse(false, OrderScope.Company, true, false, 5000m, "PLN", Maybe.Some<IReadOnlyList<string>>(["MAG"])).ShouldSucceed();
 
-        var changed = rights.ApplyTo(MembershipAttributes.Buyer);
-
-        Assert.Equal(rights, MembershipRights.Of(changed));
-        Assert.Equal(new MembershipAttributes(false, OrderScope.Company, limit, true, true, DeliveryAddressScope.Only(["MAG"])), changed);
+        var allowed = Assert.IsType<OrderingRight.Allowed>(buyer.Ordering);
+        Assert.Equal((5000m, "PLN"), (allowed.Limit.ShouldBeSome().Value.Amount, allowed.Limit.ShouldBeSome().Value.Currency.Code));
+        Assert.Equal(["MAG", "BUD"], Assert.IsType<DeliveryAddressScope.OnlyAddresses>(allowed.Addresses).Codes);
+        Assert.Equal(new MembershipAttributes(OrderingRight.NotAllowed, OrderScope.Company, true, false), accountant);
+        accountant.OrderLimit.ShouldBeNone();
     }
 
     [Theory]
@@ -62,31 +57,45 @@ public sealed class MembershipTests
     [InlineData(2000000000, "membership.order-limit-too-large")]
     public void An_order_limit_is_positive_with_at_most_two_decimal_places(decimal amount, string code)
     {
-        Assert.Equal(code, MembershipRights.Limit(amount, "PLN").ShouldFail().Code);
+        Assert.Equal(code, OrderLimit.Parse(amount, "PLN").ShouldFail().Code);
     }
 
     [Fact]
-    public void An_order_limit_needs_a_valid_currency_and_none_means_unlimited()
+    public void An_order_limit_needs_a_valid_currency()
     {
-        Assert.Equal(new Money(1500.5m, Currency.Parse("EUR").ShouldSucceed()), MembershipRights.Limit(1500.5m, "eur").ShouldSucceed().ShouldBeSome());
-        Assert.Equal("currency.invalid", MembershipRights.Limit(100, "").ShouldFail().Code);
-        MembershipRights.Limit(Maybe<decimal>.None, "").ShouldSucceed().ShouldBeNone();
+        Assert.Equal("EUR", OrderLimit.Parse(1500.5m, "eur").ShouldSucceed().Value.Currency.Code);
+        Assert.Equal(("currency.invalid", "orderLimitCurrency"), (OrderLimit.Parse(100, "").ShouldFail().Code, OrderLimit.Parse(100, "").ShouldFail().Field.ValueOr("")));
     }
 
     [Fact]
     public void No_listed_delivery_address_means_all_of_them()
     {
-        Assert.Equal(DeliveryAddressScope.All, MembershipRights.Addresses(Maybe<IReadOnlyList<string>>.None).ShouldSucceed());
-        Assert.Equal(DeliveryAddressScope.All, MembershipRights.Addresses(Maybe.Some<IReadOnlyList<string>>([" ", ""])).ShouldSucceed());
-        Assert.Equal(DeliveryAddressScope.Only(["MAG", "BUD"]), MembershipRights.Addresses(Maybe.Some<IReadOnlyList<string>>([" MAG", "BUD", "MAG"])).ShouldSucceed());
+        Assert.Equal(DeliveryAddressScope.All, DeliveryAddressScope.Of([]));
+        Assert.Equal(DeliveryAddressScope.All, DeliveryAddressScope.Of([" ", ""]));
+        Assert.Equal(
+            "membership.too-many-addresses",
+            MembershipRights.Parse(true, OrderScope.Own, false, false, default, "", Maybe.Some<IReadOnlyList<string>>([.. Enumerable.Range(0, 101).Select(i => $"A{i}")])).ShouldFail().Code);
     }
 
     [Fact]
-    public void Templates_fall_back_to_buyer()
+    public void Templates_are_named_and_an_unknown_one_is_an_error()
     {
-        Assert.Equal(MembershipAttributes.Accounting, MembershipRules.FromTemplate("accounting"));
-        Assert.Equal(MembershipAttributes.Buyer, MembershipRules.FromTemplate("king"));
-        Assert.Equal(MembershipAttributes.Buyer, MembershipRules.FromTemplate(default));
+        Assert.Equal(MembershipAttributes.Accounting, MembershipAttributes.Template(" accounting ").ShouldSucceed());
+        Assert.Equal("membership.template-unknown", MembershipAttributes.Template("king").ShouldFail().Code);
+    }
+
+    [Fact]
+    public void A_customer_user_is_not_made_an_operator_and_revoking_operator_rights_signs_out()
+    {
+        var buyer = Account("jan@firma.pl");
+        var colleague = Account("ewa@firma.pl");
+        var op = Account("op@seller.pl", op: OperatorAttributes.Salesperson);
+
+        Assert.Equal("operator.customer-user", OperatorRules.Appoint(buyer, [Member(buyer, "K1")], OperatorAttributes.Salesperson).ShouldFail().Code);
+        Assert.Equal("operator.account-disabled", OperatorRules.Appoint(Account(status: AccountStatus.Disabled), [], OperatorAttributes.Salesperson).ShouldFail().Code);
+        Assert.True(OperatorRules.Appoint(colleague, [], OperatorAttributes.Salesperson).ShouldSucceed().IsOperator);
+        var revoked = OperatorRules.Revoke(op, Stamp("new"));
+        Assert.Equal((false, "new"), (revoked.IsOperator, revoked.SecurityStamp.Value));
     }
 
     [Fact]
@@ -94,7 +103,7 @@ public sealed class MembershipTests
     {
         var other = Account("ewa@firma.pl");
         var steps = ErpContactSync.Plan(
-            "K1",
+            Customer("K1"),
             [Contact("jan@firma.pl"), Contact("ewa@firma.pl", "C2"), Contact("jan@firma.pl", "C3")],
             [new ErpContactSync.Member(other, [Member(other, "K9")])],
             multiCustomer: true);
@@ -105,7 +114,7 @@ public sealed class MembershipTests
             step =>
             {
                 var grant = Assert.IsType<ErpContactSync.Step.Grant>(step);
-                Assert.Equal((other.Id, "K1", MembershipSource.Erp, "C2"), (grant.Membership.UserId, grant.Membership.CustomerCode, grant.Membership.Source, grant.Membership.ErpContactId));
+                Assert.Equal((other.Id, "K1", new MembershipSource.Erp(ContactId("C2"))), (grant.Membership.UserId, grant.Membership.CustomerCode.Value, grant.Membership.Source));
                 Assert.Equal(MembershipAttributes.Administrator, grant.Membership.Attributes);
             });
     }
@@ -117,7 +126,7 @@ public sealed class MembershipTests
         var elsewhere = Account("ewa@firma.pl");
 
         var steps = ErpContactSync.Plan(
-            "K1",
+            Customer("K1"),
             [Contact("op@seller.pl"), Contact("ewa@firma.pl", "C2")],
             [new ErpContactSync.Member(op, []), new ErpContactSync.Member(elsewhere, [Member(elsewhere, "K9")])],
             multiCustomer: false);
@@ -135,7 +144,7 @@ public sealed class MembershipTests
         var manual = Account("manual@firma.pl");
 
         var steps = ErpContactSync.Plan(
-            "K1",
+            Customer("K1"),
             [Contact("jan@firma.pl")],
             [
                 new ErpContactSync.Member(kept, [Member(kept, "K1")]),
@@ -145,6 +154,6 @@ public sealed class MembershipTests
             multiCustomer: true);
 
         var revoke = Assert.IsType<ErpContactSync.Step.Revoke>(Assert.Single(steps));
-        Assert.Equal((removed.Id, "K1"), (revoke.Membership.UserId, revoke.Membership.CustomerCode));
+        Assert.Equal((removed.Id, "K1"), (revoke.Membership.UserId, revoke.Membership.CustomerCode.Value));
     }
 }

@@ -1,17 +1,18 @@
 using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Localization;
 using FCommerce.SharedKernel.Optional;
+using FCommerce.SharedKernel.Persistence;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Access.Domain;
 
-public sealed record CompanyAddress(string Street, PostalCode PostalCode, string City, CountryCode Country);
+public sealed record CompanyAddress(FormText Street, PostalCode PostalCode, FormText City, CountryCode Country);
 
 /// <summary>The company as the applicant describes it (the customer itself always comes from the ERP).</summary>
-public sealed record ApplicantCompany(string Name, TaxId TaxId, CompanyAddress Address);
+public sealed record ApplicantCompany(FormText Name, TaxId TaxId, CompanyAddress Address);
 
-public sealed record Applicant(PersonName Name, EmailAddress Email, Maybe<string> Phone, CultureCode Culture);
+public sealed record Applicant(PersonName Name, EmailAddress Email, Maybe<FormText> Phone, CultureCode Culture);
 
 public abstract record RegistrationStatus
 {
@@ -24,13 +25,48 @@ public abstract record RegistrationStatus
     public sealed record PendingDecision : RegistrationStatus;
 
     /// <param name="CustomerCode">The ERP customer the applicant was linked to.</param>
-    public sealed record Approved(Guid DecidedBy, DateTimeOffset At, string CustomerCode) : RegistrationStatus;
+    public sealed record Approved(Guid DecidedBy, DateTimeOffset At, CustomerCode CustomerCode) : RegistrationStatus;
 
-    public sealed record Rejected(Guid DecidedBy, DateTimeOffset At, string Reason) : RegistrationStatus;
+    public sealed record Rejected(Guid DecidedBy, DateTimeOffset At, FormText Reason) : RegistrationStatus;
 }
 
-/// <summary>A company's request for platform access, decided by an operator.</summary>
-public sealed record RegistrationRequest(Guid Id, ApplicantCompany Company, Applicant Applicant, DateTimeOffset SubmittedAt, RegistrationStatus Status);
+/// <summary>A company's request for platform access, decided by an operator; made only by <see cref="Registrations.Submit"/> and decided once.</summary>
+public sealed record RegistrationRequest : IPersistedValue<RegistrationRequest, RegistrationRequest.Stored>
+{
+    private RegistrationRequest(Stored stored) => Value = stored;
+
+    private Stored Value { get; }
+
+    public Guid Id => Value.Id;
+
+    public ApplicantCompany Company => Value.Company;
+
+    public Applicant Applicant => Value.Applicant;
+
+    public DateTimeOffset SubmittedAt => Value.SubmittedAt;
+
+    public RegistrationStatus Status => Value.Status;
+
+    internal static RegistrationRequest Submit(Guid id, ApplicantCompany company, Applicant applicant, DateTimeOffset now) =>
+        new(new Stored(id, company, applicant, now, RegistrationStatus.Pending));
+
+    internal RegistrationRequest Decide(RegistrationStatus status) => new(Value with { Status = status });
+
+    /// <param name="Status">Decided no earlier than submitted.</param>
+    public sealed record Stored(Guid Id, ApplicantCompany Company, Applicant Applicant, DateTimeOffset SubmittedAt, RegistrationStatus Status);
+
+    static bool IPersistedValue<RegistrationRequest, Stored>.IsWellFormed(Stored raw) =>
+        raw.Status switch
+        {
+            RegistrationStatus.Approved approved => approved.At >= raw.SubmittedAt,
+            RegistrationStatus.Rejected rejected => rejected.At >= raw.SubmittedAt,
+            _ => true,
+        };
+
+    static RegistrationRequest IPersistedValue<RegistrationRequest, Stored>.Rehydrate(Stored raw) => new(raw);
+
+    Stored IPersistedValue<RegistrationRequest, Stored>.Dehydrate() => Value;
+}
 
 /// <summary>The public form as submitted; missing required texts arrive as empty.</summary>
 [RawInput]
@@ -62,25 +98,26 @@ public static class Registrations
     public static Validated<(ApplicantCompany Company, Applicant Applicant)> Validate(UnvalidatedRegistration input) =>
         Create
             .Apply(ValidateCompany(input))
-            .Apply(((Func<PersonName, EmailAddress, Maybe<string>, CultureCode, Applicant>)((name, email, phone, culture) => new Applicant(name, email, phone, culture)))
+            .Apply(((Func<PersonName, EmailAddress, Maybe<FormText>, CultureCode, Applicant>)((name, email, phone, culture) => new Applicant(name, email, phone, culture)))
                 .Apply(Domain.PersonName.Parse(input.PersonName).ToValidated("personName"))
                 .Apply(EmailAddress.Parse(input.Email).ToValidated("email"))
-                .Apply(Maybe.ParseOptional(input.Phone, phone => Text(phone, MaxPhone, "phone")).ToValidated("phone"))
+                .Apply(Maybe.ParseOptional(input.Phone, phone => FormText.Parse(phone, MaxPhone, "phone")).ToValidated("phone"))
                 .Apply(CultureCode.Parse(input.Culture).ToValidated("culture")))
             .Apply((input.AcceptedTerms
                 ? Result.Ok<bool, Error>(true)
                 : Error.Validation("registration.terms-required", "The terms must be accepted.")).ToValidated("acceptedTerms"));
 
     public static RegistrationRequest Submit(Guid id, ApplicantCompany company, Applicant applicant, DateTimeOffset now) =>
-        new(id, company, applicant, now, RegistrationStatus.Pending);
+        RegistrationRequest.Submit(id, company, applicant, now);
 
-    public static Result<RegistrationRequest, Error> Approve(RegistrationRequest request, Guid operatorId, string customerCode, DateTimeOffset now) =>
-        Pending(request).Map(pending => pending with { Status = new RegistrationStatus.Approved(operatorId, now, customerCode) });
+    public static Result<RegistrationRequest, Error> Approve(RegistrationRequest request, Guid operatorId, CustomerCode customerCode, DateTimeOffset now) =>
+        Pending(request).Map(pending => pending.Decide(new RegistrationStatus.Approved(operatorId, now, customerCode)));
 
-    public static Result<RegistrationRequest, Error> Reject(RegistrationRequest request, Guid operatorId, string reason, DateTimeOffset now) =>
+    /// <summary>The rejected request with the reason the applicant is told.</summary>
+    public static Result<(RegistrationRequest Request, FormText Reason), Error> Reject(RegistrationRequest request, Guid operatorId, string reason, DateTimeOffset now) =>
         from pending in Pending(request)
-        from text in Text(reason, MaxReason, "reason", allowControl: true).MapError(e => e with { Field = "reason" })
-        select pending with { Status = new RegistrationStatus.Rejected(operatorId, now, text) };
+        from text in FormText.Parse(reason, MaxReason, "reason", allowControl: true).MapError(e => e with { Field = "reason" })
+        select (pending.Decide(new RegistrationStatus.Rejected(operatorId, now, text)), text);
 
     private static Result<RegistrationRequest, Error> Pending(RegistrationRequest request) =>
         request.Status is RegistrationStatus.PendingDecision
@@ -89,25 +126,12 @@ public static class Registrations
 
     private static Validated<ApplicantCompany> ValidateCompany(UnvalidatedRegistration input) =>
         CountryCode.Parse(input.Country).ToValidated("country").Match(
-            country => ((Func<string, TaxId, string, PostalCode, string, ApplicantCompany>)((name, taxId, street, postal, city) =>
+            country => ((Func<FormText, TaxId, FormText, PostalCode, FormText, ApplicantCompany>)((name, taxId, street, postal, city) =>
                     new ApplicantCompany(name, taxId, new CompanyAddress(street, postal, city, country))))
-                .Apply(Text(input.CompanyName, MaxCompanyName, "company-name").ToValidated("companyName"))
+                .Apply(FormText.Parse(input.CompanyName, MaxCompanyName, "company-name").ToValidated("companyName"))
                 .Apply(TaxId.Parse(input.TaxId).ToValidated("taxId"))
-                .Apply(Text(input.Street, MaxStreet, "street").ToValidated("street"))
+                .Apply(FormText.Parse(input.Street, MaxStreet, "street").ToValidated("street"))
                 .Apply(PostalCode.Parse(input.PostalCode, country).ToValidated("postalCode"))
-                .Apply(Text(input.City, MaxCity, "city").ToValidated("city")),
+                .Apply(FormText.Parse(input.City, MaxCity, "city").ToValidated("city")),
             errors => Validated.Invalid<ApplicantCompany>(errors[0], [.. errors.Skip(1)]));
-
-    /// <summary>A required text; <paramref name="allowControl"/> admits line breaks (free-form reasons).</summary>
-    private static Result<string, Error> Text(string raw, int maxLength, string code, bool allowControl = false)
-    {
-        var value = raw.Trim();
-        return value switch
-        {
-            "" => Error.Validation($"{code}.empty", "This field is required."),
-            { Length: var length } when length > maxLength => Error.Validation($"{code}.too-long", $"At most {maxLength} characters."),
-            _ when !allowControl && value.Any(char.IsControl) => Error.Validation($"{code}.invalid", "Control characters are not allowed."),
-            _ => value,
-        };
-    }
 }

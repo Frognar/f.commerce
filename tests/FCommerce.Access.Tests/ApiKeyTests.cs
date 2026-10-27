@@ -4,12 +4,13 @@ using FCommerce.SharedKernel.Contact;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.Testing;
+using static FCommerce.Access.Tests.AccessValues;
 
 namespace FCommerce.Access.Tests;
 
 public sealed class ApiKeyFormatTests
 {
-    private const string Id = "0123456789ab";
+    private static readonly ApiKeyId Id = ApiKeyId.Parse("0123456789ab").ShouldSucceed();
     private static readonly string Secret = new('A', ApiKeyFormat.SecretLength);
 
     [Fact]
@@ -49,9 +50,9 @@ public sealed class ApiKeyFormatTests
 
         var parts = ApiKeyFormat.Parse(ApiKeyFormat.Compose(id, secret)).ShouldSucceed();
         Assert.Equal(secret, parts.Secret);
-        Assert.True(ApiKeySecrets.Matches(hash, secret));
-        Assert.False(ApiKeySecrets.Matches(hash, new string('B', ApiKeyFormat.SecretLength)));
-        Assert.NotEqual(secret, hash);
+        Assert.True(ApiKeySecrets.Matches(hash.Value, secret));
+        Assert.False(ApiKeySecrets.Matches(hash.Value, new string('B', ApiKeyFormat.SecretLength)));
+        Assert.NotEqual(secret, hash.Value);
     }
 }
 
@@ -59,12 +60,17 @@ public sealed class ApiKeyTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 26, 12, 0, 0, TimeSpan.Zero);
 
-    private static Account Owner(AccountStatus status = AccountStatus.Active, string stamp = "stamp") =>
-        new(Guid.NewGuid(), EmailAddress.Parse("jan@firma.pl").ShouldSucceed(), PersonName.Parse("Jan").ShouldSucceed(), Values.Culture("pl"),
-            status, "hash", stamp, 0, default, default);
+    private static readonly ApiKeyId KeyId = ApiKeyId.Parse("0123456789ab").ShouldSucceed();
 
-    private static ApiKey Issued(Account owner, Maybe<int> validForDays = default) =>
-        ApiKey.Issue(Guid.NewGuid(), owner, "C1", " ERP integration ", validForDays, "0123456789ab", "hash", Now).ShouldSucceed();
+    private static Account Owner(AccountStatus status = AccountStatus.Active, string stamp = "stamp") => Account(status: status, stamp: stamp);
+
+    private static Result<ApiKey, Error> Issue(Account owner, string name = " ERP integration ", Maybe<int> validForDays = default) =>
+        from parsed in ApiKeyName.Parse(name)
+        from validity in ApiKey.Validity(validForDays)
+        from key in ApiKey.Issue(Guid.NewGuid(), owner, Customer("C1"), parsed, validity, KeyId, Secret(), Now)
+        select key;
+
+    private static ApiKey Issued(Account owner, Maybe<int> validForDays = default) => Issue(owner, validForDays: validForDays).ShouldSucceed();
 
     [Fact]
     public void An_issued_key_belongs_to_the_owner_with_their_current_stamp()
@@ -72,9 +78,9 @@ public sealed class ApiKeyTests
         var owner = Owner();
         var key = Issued(owner, 90);
 
-        Assert.Equal("ERP integration", key.Name);
+        Assert.Equal("ERP integration", key.Name.Value);
         Assert.Equal(owner.Id, key.UserId);
-        Assert.Equal("stamp", key.SecurityStamp);
+        Assert.Equal("stamp", key.SecurityStamp.Value);
         Assert.Equal(Now.AddDays(90), key.ExpiresAt.ShouldBeSome());
         Assert.False(key.IsRevoked);
     }
@@ -91,20 +97,21 @@ public sealed class ApiKeyTests
     [InlineData("tab\tname", "api-key.name-invalid")]
     public void A_key_needs_a_clean_name(string name, string code)
     {
-        Assert.Equal(code, ApiKey.Issue(Guid.NewGuid(), Owner(), "C1", name, default, "id", "hash", Now).ShouldFail().Code);
+        Assert.Equal(code, Issue(Owner(), name).ShouldFail().Code);
     }
 
     [Fact]
     public void The_name_is_limited_and_the_validity_is_one_of_the_offered()
     {
-        Assert.Equal("api-key.name-too-long", ApiKey.Issue(Guid.NewGuid(), Owner(), "C1", new string('x', 101), default, "id", "hash", Now).ShouldFail().Code);
-        Assert.Equal("api-key.validity-invalid", ApiKey.Issue(Guid.NewGuid(), Owner(), "C1", "name", 7, "id", "hash", Now).ShouldFail().Code);
+        Assert.Equal("api-key.name-too-long", Issue(Owner(), new string('x', 101)).ShouldFail().Code);
+        Assert.Equal("api-key.validity-invalid", Issue(Owner(), validForDays: 7).ShouldFail().Code);
     }
 
     [Fact]
     public void Only_an_active_user_gets_a_key()
     {
-        Assert.Equal("api-key.account-inactive", ApiKey.Issue(Guid.NewGuid(), Owner(AccountStatus.Disabled), "C1", "name", default, "id", "hash", Now).ShouldFail().Code);
+        Assert.Equal("api-key.account-inactive", Issue(Owner(AccountStatus.Disabled)).ShouldFail().Code);
+        Assert.Equal("api-key.account-inactive", Issue(Invited()).ShouldFail().Code);
     }
 
     [Fact]
@@ -124,8 +131,8 @@ public sealed class ApiKeyTests
         Assert.Equal(ApiKeyFailure.SecretMismatch, key.Check(false, owner, true, Now).ShouldFail());
         Assert.Equal(ApiKeyFailure.Revoked, key.Revoke(Now).Check(true, owner, true, Now).ShouldFail());
         Assert.Equal(ApiKeyFailure.Expired, key.Check(true, owner, true, Now.AddDays(30)).ShouldFail());
-        Assert.Equal(ApiKeyFailure.OwnerChanged, key.Check(true, owner with { SecurityStamp = "new" }, true, Now).ShouldFail());
-        Assert.Equal(ApiKeyFailure.OwnerChanged, key.Check(true, owner with { Status = AccountStatus.Disabled }, true, Now).ShouldFail());
+        Assert.Equal(ApiKeyFailure.OwnerChanged, key.Check(true, Credentials.ChangePassword(owner, Hash("other"), Stamp("new")).ShouldSucceed(), true, Now).ShouldFail());
+        Assert.Equal(ApiKeyFailure.OwnerChanged, key.Check(true, Credentials.Disable(owner, owner.SecurityStamp), true, Now).ShouldFail());
         Assert.Equal(ApiKeyFailure.NoCustomerAccess, key.Check(true, owner, false, Now).ShouldFail());
     }
 
@@ -144,8 +151,20 @@ public sealed class ApiKeyTests
         var key = Issued(Owner());
 
         Assert.True(key.ShouldRecordUse(Now));
-        var used = key with { LastUsedAt = Now };
+        var used = key.RecordUse(Now);
         Assert.False(used.ShouldRecordUse(Now.AddMinutes(4)));
         Assert.True(used.ShouldRecordUse(Now.AddMinutes(5)));
+    }
+
+    [Fact]
+    public void A_stored_key_is_never_used_revoked_or_expiring_before_its_creation()
+    {
+        var stored = new ApiKey.Stored(
+            Guid.NewGuid(), Guid.NewGuid(), Customer("C1"), ApiKeyName.Parse("k").ShouldSucceed(), KeyId, Secret(), Stamp(), Now, default, default, default);
+
+        Assert.True(IsWellFormed<ApiKey, ApiKey.Stored>(stored));
+        Assert.False(IsWellFormed<ApiKey, ApiKey.Stored>(stored with { ExpiresAt = Now }));
+        Assert.False(IsWellFormed<ApiKey, ApiKey.Stored>(stored with { LastUsedAt = Now.AddSeconds(-1) }));
+        Assert.False(IsWellFormed<ApiKey, ApiKey.Stored>(stored with { RevokedAt = Now.AddDays(-1) }));
     }
 }

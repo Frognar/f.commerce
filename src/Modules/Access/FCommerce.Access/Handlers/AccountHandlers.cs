@@ -27,7 +27,7 @@ internal sealed class SignInHandler(AccessStore store) : ICommandHandler<SignInC
         var hash = account.Bind(a => a.PasswordHash);
 
         // Always run the hash check, so the response time does not reveal whether the account exists.
-        var matches = PasswordHashing.Verify(hash.ValueOr(PasswordHashing.Decoy), command.Password.OrEmpty())
+        var matches = PasswordHashing.Verify(hash.Map(h => h.Value).ValueOr(PasswordHashing.Decoy), command.Password.OrEmpty())
             && hash.Match(_ => true, () => false);
         var outcome = SignInRules.Decide(account, matches, store.Now);
 
@@ -43,7 +43,7 @@ internal sealed class SignInHandler(AccessStore store) : ICommandHandler<SignInC
         }
 
         return outcome.Result.Match(
-            signedIn => Result.Ok<SignedIn, Error>(new SignedIn(signedIn.Id, signedIn.SecurityStamp, signedIn.Culture.Value)),
+            signedIn => Result.Ok<SignedIn, Error>(new SignedIn(signedIn.Id, signedIn.SecurityStamp.Value, signedIn.Culture.Value)),
             failure => failure == SignInFailure.LockedOut
                 ? Error.Forbidden("access.locked-out", "Too many failed attempts. Try again later.")
                 : Error.Forbidden("access.invalid-credentials", "Invalid e-mail or password."));
@@ -56,7 +56,7 @@ internal sealed class GetSessionHandler(AccessStore store) : IQueryHandler<GetSe
     {
         var account = (await store.Db.Accounts.AsNoTracking().SingleOrNoneAsync(a => a.Id == query.UserId, cancellationToken))
             .Map(row => row.ToDomain())
-            .Where(a => a.Status == AccountStatus.Active && a.SecurityStamp == query.SecurityStamp);
+            .Where(a => a.State is AccountState.Active && a.SecurityStamp.Value == query.SecurityStamp);
 
         return await account.Match(
             async active =>
@@ -79,7 +79,7 @@ internal sealed class GetUserContactHandler(AccessStore store) : IQueryHandler<G
     public async Task<Result<UserContact, Error>> HandleAsync(GetUserContact query, CancellationToken cancellationToken = default) =>
         (await store.Db.Accounts.AsNoTracking().SingleOrNoneAsync(a => a.Id == query.UserId, cancellationToken))
             .Map(row => row.ToDomain())
-            .Where(account => account.Status == AccountStatus.Active)
+            .Where(account => account.State is AccountState.Active)
             .Map(account => new UserContact(account.Id, account.Email.Value, account.Name.Value, account.Culture.Value))
             .ToResult(() => Error.NotFound("access.user-not-found", "No active user with this id."));
 }
@@ -89,8 +89,9 @@ internal sealed class GetInvitationHandler(AccessStore store) : IQueryHandler<Ge
     public async Task<Result<InvitationView, Error>> HandleAsync(GetInvitation query, CancellationToken cancellationToken = default) =>
         (await store.FindTokenAccountAsync(query.Token.OrEmpty(), cancellationToken))
             .Where(found => found.Token.ToDomain().Redeem(TokenPurpose.Invitation, store.Now).Match(_ => true, _ => false))
-            .Where(found => found.Account.Status != nameof(AccountStatus.Disabled))
-            .Map(found => new InvitationView(found.Account.Email, found.Account.Name))
+            .Map(found => found.Account.ToDomain())
+            .Where(account => account.State is not AccountState.Disabled)
+            .Map(account => new InvitationView(account.Email.Value, account.Name.Value))
             .ToResult(InvalidToken);
 
     internal static Error InvalidToken() => Error.Validation("token.invalid", "The link is invalid or has expired.");
@@ -108,17 +109,17 @@ internal sealed class AcceptInvitationHandler(AccessStore store) : ICommandHandl
         var account = accountRow.ToDomain();
         var result =
             from redeemed in tokenRow.ToDomain().Redeem(TokenPurpose.Invitation, store.Now)
-            from password in PasswordPolicy.Check(newPassword, account.Email.Value)
+            from password in PasswordPolicy.Check(newPassword, account.Email)
             from activated in Credentials.Activate(account, PasswordHashing.Hash(password), Tokens.NewSecurityStamp())
             select (redeemed, activated);
 
         return result.MapAsync(async changed =>
         {
-            tokenRow.UsedAt = changed.redeemed.UsedAt.OrNull();
+            tokenRow.Apply(changed.redeemed);
             accountRow.Apply(changed.activated);
             store.Audit(account.Id, "account.invitation-accepted", $"account:{account.Id}");
             await store.Db.SaveChangesAsync(cancellationToken);
-            return new SignedIn(account.Id, changed.activated.SecurityStamp, account.Culture.Value);
+            return new SignedIn(account.Id, changed.activated.SecurityStamp.Value, account.Culture.Value);
         });
     }
 }
@@ -131,7 +132,7 @@ internal sealed class RequestPasswordResetHandler(AccessStore store) : ICommandH
                 email => store.FindAsync(email, cancellationToken),
                 () => Task.FromResult(Maybe<AccountRow>.None)))
             .Map(row => row.ToDomain())
-            .Where(a => a.Status == AccountStatus.Active);
+            .Where(a => a.State is AccountState.Active);
 
         // The same answer for unknown accounts.
         return await account.Match(active => IssueAsync(active, cancellationToken), () => Task.FromResult(Result.Ok<Unit, Error>(Unit.Value)));
@@ -163,13 +164,13 @@ internal sealed class ResetPasswordHandler(AccessStore store) : ICommandHandler<
         var account = accountRow.ToDomain();
         var result =
             from redeemed in tokenRow.ToDomain().Redeem(TokenPurpose.PasswordReset, store.Now)
-            from password in PasswordPolicy.Check(newPassword, account.Email.Value)
+            from password in PasswordPolicy.Check(newPassword, account.Email)
             from changed in Credentials.ChangePassword(account, PasswordHashing.Hash(password), Tokens.NewSecurityStamp())
             select (redeemed, changed);
 
         return result.MapAsync(async done =>
         {
-            tokenRow.UsedAt = done.redeemed.UsedAt.OrNull();
+            tokenRow.Apply(done.redeemed);
             accountRow.Apply(done.changed);
             store.Audit(account.Id, "account.password-reset", $"account:{account.Id}");
             await store.Db.SaveChangesAsync(cancellationToken);
@@ -185,7 +186,7 @@ internal sealed class ChangePasswordHandler(AccessStore store) : ICommandHandler
         var current = command.CurrentPassword.OrEmpty();
         var verified = (await store.FindAsync(command.UserId, cancellationToken))
             .Map(row => (Row: row, Account: row.ToDomain()))
-            .Where(found => found.Account.PasswordHash.Exists(hash => PasswordHashing.Verify(hash, current)));
+            .Where(found => found.Account.PasswordHash.Exists(hash => PasswordHashing.Verify(hash.Value, current)));
 
         return await verified.Match(
             found => ChangeAsync(found.Row, found.Account, command.NewPassword.OrEmpty(), cancellationToken),
@@ -196,7 +197,7 @@ internal sealed class ChangePasswordHandler(AccessStore store) : ICommandHandler
     private Task<Result<SignedIn, Error>> ChangeAsync(AccountRow row, Account account, string newPassword, CancellationToken cancellationToken)
     {
         var result =
-            from password in PasswordPolicy.Check(newPassword, account.Email.Value)
+            from password in PasswordPolicy.Check(newPassword, account.Email)
             from changed in Credentials.ChangePassword(account, PasswordHashing.Hash(password), Tokens.NewSecurityStamp())
             select changed;
 
@@ -205,7 +206,7 @@ internal sealed class ChangePasswordHandler(AccessStore store) : ICommandHandler
             row.Apply(changed);
             store.Audit(account.Id, "account.password-changed", $"account:{account.Id}");
             await store.Db.SaveChangesAsync(cancellationToken);
-            return new SignedIn(changed.Id, changed.SecurityStamp, changed.Culture.Value);
+            return new SignedIn(changed.Id, changed.SecurityStamp.Value, changed.Culture.Value);
         });
     }
 }
@@ -222,11 +223,12 @@ internal sealed class ChangeProfileHandler(AccessStore store) : ICommandHandler<
         var profile = ((Func<PersonName, CultureCode, (PersonName Name, CultureCode Culture)>)((name, culture) => (name, culture)))
             .Apply(PersonName.Parse(command.Name.OrEmpty()).ToValidated("name"))
             .Apply(CultureCode.Parse(command.Culture.OrEmpty()).ToValidated("culture"))
-            .ToResult();
+            .ToResult()
+            .Bind(changed => row.ToDomain().ChangeProfile(changed.Name, changed.Culture));
 
         return profile.MapAsync(async changed =>
         {
-            row.Apply(row.ToDomain() with { Name = changed.Name, Culture = changed.Culture });
+            row.Apply(changed);
             await store.Db.SaveChangesAsync(cancellationToken);
             return Unit.Value;
         });
