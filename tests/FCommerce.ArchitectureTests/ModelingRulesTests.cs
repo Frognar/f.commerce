@@ -41,16 +41,6 @@ public sealed class ModelingRulesTests
     /// </summary>
     private static readonly string[] KnownViolations =
     [
-        // Phase 5: Cart
-        "FCommerce.Cart.Domain.CartCommand+ChangeQuantity",
-        "FCommerce.Cart.Domain.CartCommand+RemoveItem",
-        "FCommerce.Cart.Domain.CartEvent+ItemQuantityChanged",
-        "FCommerce.Cart.Domain.CartEvent+ItemRemoved",
-        "FCommerce.Cart.Domain.CartItem",
-        "FCommerce.Cart.Domain.LineIssue+Backorder",
-        "FCommerce.Cart.Domain.LineIssue+DiscontinuedShortage",
-        "FCommerce.Cart.Domain.StockFacts",
-
         // Phase 6: Pricing and Inventory
         "FCommerce.Pricing.Domain.CurrencyTotal",
         "FCommerce.Pricing.Domain.Price",

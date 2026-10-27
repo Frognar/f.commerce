@@ -8,10 +8,23 @@ namespace FCommerce.Cart.Domain;
 /// <param name="Discontinued">No longer replenished: only the stock on hand can be ordered.</param>
 public sealed record ProductFacts(bool Discontinued);
 
-/// <summary>What can be ordered from stock now, and when more arrives.</summary>
-public sealed record StockFacts(decimal Available, Maybe<DateOnly> NextDelivery)
+/// <summary>What can be ordered from stock now: zero or more, as stock shows it to buyers.</summary>
+public sealed record AvailableQuantity
 {
-    public static StockFacts None { get; } = new(0, Maybe<DateOnly>.None);
+    private AvailableQuantity(decimal value) => Value = value;
+
+    public static AvailableQuantity None { get; } = new(0m);
+
+    public decimal Value { get; }
+
+    /// <summary>A quantity on hand; below zero (an ERP correction in progress) there is none.</summary>
+    public static AvailableQuantity Of(decimal raw) => raw > 0 ? new AvailableQuantity(raw) : None;
+}
+
+/// <summary>What can be ordered from stock now, and when more arrives.</summary>
+public sealed record StockFacts(AvailableQuantity Available, Maybe<DateOnly> NextDelivery)
+{
+    public static StockFacts None { get; } = new(AvailableQuantity.None, Maybe<DateOnly>.None);
 }
 
 public abstract record LineIssue
@@ -27,10 +40,10 @@ public abstract record LineIssue
     public sealed record NoPrice : LineIssue;
 
     /// <summary>Discontinued and more than is on hand.</summary>
-    public sealed record DiscontinuedShortage(decimal Available) : LineIssue;
+    public sealed record DiscontinuedShortage(AvailableQuantity Available) : LineIssue;
 
     /// <summary>Replenished, but more than is on hand: the rest is delivered later.</summary>
-    public sealed record Backorder(decimal Available, Maybe<DateOnly> NextDelivery) : LineIssue;
+    public sealed record Backorder(AvailableQuantity Available, Maybe<DateOnly> NextDelivery) : LineIssue;
 
     /// <summary>Whether the issue prevents ordering the cart.</summary>
     public bool Blocks => this is not Backorder;
@@ -67,8 +80,11 @@ public sealed record LineReview(CartItem Item, EquatableArray<LineIssue> Issues)
     public bool Blocks => Issues.Any(issue => issue.Blocks);
 }
 
-/// <param name="CanOrder">No line and no cart issue prevents ordering.</param>
-public sealed record CartReviewResult(EquatableArray<LineReview> Lines, EquatableArray<CartIssue> Issues, bool CanOrder);
+public sealed record CartReviewResult(EquatableArray<LineReview> Lines, EquatableArray<CartIssue> Issues)
+{
+    /// <summary>No line and no cart issue prevents ordering.</summary>
+    public bool CanOrder => Issues.IsEmpty && !Lines.Any(line => line.Blocks);
+}
 
 /// <summary>Whether a cart can be ordered, and what the buyer should know about each line.</summary>
 public static class CartReview
@@ -79,9 +95,9 @@ public static class CartReview
     /// <param name="netTotals">Net value of the priced lines, per currency.</param>
     public static CartReviewResult Review(
         CartState cart,
-        Func<string, Maybe<ProductFacts>> product,
-        Func<string, bool> priced,
-        Func<string, StockFacts> stock,
+        Func<Sku, Maybe<ProductFacts>> product,
+        Func<Sku, bool> priced,
+        Func<Sku, StockFacts> stock,
         EquatableArray<Money> netTotals,
         OrderTerms terms)
     {
@@ -96,13 +112,13 @@ public static class CartReview
             .. terms.OrderLimit.Where(limit => netTotals.Any(total => total.Currency != limit.Currency || total.Amount > limit.Amount))
                 .Map(limit => (CartIssue)new CartIssue.OverLimit(limit)).AsEnumerable(),
         ];
-        return new CartReviewResult(lines, issues, issues.IsEmpty && !lines.Any(line => line.Blocks));
+        return new CartReviewResult(lines, issues);
     }
 
     private static EquatableArray<LineIssue> LineIssues(CartItem item, ProductFacts facts, bool priced, StockFacts stock) =>
     [
         .. priced ? Array.Empty<LineIssue>() : [new LineIssue.NoPrice()],
-        .. item.Quantity <= stock.Available ? Array.Empty<LineIssue>()
+        .. item.Quantity.Value <= stock.Available.Value ? Array.Empty<LineIssue>()
             : facts.Discontinued ? [new LineIssue.DiscontinuedShortage(stock.Available)]
             : [new LineIssue.Backorder(stock.Available, stock.NextDelivery)],
     ];

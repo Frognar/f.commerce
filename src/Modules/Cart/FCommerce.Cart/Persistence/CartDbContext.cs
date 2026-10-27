@@ -1,3 +1,9 @@
+using System.Text.Json;
+using FCommerce.Cart.Contracts;
+using FCommerce.Cart.Domain;
+using FCommerce.Infrastructure.Persistence;
+using FCommerce.Infrastructure.Serialization;
+using FCommerce.SharedKernel.Collections;
 using Microsoft.EntityFrameworkCore;
 
 namespace FCommerce.Cart.Persistence;
@@ -31,7 +37,10 @@ internal sealed class CartDbContext(DbContextOptions<CartDbContext> options) : D
     }
 }
 
-/// <summary>A shopping list; the items are JSON (SKU and quantity, in order).</summary>
+/// <summary>
+/// A shopping list; the items are JSON (SKU and quantity, in order, never none). <see cref="NameKey"/> and
+/// <see cref="ItemCount"/> are written from the list by <see cref="Apply"/>.
+/// </summary>
 internal sealed class ShoppingListRow
 {
     public Guid Id { get; init; }
@@ -51,4 +60,28 @@ internal sealed class ShoppingListRow
     public DateTimeOffset CreatedAt { get; init; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    public static ShoppingListRow From(Guid id, CartOwner owner, ShoppingList list, DateTimeOffset now)
+    {
+        var row = new ShoppingListRow { Id = id, UserId = owner.UserId, CustomerCode = owner.CustomerCode, Name = string.Empty, NameKey = string.Empty, Items = string.Empty, CreatedAt = now };
+        row.Apply(list, now);
+        return row;
+    }
+
+    public void Apply(ShoppingList list, DateTimeOffset now)
+    {
+        Name = list.Name.Value;
+        NameKey = list.Name.Key;
+        Items = JsonSerializer.Serialize(list.Items, PersistenceJson.Options);
+        ItemCount = list.Items.Count;
+        UpdatedAt = now;
+    }
+
+    public ShoppingList ToDomain()
+    {
+        var name = Persisted.Rehydrate<ShoppingListName, string>(Name);
+        return name.Key == NameKey
+            ? new ShoppingList(name, Stored.Required(JsonSerializer.Deserialize<NonEmptyArray<CartItem>>(Items, PersistenceJson.Options), "shopping list items"))
+            : throw Stored.Corrupt($"shopping list {Id} has the key '{NameKey}' for the name '{Name}'");
+    }
 }

@@ -17,6 +17,8 @@ namespace FCommerce.Cart;
 /// <summary>Reading and writing an owner's lists; another owner's list is never found.</summary>
 internal sealed class ShoppingListStore(CartDbContext db, TimeProvider time)
 {
+    public DateTimeOffset Now => time.GetUtcNow();
+
     public IQueryable<ShoppingListRow> Of(CartOwner owner) =>
         db.ShoppingLists.Where(l => l.UserId == owner.UserId && l.CustomerCode == owner.CustomerCode);
 
@@ -26,16 +28,6 @@ internal sealed class ShoppingListStore(CartDbContext db, TimeProvider time)
 
     public Task<List<string>> KeysAsync(CartOwner owner, CancellationToken cancellationToken) =>
         Of(owner).Select(l => l.NameKey).ToListAsync(cancellationToken);
-
-    public static EquatableArray<CartItem> Items(ShoppingListRow row) =>
-        JsonSerializer.Deserialize<EquatableArray<CartItem>>(row.Items, PersistenceJson.Options);
-
-    public void Write(ShoppingListRow row, EquatableArray<CartItem> items)
-    {
-        row.Items = JsonSerializer.Serialize(items, PersistenceJson.Options);
-        row.ItemCount = items.Count;
-        row.UpdatedAt = time.GetUtcNow();
-    }
 
     public async Task<Result<Unit, Error>> SaveAsync(CancellationToken cancellationToken)
     {
@@ -52,7 +44,7 @@ internal sealed class ShoppingListStore(CartDbContext db, TimeProvider time)
     }
 }
 
-internal sealed class SaveCartAsShoppingListHandler(CartStore carts, ShoppingListStore lists, CartDbContext db, TimeProvider time)
+internal sealed class SaveCartAsShoppingListHandler(CartStore carts, ShoppingListStore lists, CartDbContext db)
     : ICommandHandler<SaveCartAsShoppingList, Result<Guid, Error>>
 {
     public async Task<Result<Guid, Error>> HandleAsync(SaveCartAsShoppingList command, CancellationToken cancellationToken = default)
@@ -61,18 +53,7 @@ internal sealed class SaveCartAsShoppingListHandler(CartStore carts, ShoppingLis
         var keys = await lists.KeysAsync(command.Owner, cancellationToken);
         return await ShoppingLists.New(command.Name.OrEmpty(), cart.Items, keys).BindAsync(async list =>
         {
-            var now = time.GetUtcNow();
-            var row = new ShoppingListRow
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = command.Owner.UserId,
-                CustomerCode = command.Owner.CustomerCode,
-                Name = list.Name.Value,
-                NameKey = list.Name.Key,
-                Items = "[]",
-                CreatedAt = now,
-            };
-            lists.Write(row, list.Items);
+            var row = ShoppingListRow.From(Guid.CreateVersion7(), command.Owner, list, lists.Now);
             db.ShoppingLists.Add(row);
             return (await lists.SaveAsync(cancellationToken)).Map(_ => row.Id);
         });
@@ -85,12 +66,10 @@ internal sealed class RenameShoppingListHandler(ShoppingListStore lists) : IComm
     {
         var keys = await lists.KeysAsync(command.Owner, cancellationToken);
         return await (await lists.FindAsync(command.Owner, command.ListId, cancellationToken))
-            .Bind(row => ShoppingLists.Rename(command.Name.OrEmpty(), Persisted.Rehydrate<ShoppingListName, string>(row.Name), keys).Map(name => (row, name)))
-            .BindAsync(async renamed =>
+            .Bind(row => ShoppingLists.Rename(row.ToDomain(), command.Name.OrEmpty(), keys).Map(renamed => (row, renamed)))
+            .BindAsync(async changed =>
             {
-                renamed.row.Name = renamed.name.Value;
-                renamed.row.NameKey = renamed.name.Key;
-                lists.Write(renamed.row, ShoppingListStore.Items(renamed.row));
+                changed.row.Apply(changed.renamed, lists.Now);
                 return await lists.SaveAsync(cancellationToken);
             });
     }
@@ -106,14 +85,19 @@ internal sealed class DeleteShoppingListHandler(ShoppingListStore lists, CartDbC
         });
 }
 
+/// <summary>Zero removes the item (the last one cannot be removed).</summary>
 internal sealed class ChangeShoppingListItemHandler(ShoppingListStore lists) : ICommandHandler<ChangeShoppingListItem, Result<Unit, Error>>
 {
     public async Task<Result<Unit, Error>> HandleAsync(ChangeShoppingListItem command, CancellationToken cancellationToken = default) =>
         await (await lists.FindAsync(command.Owner, command.ListId, cancellationToken))
-            .Bind(row => ShoppingLists.ChangeQuantity(ShoppingListStore.Items(row), command.Sku.OrEmpty(), command.Quantity).Map(items => (row, items)))
-            .BindAsync(async changed =>
+            .Bind(row =>
+                from sku in Carts.Sku(command.Sku.OrEmpty())
+                from quantity in command.Quantity == 0 ? Result.Ok<Maybe<CartQuantity>, Error>(Maybe<CartQuantity>.None) : CartQuantity.Parse(command.Quantity).Map(Maybe.Some)
+                from changed in ShoppingLists.ChangeQuantity(row.ToDomain(), sku, quantity)
+                select (row, changed))
+            .BindAsync(async change =>
             {
-                lists.Write(changed.row, changed.items);
+                change.row.Apply(change.changed, lists.Now);
                 return await lists.SaveAsync(cancellationToken);
             });
 }
@@ -123,13 +107,13 @@ internal sealed class ShoppingListToCartHandler(ShoppingListStore lists, CartSto
 {
     public async Task<Result<CartChange, Error>> HandleAsync(ShoppingListToCart command, CancellationToken cancellationToken = default) =>
         await (await lists.FindAsync(command.Owner, command.ListId, cancellationToken)).BindAsync(async row =>
-        {
-            var (known, rejected) = await carts.KnownAsync(ShoppingListStore.Items(row).Select(i => new CartItemData(i.Sku, i.Quantity)), cancellationToken);
-            CartCommand decision = command.Replace
-                ? new CartCommand.ReplaceItems(known, CartSource.ShoppingList)
-                : new CartCommand.AddItems(known, CartSource.ShoppingList);
-            return await carts.DecideAsync(command.Owner, decision, known.Count, rejected, cancellationToken);
-        });
+            await (await carts.KnownAsync(row.ToDomain().Items.Select(i => new CartItemData(i.Sku.Value, i.Quantity.Value)), cancellationToken)).BindAsync(read =>
+            {
+                CartCommand decision = command.Replace
+                    ? new CartCommand.ReplaceItems(read.Known, CartSource.ShoppingList)
+                    : new CartCommand.AddItems(read.Known, CartSource.ShoppingList);
+                return carts.DecideAsync(command.Owner, decision, read.Known.Count, read.Rejected, cancellationToken);
+            }));
 }
 
 internal sealed class GetShoppingListsHandler(ShoppingListStore lists) : IQueryHandler<GetShoppingLists, IReadOnlyList<ShoppingListSummary>>
@@ -147,17 +131,17 @@ internal sealed class GetShoppingListHandler(ShoppingListStore lists, IQueryHand
     public async Task<Result<ShoppingListView, Error>> HandleAsync(GetShoppingList query, CancellationToken cancellationToken = default) =>
         await (await lists.FindAsync(query.Owner, query.ListId, cancellationToken)).MapAsync(async row =>
         {
-            var items = ShoppingListStore.Items(row);
-            var offered = (await products.HandleAsync(new GetProductsBySku(query.Cultures.OrEmpty(), [.. items.Select(i => i.Sku)]), cancellationToken))
+            var list = row.ToDomain();
+            var offered = (await products.HandleAsync(new GetProductsBySku(query.Cultures.OrEmpty(), [.. list.Items.Select(i => i.Sku.Value)]), cancellationToken))
                 .Match(found => found.ToDictionary(p => p.Sku), _ => []);
             return new ShoppingListView(
                 row.Id,
-                row.Name,
+                list.Name.Value,
                 row.UpdatedAt,
-                [.. items.Select(item =>
+                [.. list.Items.Select(item =>
                 {
-                    var product = offered.GetValueOrNone(item.Sku);
-                    return new ShoppingListItemView(item.Sku, item.Quantity, product.Map(p => p.Name).OrNull(), product.Map(p => p.Unit).OrNull(), product.Bind(p => p.ImageId.ToMaybe()).OrNull());
+                    var product = offered.GetValueOrNone(item.Sku.Value);
+                    return new ShoppingListItemView(item.Sku.Value, item.Quantity.Value, product.Map(p => p.Name).OrNull(), product.Map(p => p.Unit).OrNull(), product.Bind(p => p.ImageId.ToMaybe()).OrNull());
                 })]);
         });
 }

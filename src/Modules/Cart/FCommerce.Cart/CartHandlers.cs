@@ -56,26 +56,31 @@ internal sealed class CartStore(
         .Map(decision => new CartChange(decision.State.Items.Count, added, rejected));
 
     /// <summary>Valid items of products the catalog offers; the others as rejections.</summary>
-    public async Task<(IReadOnlyList<CartItem> Known, IReadOnlyList<CartRejection> Rejected)> KnownAsync(IEnumerable<CartItemData> items, CancellationToken cancellationToken)
+    public async Task<Result<(IReadOnlyList<CartItem> Known, IReadOnlyList<CartRejection> Rejected), Error>> KnownAsync(IEnumerable<CartItemData> items, CancellationToken cancellationToken)
     {
         var checkedItems = items
-            .Select(item => (Text: $"{item.Sku} {item.Quantity}", Item: from sku in Carts.Sku(item.Sku.OrEmpty()) from quantity in Carts.Quantity(item.Quantity) select new CartItem(sku, quantity)))
+            .Select(item => (Text: $"{item.Sku} {item.Quantity}", Item: Carts.Item(new UnvalidatedCartItem(item.Sku.OrEmpty(), item.Quantity))))
             .ToList();
         var valid = checkedItems.Choose(c => c.Item.ToMaybe()).ToList();
-        var offered = await OfferedAsync(valid.Select(i => i.Sku).Distinct().ToList(), cancellationToken);
-        return (
-            [.. valid.Where(item => offered.Contains(item.Sku))],
-            [
-                .. checkedItems.Choose(c => c.Item.Match(_ => Maybe<CartRejection>.None, error => Rejection(Maybe<int>.None, c.Text, error))),
-                .. valid.Where(item => !offered.Contains(item.Sku)).Select(item => Unknown(Maybe<int>.None, item.Sku)),
-            ]);
+        return (await OfferedAsync(valid.Select(i => i.Sku).Distinct().ToList(), cancellationToken)).Map(offered =>
+            ((IReadOnlyList<CartItem>)[.. valid.Where(item => offered.Contains(item.Sku))],
+             (IReadOnlyList<CartRejection>)
+             [
+                 .. checkedItems.Choose(c => c.Item.Match(_ => Maybe<CartRejection>.None, error => Rejection(Maybe<int>.None, c.Text, error))),
+                 .. valid.Where(item => !offered.Contains(item.Sku)).Select(item => Unknown(Maybe<int>.None, item.Sku.Value)),
+             ]));
     }
 
-    public async Task<IReadOnlySet<string>> OfferedAsync(IReadOnlyList<string> skus, CancellationToken cancellationToken) =>
+    /// <summary>The SKUs the catalog offers; a catalog that cannot answer is an error, not "no such product".</summary>
+    public async Task<Result<IReadOnlySet<Sku>, Error>> OfferedAsync(IReadOnlyList<Sku> skus, CancellationToken cancellationToken) =>
         skus.Count == 0
-            ? new HashSet<string>()
-            : (await products.HandleAsync(new GetProductsBySku([options.DefaultCulture], skus), cancellationToken))
-                .Match(found => found.Select(p => p.Sku).ToHashSet(), _ => []);
+            ? new HashSet<Sku>()
+            : (await products.HandleAsync(new GetProductsBySku([options.DefaultCulture], [.. skus.Select(sku => sku.Value)]), cancellationToken))
+                .Map(found => (IReadOnlySet<Sku>)found.Choose(p => Carts.Sku(p.Sku).ToMaybe()).ToHashSet());
+
+    /// <summary>The ordered items, read.</summary>
+    public static Result<IReadOnlyList<CartItem>, Error> Ordered(IEnumerable<UnvalidatedCartItem> items) =>
+        items.Select(Carts.Item).Traverse(item => item);
 
     public static CartRejection Rejection(Maybe<int> line, string text, Error error) =>
         new(line.OrNull(), text, error.Details.IsEmpty ? error.Code : error.Details[0].Code, error.Details.IsEmpty ? error.Message : error.Details[0].Message);
@@ -102,20 +107,16 @@ internal sealed class AddToCartHandler(CartStore carts) : ICommandHandler<AddToC
 {
     public Task<Result<CartChange, Error>> HandleAsync(AddToCart command, CancellationToken cancellationToken = default) =>
         CartStore.Source(command.Source).BindAsync(async source =>
-        {
-            var (known, rejected) = await carts.KnownAsync(command.Items.OrEmpty(), cancellationToken);
-            return await carts.DecideAsync(command.Owner, new CartCommand.AddItems(known, source), known.Select(i => i.Sku).Distinct().Count(), rejected, cancellationToken);
-        });
+            await (await carts.KnownAsync(command.Items.OrEmpty(), cancellationToken)).BindAsync(read =>
+                carts.DecideAsync(command.Owner, new CartCommand.AddItems(read.Known, source), read.Known.Select(i => i.Sku).Distinct().Count(), read.Rejected, cancellationToken)));
 }
 
 internal sealed class ReplaceCartHandler(CartStore carts) : ICommandHandler<ReplaceCart, Result<CartChange, Error>>
 {
     public Task<Result<CartChange, Error>> HandleAsync(ReplaceCart command, CancellationToken cancellationToken = default) =>
         CartStore.Source(command.Source).BindAsync(async source =>
-        {
-            var (known, rejected) = await carts.KnownAsync(command.Items.OrEmpty(), cancellationToken);
-            return await carts.DecideAsync(command.Owner, new CartCommand.ReplaceItems(known, source), known.Select(i => i.Sku).Distinct().Count(), rejected, cancellationToken);
-        });
+            await (await carts.KnownAsync(command.Items.OrEmpty(), cancellationToken)).BindAsync(read =>
+                carts.DecideAsync(command.Owner, new CartCommand.ReplaceItems(read.Known, source), read.Known.Select(i => i.Sku).Distinct().Count(), read.Rejected, cancellationToken)));
 }
 
 /// <summary>Parse the pasted text (pure) → keep the products the catalog offers → add them.</summary>
@@ -124,27 +125,33 @@ internal sealed class AddPastedLinesHandler(CartStore carts) : ICommandHandler<A
     public async Task<Result<CartChange, Error>> HandleAsync(AddPastedLines command, CancellationToken cancellationToken = default)
     {
         var pasted = QuickOrder.Parse(command.Text.OrEmpty());
-        var offered = await carts.OfferedAsync([.. pasted.Items.Select(i => i.Sku)], cancellationToken);
-        var known = pasted.Items.Where(item => offered.Contains(item.Sku)).ToList();
-        IReadOnlyList<CartRejection> rejected =
-        [
-            .. pasted.Errors.Select(e => CartStore.Rejection(e.Line, e.Text, e.Error)),
-            .. pasted.Items.Where(item => !offered.Contains(item.Sku)).Select(item => CartStore.Unknown(Maybe<int>.None, item.Sku)),
-        ];
-        return await carts.DecideAsync(command.Owner, new CartCommand.AddItems(known, CartSource.Paste), known.Count, rejected, cancellationToken);
+        return await (await carts.OfferedAsync([.. pasted.Items.Select(i => i.Sku)], cancellationToken)).BindAsync(offered =>
+        {
+            var known = pasted.Items.Where(item => offered.Contains(item.Sku)).ToList();
+            IReadOnlyList<CartRejection> rejected =
+            [
+                .. pasted.Errors.Select(e => CartStore.Rejection(e.Line, e.Text, e.Error)),
+                .. pasted.Items.Where(item => !offered.Contains(item.Sku)).Select(item => CartStore.Unknown(Maybe<int>.None, item.Sku.Value)),
+            ];
+            return carts.DecideAsync(command.Owner, new CartCommand.AddItems(known, CartSource.Paste), known.Count, rejected, cancellationToken);
+        });
     }
 }
 
 internal sealed class ChangeCartQuantityHandler(CartStore carts) : ICommandHandler<ChangeCartQuantity, Result<CartChange, Error>>
 {
+    /// <summary>Zero removes the item.</summary>
     public Task<Result<CartChange, Error>> HandleAsync(ChangeCartQuantity command, CancellationToken cancellationToken = default) =>
-        carts.DecideAsync(command.Owner, new CartCommand.ChangeQuantity(command.Sku.OrEmpty(), command.Quantity), 0, [], cancellationToken);
+        (from sku in Carts.Sku(command.Sku.OrEmpty())
+         from quantity in command.Quantity == 0 ? Result.Ok<Maybe<CartQuantity>, Error>(Maybe<CartQuantity>.None) : CartQuantity.Parse(command.Quantity).Map(Maybe.Some)
+         select (CartCommand)new CartCommand.ChangeQuantity(sku, quantity))
+        .BindAsync(change => carts.DecideAsync(command.Owner, change, 0, [], cancellationToken));
 }
 
 internal sealed class RemoveFromCartHandler(CartStore carts) : ICommandHandler<RemoveFromCart, Result<CartChange, Error>>
 {
     public Task<Result<CartChange, Error>> HandleAsync(RemoveFromCart command, CancellationToken cancellationToken = default) =>
-        carts.DecideAsync(command.Owner, new CartCommand.RemoveItem(command.Sku.OrEmpty()), 0, [], cancellationToken);
+        Carts.Sku(command.Sku.OrEmpty()).BindAsync(sku => carts.DecideAsync(command.Owner, new CartCommand.RemoveItem(sku), 0, [], cancellationToken));
 }
 
 internal sealed class ClearCartHandler(CartStore carts) : ICommandHandler<ClearCart, Result<CartChange, Error>>
@@ -156,12 +163,8 @@ internal sealed class ClearCartHandler(CartStore carts) : ICommandHandler<ClearC
 internal sealed class RemoveOrderedItemsHandler(CartStore carts) : ICommandHandler<RemoveOrderedItems, Result<CartChange, Error>>
 {
     public Task<Result<CartChange, Error>> HandleAsync(RemoveOrderedItems command, CancellationToken cancellationToken = default) =>
-        carts.DecideAsync(
-            command.Owner,
-            new CartCommand.RemoveOrdered(command.OrderId, [.. command.Items.OrEmpty().Select(item => new CartItem(item.Sku.OrEmpty(), item.Quantity))]),
-            0,
-            [],
-            cancellationToken);
+        CartStore.Ordered(command.Items.OrEmpty().Select(item => new UnvalidatedCartItem(item.Sku.OrEmpty(), item.Quantity))).BindAsync(items =>
+            carts.DecideAsync(command.Owner, new CartCommand.RemoveOrdered(command.OrderId, items), 0, [], cancellationToken));
 }
 
 /// <summary>
@@ -172,12 +175,13 @@ internal sealed class TakeOrderedItemsOut(CartStore carts) : IIntegrationEventHa
 {
     public async Task HandleAsync(OrderPlaced integrationEvent, CancellationToken cancellationToken = default)
     {
-        var removed = await carts.DecideAsync(
+        // Ordering published items it validated: an item that does not read is a broken contract.
+        var removed = await CartStore.Ordered(integrationEvent.Items.OrEmpty().Select(item => new UnvalidatedCartItem(item.Sku.OrEmpty(), item.Quantity))).BindAsync(items => carts.DecideAsync(
             new CartOwner(integrationEvent.PlacedBy, integrationEvent.CustomerCode),
-            new CartCommand.RemoveOrdered(integrationEvent.OrderId, [.. integrationEvent.Items.OrEmpty().Select(item => new CartItem(item.Sku.OrEmpty(), item.Quantity))]),
+            new CartCommand.RemoveOrdered(integrationEvent.OrderId, items),
             0,
             [],
-            cancellationToken);
+            cancellationToken));
         removed.Switch(_ => { }, error => throw new InvalidOperationException($"Taking order {integrationEvent.Number} out of the cart failed: {error.Code}"));
     }
 }

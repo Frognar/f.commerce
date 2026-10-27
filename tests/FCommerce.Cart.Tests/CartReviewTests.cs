@@ -3,6 +3,7 @@ using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
+using static FCommerce.Cart.Tests.CartValues;
 
 namespace FCommerce.Cart.Tests;
 
@@ -10,7 +11,10 @@ public sealed class CartReviewTests
 {
     private static readonly DateOnly Delivery = new(2026, 11, 3);
 
-    private static CartState Cart(params (string Sku, decimal Quantity)[] items) => CartState.Empty with { Items = [.. items.Select(i => new CartItem(i.Sku, i.Quantity))] };
+    private static CartState Cart(params (string Sku, decimal Quantity)[] items) =>
+        Carts.Decider.Fold(items.Length == 0 ? [] : [new CartEvent.ItemsAdded([.. items.Select(i => I(i.Sku, i.Quantity))], CartSource.Product)]);
+
+    private static StockFacts OnHand(decimal available, Maybe<DateOnly> delivery = default) => new(AvailableQuantity.Of(available), delivery);
 
     private static Money Pln(decimal amount) => new(amount, Currency.Parse("PLN").ShouldSucceed());
 
@@ -22,7 +26,7 @@ public sealed class CartReviewTests
             Cart(("A", quantity)),
             _ => gone ? Maybe<ProductFacts>.None : new ProductFacts(discontinued),
             _ => priced,
-            _ => new StockFacts(5, Delivery),
+            _ => OnHand(5, Delivery),
             [],
             OrderTerms.None).Lines[0];
 
@@ -46,14 +50,14 @@ public sealed class CartReviewTests
     {
         var line = Line(8);
 
-        Assert.Equal([new LineIssue.Backorder(5, Delivery)], line.Issues);
+        Assert.Equal([new LineIssue.Backorder(AvailableQuantity.Of(5), Delivery)], line.Issues);
         Assert.False(line.Blocks);
     }
 
     [Fact]
     public void More_than_on_hand_of_a_discontinued_product_blocks_ordering()
     {
-        Assert.Equal([new LineIssue.DiscontinuedShortage(5)], Line(8, discontinued: true).Issues);
+        Assert.Equal([new LineIssue.DiscontinuedShortage(AvailableQuantity.Of(5))], Line(8, discontinued: true).Issues);
         Assert.Empty(Line(5, discontinued: true).Issues);
         Assert.True(Line(5.001m, discontinued: true).Blocks);
     }
@@ -67,16 +71,16 @@ public sealed class CartReviewTests
     [Fact]
     public void Issues_of_a_line_add_up()
     {
-        Assert.Equal([new LineIssue.NoPrice(), new LineIssue.Backorder(5, Delivery)], Line(9, priced: false).Issues);
+        Assert.Equal([new LineIssue.NoPrice(), new LineIssue.Backorder(AvailableQuantity.Of(5), Delivery)], Line(9, priced: false).Issues);
     }
 
     [Fact]
     public void The_cart_can_be_ordered_only_without_blocking_issues()
     {
         var backorder = CartReview.Review(Cart(("A", 9)), _ => new ProductFacts(false), _ => true, _ => StockFacts.None, [], OrderTerms.None);
-        var blocked = CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => new StockFacts(5, default), [], new OrderTerms(true, Maybe<Money>.None));
+        var blocked = CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => OnHand(5), [], new OrderTerms(true, Maybe<Money>.None));
         var empty = CartReview.Review(CartState.Empty, _ => new ProductFacts(false), _ => true, _ => StockFacts.None, [], OrderTerms.None);
-        var noPrice = CartReview.Review(Cart(("A", 1), ("B", 1)), _ => new ProductFacts(false), sku => sku == "A", _ => new StockFacts(5, default), [], OrderTerms.None);
+        var noPrice = CartReview.Review(Cart(("A", 1), ("B", 1)), _ => new ProductFacts(false), sku => sku == S("A"), _ => OnHand(5), [], OrderTerms.None);
 
         Assert.True(backorder.CanOrder);
         Assert.Equal((false, (CartIssue)new CartIssue.CustomerBlocked()), (blocked.CanOrder, Assert.Single(blocked.Issues)));
@@ -85,7 +89,7 @@ public sealed class CartReviewTests
     }
 
     private static CartReviewResult Totals(EquatableArray<Money> netTotals, Maybe<Money> limit) =>
-        CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => new StockFacts(5, default), netTotals, new OrderTerms(false, limit));
+        CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => OnHand(5), netTotals, new OrderTerms(false, limit));
 
     [Fact]
     public void Lines_in_several_currencies_block_ordering()
@@ -102,5 +106,12 @@ public sealed class CartReviewTests
         Assert.Equal([new CartIssue.OverLimit(Pln(1000))], Totals([Pln(1000.01m)], Pln(1000)).Issues);
         Assert.Equal([new CartIssue.OverLimit(Pln(1000))], Totals([Eur(1)], Pln(1000)).Issues);
         Assert.True(Totals([Pln(1_000_000)], Maybe<Money>.None).CanOrder);
+    }
+
+    [Fact]
+    public void Stock_below_zero_is_none_available()
+    {
+        Assert.Equal(AvailableQuantity.None, AvailableQuantity.Of(-3));
+        Assert.Equal([new LineIssue.Backorder(AvailableQuantity.None, default)], CartReview.Review(Cart(("A", 1)), _ => new ProductFacts(false), _ => true, _ => OnHand(-3), [], OrderTerms.None).Lines[0].Issues);
     }
 }

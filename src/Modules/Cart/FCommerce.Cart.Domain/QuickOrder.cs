@@ -32,13 +32,16 @@ public static class QuickOrder
         }
 
         var read = lines.Select(line => (line.Number, line.Text, Item: Line(line.Text))).ToList();
+        var summed = read.Choose(r => r.Item.ToMaybe().Map(item => (r.Number, r.Text, Item: item)))
+            .GroupBy(r => r.Item.Sku)
+            .Select(group => (Last: group.Last(), Sum: Carts.Normalize(group.Select(r => r.Item)).Map(items => items[0])))
+            .ToList();
         return new PastedItems(
-            read.Choose(r => r.Item.ToMaybe())
-                .GroupBy(item => item.Sku)
-                .Select(group => new CartItem(group.Key, group.Sum(item => item.Quantity)))
-                .ToEquatableArray(),
-            read.Choose(r => r.Item.Match(_ => Maybe<PastedLineError>.None, error => new PastedLineError(r.Number, r.Text, error)))
-                .ToEquatableArray());
+            summed.Choose(s => s.Sum.ToMaybe()).ToEquatableArray(),
+            [
+                .. read.Choose(r => r.Item.Match(_ => Maybe<PastedLineError>.None, error => new PastedLineError(r.Number, r.Text, error))),
+                .. summed.Choose(s => s.Sum.Match(_ => Maybe<PastedLineError>.None, error => new PastedLineError(s.Last.Number, s.Last.Text, error))),
+            ]);
     }
 
     private static Result<CartItem, Error> Line(string text)
@@ -46,9 +49,9 @@ public static class QuickOrder
         var parts = Split(text);
         return parts.Length switch
         {
-            1 => Carts.Sku(parts[0]).Map(sku => new CartItem(sku, 1)),
+            1 => Carts.Sku(parts[0]).Map(sku => new CartItem(sku, CartQuantity.One)),
             2 => from sku in Carts.Sku(parts[0])
-                 from quantity in Number(parts[1]).Bind(Carts.Quantity)
+                 from quantity in Number(parts[1]).Bind(CartQuantity.Parse)
                  select new CartItem(sku, quantity),
             _ => Error.Validation("paste.format", "Expected a SKU and a quantity."),
         };

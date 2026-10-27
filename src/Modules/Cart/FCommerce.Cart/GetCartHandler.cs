@@ -30,7 +30,7 @@ internal sealed class GetCartHandler(
     public async Task<CartView> HandleAsync(GetCart query, CancellationToken cancellationToken = default)
     {
         var (cart, version) = await carts.LoadWithVersionAsync(query.Owner, cancellationToken);
-        var skus = cart.Items.Select(item => item.Sku).ToList();
+        var skus = cart.Items.Select(item => item.Sku.Value).ToList();
         var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         var display = !platform.IsOn(Feature.StockLevels.Value) ? StockDisplays.Hidden
             : platform.StockDisplay == "Exact" ? StockDisplays.Exact
@@ -41,7 +41,7 @@ internal sealed class GetCartHandler(
             : await products.HandleAsync(new GetProductsBySku(query.Cultures.OrEmpty(), skus), cancellationToken);
         var quote = skus.Count == 0
             ? Result.Ok<Quote, Error>(new Quote([], []))
-            : await quotes.HandleAsync(new QuoteLines(new PriceViewer(true, query.Owner.CustomerCode), [.. cart.Items.Select(i => new PriceLine(i.Sku, i.Quantity))]), cancellationToken);
+            : await quotes.HandleAsync(new QuoteLines(new PriceViewer(true, query.Owner.CustomerCode), [.. cart.Items.Select(i => new PriceLine(i.Sku.Value, i.Quantity.Value))]), cancellationToken);
         var stock = skus.Count == 0
             ? Result.Ok<IReadOnlyList<Availability>, Error>([])
             : await availability.HandleAsync(new GetAvailability(skus), cancellationToken);
@@ -53,18 +53,20 @@ internal sealed class GetCartHandler(
         var quoted = quote.Match(q => q, _ => new Quote([], []));
         var priced = quoted.Lines.Where(l => l.Status == PriceStatuses.Priced).ToDictionary(l => l.Sku);
         var stockBySku = stock.Match(found => found.ToDictionary(a => a.Sku), _ => []);
-        var limit = query.OrderLimit.ToMaybe().Bind(l => Currency.Parse(l.Currency.OrEmpty()).ToMaybe().Map(currency => new Money(l.Amount, currency)));
+        // A limit with a currency that does not read is a broken contract, never "no limit".
+        var limit = query.OrderLimit.ToMaybe().Map(l => Currency.Parse(l.Currency.OrEmpty())
+            .Match(currency => new Money(l.Amount, currency), error => throw new InvalidOperationException($"The order limit of the cart has an invalid currency: {error.Message}")));
 
         var review = CartReview.Review(
             cart,
-            sku => productsBySku.GetValueOrNone(sku).Map(p => new ProductFacts(p.Discontinued)),
-            priced.ContainsKey,
-            sku => stockBySku.GetValueOrNone(sku).Match(a => new StockFacts(a.Available, a.NextDelivery.ToMaybe()), () => StockFacts.None),
+            sku => productsBySku.GetValueOrNone(sku.Value).Map(p => new ProductFacts(p.Discontinued)),
+            sku => priced.ContainsKey(sku.Value),
+            sku => stockBySku.GetValueOrNone(sku.Value).Match(a => new StockFacts(AvailableQuantity.Of(a.Available), a.NextDelivery.ToMaybe()), () => StockFacts.None),
             [.. quoted.Totals.Choose(t => Currency.Parse(t.Currency.OrEmpty()).ToMaybe().Map(currency => new Money(t.Net, currency)))],
             new OrderTerms(customer.Match(c => c.Blocked, _ => false), limit));
 
         return new CartView(
-            [.. review.Lines.Select(line => Line(line, productsBySku.GetValueOrNone(line.Item.Sku), priced.GetValueOrNone(line.Item.Sku), display))],
+            [.. review.Lines.Select(line => Line(line, productsBySku.GetValueOrNone(line.Item.Sku.Value), priced.GetValueOrNone(line.Item.Sku.Value), display))],
             [.. quoted.Totals.Select(t => new CartTotalView(t.Currency, t.Net, [.. t.Rates.Select(r => new CartVatView(r.Rate, r.Net, r.Vat))], t.Vat, t.Gross))],
             [.. review.Issues.Select(IssueCode)],
             review.CanOrder,
@@ -76,12 +78,12 @@ internal sealed class GetCartHandler(
 
     private static CartLineView Line(LineReview line, Maybe<ProductSummary> product, Maybe<QuotedLine> price, string display) =>
         new(
-            line.Item.Sku,
+            line.Item.Sku.Value,
             product.Map(p => p.Name).OrNull(),
             product.Map(p => p.Unit).OrNull(),
             product.Bind(p => p.ImageId.ToMaybe()).OrNull(),
             product.Exists(p => p.Discontinued),
-            line.Item.Quantity,
+            line.Item.Quantity.Value,
             price.Match(_ => PriceStatuses.Priced, () => PriceStatuses.OnRequest),
             price.Bind(p => p.Currency.ToMaybe()).OrNull(),
             price.Bind(p => p.VatRate.ToMaybe()).OrNull(),
@@ -95,14 +97,14 @@ internal sealed class GetCartHandler(
     /// <summary>Quantities on hand only in the exact stock display.</summary>
     private static CartLineIssueView Issue(LineIssue issue, string display)
     {
-        Maybe<decimal> Shown(decimal available) => display == StockDisplays.Exact ? available : Maybe<decimal>.None;
+        Maybe<decimal> Shown(AvailableQuantity available) => display == StockDisplays.Exact ? available.Value : Maybe<decimal>.None;
         return issue switch
         {
             LineIssue.Unavailable => new CartLineIssueView(CartLineIssues.Unavailable, true, null, null),
             LineIssue.NoPrice => new CartLineIssueView(CartLineIssues.NoPrice, true, null, null),
             LineIssue.DiscontinuedShortage shortage => new CartLineIssueView(CartLineIssues.DiscontinuedShortage, true, Shown(shortage.Available).OrNull(), null),
             LineIssue.Backorder backorder => new CartLineIssueView(CartLineIssues.Backorder, false, Shown(backorder.Available).OrNull(), backorder.NextDelivery.OrNull()),
-            _ => new CartLineIssueView("unknown", true, null, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(issue), issue, "A line issue without a name."),
         };
     }
 
@@ -113,6 +115,6 @@ internal sealed class GetCartHandler(
             CartIssue.CustomerBlocked => "customer-blocked",
             CartIssue.MixedCurrencies => "mixed-currencies",
             CartIssue.OverLimit => "over-limit",
-            _ => "unknown",
+            _ => throw new ArgumentOutOfRangeException(nameof(issue), issue, "A cart issue without a name."),
         };
 }
