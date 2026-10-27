@@ -20,8 +20,8 @@ using Microsoft.Extensions.Localization;
 namespace FCommerce.Host.Pages.Company.Orders;
 
 /// <summary>
-/// One order of the active customer: frozen lines and totals, its status history and ERP documents; cancelling it
-/// before the ERP takes it over, and sending its products to the cart. Orders the user may not see are not found.
+/// One order of the active customer: frozen lines and totals, its status history and ERP documents; asking the ERP to
+/// cancel it, and sending its products to the cart. Orders the user may not see are not found.
 /// </summary>
 [RequiresFeature("ordering")]
 public sealed class DetailsModel(
@@ -31,7 +31,7 @@ public sealed class DetailsModel(
     IQueryHandler<GetOrder, Result<OrderView, Error>> getOrder,
     IQueryHandler<GetOrderDocuments, IReadOnlyList<DocumentSummary>> getDocuments,
     IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings,
-    ICommandHandler<CancelOrder, Result<Unit, Error>> cancel,
+    ICommandHandler<RequestOrderCancellation, Result<Unit, Error>> requestCancellation,
     ICommandHandler<AddToCart, Result<CartChange, Error>> addToCart,
     ICommandHandler<ReplaceCart, Result<CartChange, Error>> replaceCart,
     IStringLocalizer<SharedResource> texts) : PageModel
@@ -68,8 +68,8 @@ public sealed class DetailsModel(
                 return ListOutcome.Failed(texts["Error.order.not-cancellable"]);
             }
 
-            return (await cancel.HandleAsync(new CancelOrder(found.Id, viewer.UserId), cancellationToken)).Match(
-                _ => ListOutcome.Done(texts["OrderCancelled"]),
+            return (await requestCancellation.HandleAsync(new RequestOrderCancellation(found.Id, viewer.UserId), cancellationToken)).Match(
+                _ => ListOutcome.Done(texts["CancellationRequested"]),
                 error => ListOutcome.Failed(texts.Describe(error)));
         }, cancellationToken);
 
@@ -127,8 +127,12 @@ public sealed class DetailsModel(
         CanReorder = (await settings.HandleAsync(new GetPlatformSettings(), cancellationToken)).IsOn(Feature.ReorderFromOrders.Value)
             && (await carts.OwnerAsync(cancellationToken)).Exists(owner => owner.CustomerCode == viewer.Customer.Code);
         CanSeeDocuments = await company.CanAsync(AccessAction.Read, (code, salesperson) => new Resource.CustomerDocuments(code, salesperson), viewer.Customer, cancellationToken);
-        CanCancel = found.Status == OrderStatuses.Placed && await orders.CanAsync(AccessAction.Manage, viewer, found, cancellationToken);
+        CanCancel = Cancellable(found) && await orders.CanAsync(AccessAction.Manage, viewer, found, cancellationToken);
     }
+
+    /// <summary>The ERP can still cancel the order and nobody has asked yet.</summary>
+    internal static bool Cancellable(OrderView order) =>
+        order.Status is OrderStatuses.Placed or OrderStatuses.Accepted or OrderStatuses.InProgress && order.CancellationRequestedAt is null;
 
     private async Task LoadAsync(OrderViewer viewer, OrderView found, CancellationToken cancellationToken)
     {

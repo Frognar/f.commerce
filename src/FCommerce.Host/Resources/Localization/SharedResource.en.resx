@@ -473,8 +473,15 @@
   <data name="OrderStatus.completed" xml:space="preserve"><value>Completed</value></data>
   <data name="OrderStatus.rejected" xml:space="preserve"><value>Rejected</value></data>
   <data name="OrderStatus.cancelled" xml:space="preserve"><value>Cancelled</value></data>
-  <data name="CancelledBy.customer" xml:space="preserve"><value>(by the customer)</value></data>
-  <data name="CancelledBy.seller" xml:space="preserve"><value>(by the seller)</value></data>
+  <data name="OrderStatus.cancellation-requested" xml:space="preserve"><value>Cancellation requested</value></data>
+  <data name="OrderStatus.cancellation-refused" xml:space="preserve"><value>Cancellation refused</value></data>
+  <data name="CancelledOnRequest" xml:space="preserve"><value>(on the customer's request)</value></data>
+  <data name="CancellationPending" xml:space="preserve"><value>Cancellation request</value></data>
+  <data name="CancellationPendingSince" xml:space="preserve"><value>awaiting the seller's decision since {0}</value></data>
+  <data name="CancellationRequested" xml:space="preserve"><value>Your request to cancel has gone to the seller. You will see their decision in the order history.</value></data>
+  <data name="Error.order.completed" xml:space="preserve"><value>An invoiced order cannot be cancelled.</value></data>
+  <data name="Error.order.rejected" xml:space="preserve"><value>The order was rejected.</value></data>
+  <data name="Error.order.cancelled" xml:space="preserve"><value>The order was cancelled.</value></data>
   <data name="StatusReason" xml:space="preserve"><value>Reason</value></data>
   <data name="PlacedFrom" xml:space="preserve"><value>Placed from</value></data>
   <data name="PlacedTo" xml:space="preserve"><value>Placed until</value></data>
@@ -488,10 +495,8 @@
   <data name="OrderPlacedNotice" xml:space="preserve"><value>Thank you! Order {0} has been placed. We have sent a confirmation by e-mail.</value></data>
   <data name="OrderHistory" xml:space="preserve"><value>Order history</value></data>
   <data name="OrderDocuments" xml:space="preserve"><value>Documents of the order</value></data>
-  <data name="DocumentType.other" xml:space="preserve"><value>Other document</value></data>
-  <data name="CancelOrder" xml:space="preserve"><value>Cancel the order</value></data>
-  <data name="CancelOrderConfirm" xml:space="preserve"><value>Cancel this order?</value></data>
-  <data name="OrderCancelled" xml:space="preserve"><value>The order has been cancelled.</value></data>
+  <data name="CancelOrder" xml:space="preserve"><value>Ask to cancel the order</value></data>
+  <data name="CancelOrderConfirm" xml:space="preserve"><value>Ask the seller to cancel this order?</value></data>
   <data name="Error.cart.not-available" xml:space="preserve"><value>You cannot order for this company now.</value></data>
   <data name="Error.order.cart-changed" xml:space="preserve"><value>The cart or its prices changed since you saw them. Check them and place the order again.</value></data>
   <data name="Error.order.cart-incomplete" xml:space="preserve"><value>Prices or stock could not be checked right now. Please try again in a moment.</value></data>
@@ -503,7 +508,7 @@
   <data name="Error.order.notes-too-long" xml:space="preserve"><value>Notes have at most 1000 characters.</value></data>
   <data name="Error.order.requested-date-past" xml:space="preserve"><value>The requested date cannot be in the past.</value></data>
   <data name="Error.order.requested-date-too-far" xml:space="preserve"><value>The requested date is at most a year ahead.</value></data>
-  <data name="Error.order.not-cancellable" xml:space="preserve"><value>The seller has already taken this order over — contact them to cancel it.</value></data>
+  <data name="Error.order.not-cancellable" xml:space="preserve"><value>You cannot ask to cancel this order.</value></data>
   <data name="Error.order.not-found" xml:space="preserve"><value>There is no such order.</value></data>
   <data name="Error.order.exists" xml:space="preserve"><value>This order has already been placed.</value></data>
   <data name="Customer" xml:space="preserve"><value>Customer</value></data>

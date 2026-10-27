@@ -41,4 +41,7 @@
   <data name="OrderStatus.accepted" xml:space="preserve"><value>accepted</value></data>
   <data name="OrderStatus.rejected" xml:space="preserve"><value>rejected</value></data>
   <data name="OrderStatus.cancelled" xml:space="preserve"><value>cancelled</value></data>
+  <data name="OrderCancellationRefusedSubject" xml:space="preserve"><value>Order {0}: {1}</value></data>
+  <data name="OrderCancellationRefusedBody" xml:space="preserve"><value>The seller did not cancel your order {0} and goes on with it ({2}).</value></data>
+  <data name="OrderCancellationRefused" xml:space="preserve"><value>kept despite your request to cancel it</value></data>
 </root>

@@ -7,11 +7,15 @@
     <dl class="facts">
         <dt>@T["OrderStatus"]</dt>
         <dd><span class="status status-@order.Status">@T[$"OrderStatus.{order.Status}"]</span>
-            @if (order.CancelledBy is not null)
+            @if (order.CancelledOnRequest)
             {
-                <span class="muted">@T[$"CancelledBy.{order.CancelledBy}"]</span>
+                <span class="muted">@T["CancelledOnRequest"]</span>
             }
         </dd>
+        @if (order.CancellationRequestedAt is { } requestedAt)
+        {
+            <dt>@T["CancellationPending"]</dt><dd>@T["CancellationPendingSince", requestedAt.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)]</dd>
+        }
         @if (order.Reason is not null)
         {
             <dt>@T["StatusReason"]</dt><dd>@order.Reason</dd>
@@ -52,7 +56,12 @@
     <ol class="order-history" aria-label="@T["OrderHistory"]">
         @foreach (var step in order.History)
         {
-            <li><span class="status status-@step.Status">@T[$"OrderStatus.{step.Status}"]</span> <span class="muted">@step.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</span></li>
+            <li><span class="status status-@step.Step">@T[$"OrderStatus.{step.Step}"]</span> <span class="muted">@step.At.ToLocalTime().ToString("g", CultureInfo.CurrentCulture)</span>
+                @if (step.Reason is not null)
+                {
+                    <span class="muted">— @step.Reason</span>
+                }
+            </li>
         }
     </ol>
 </section>

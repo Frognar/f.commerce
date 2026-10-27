@@ -15,7 +15,11 @@ public sealed record BuyerTerms(Guid UserId, string CustomerCode, decimal? Order
 public sealed record GetCheckout(BuyerTerms Buyer, IReadOnlyList<string> Cultures) : IQuery<CheckoutView>;
 
 /// <param name="CartVersion">Sent back with the order, so a cart changed meanwhile is not ordered unseen.</param>
-/// <param name="Issues">"cart-incomplete", "empty", "customer-blocked", "mixed-currencies", "over-limit", "line-issues", "no-address-allowed".</param>
+/// <param name="CanPlace">No issue: the order can be placed.</param>
+/// <param name="Issues">
+/// What prevents placing the order: "cart-incomplete" (prices or stock could not be checked), "empty", "cannot-order"
+/// (see the cart's issues and lines), "mixed-currencies", "no-address-allowed".
+/// </param>
 /// <param name="Today">The earliest requested date (today in the seller's time zone).</param>
 public sealed record CheckoutView(
     long CartVersion,
@@ -49,8 +53,11 @@ public sealed record OrderPlacement(Guid OrderId, string Number, bool AlreadyPla
 
 public sealed record OrderItemData(string Sku, decimal Quantity);
 
-/// <summary>The buyer cancels an order the ERP has not taken over yet (the host checks who may).</summary>
-public sealed record CancelOrder(Guid OrderId, Guid UserId) : ICommand<Result<Unit, Error>>;
+/// <summary>
+/// The buyer asks to cancel an order (the host checks who may); the ERP decides, see <see cref="CancelOrder"/> and
+/// <see cref="RefuseOrderCancellation"/>. Asking again changes nothing.
+/// </summary>
+public sealed record RequestOrderCancellation(Guid OrderId, Guid UserId) : ICommand<Result<Unit, Error>>;
 
 /// <summary>The ERP took the order over under its own number; the same confirmation again changes nothing.</summary>
 public sealed record AcceptOrder(string Number, string ErpNumber) : ICommand<Result<Unit, Error>>;
@@ -58,8 +65,11 @@ public sealed record AcceptOrder(string Number, string ErpNumber) : ICommand<Res
 /// <summary>The ERP refuses an order it has not accepted.</summary>
 public sealed record RejectOrder(string Number, string? Reason) : ICommand<Result<Unit, Error>>;
 
-/// <summary>The seller cancels an order (before it is invoiced).</summary>
-public sealed record CancelOrderBySeller(string Number, string? Reason) : ICommand<Result<Unit, Error>>;
+/// <summary>The ERP cancels an order that is not invoiced yet (on the buyer's request or of its own accord).</summary>
+public sealed record CancelOrder(string Number, string? Reason) : ICommand<Result<Unit, Error>>;
+
+/// <summary>The ERP keeps an order the buyer asked to cancel.</summary>
+public sealed record RefuseOrderCancellation(string Number, string? Reason) : ICommand<Result<Unit, Error>>;
 
 /// <summary>The body of the ERP's confirmation of an order (integration API).</summary>
 public sealed record OrderAcceptanceData(string ErpNumber);
@@ -72,8 +82,10 @@ public sealed record GetOrder(Guid OrderId) : IQuery<Result<OrderView, Error>>;
 
 /// <param name="Status">See <see cref="OrderStatuses"/>.</param>
 /// <param name="PlacedByName">The name of the buyer, once known to the order list.</param>
-/// <param name="CancelledBy">"customer" or "seller" for a cancelled order.</param>
-/// <param name="Reason">Why the order was rejected or cancelled, if the ERP said so.</param>
+/// <param name="History">The steps of the order (see <see cref="OrderSteps"/>) in the order they happened.</param>
+/// <param name="CancellationRequestedAt">When the buyer asked to cancel the order, while the ERP has not decided.</param>
+/// <param name="CancelledOnRequest">A cancelled order was cancelled on the buyer's request.</param>
+/// <param name="Reason">Why the order was rejected or cancelled (see the status), if the ERP said so.</param>
 public sealed record OrderView(
     Guid Id,
     string Number,
@@ -91,10 +103,13 @@ public sealed record OrderView(
     DateOnly? RequestedDate,
     OrderAddressView? DeliveryAddress,
     IReadOnlyList<LinkedDocumentView> Documents,
-    string? CancelledBy,
+    DateTimeOffset? CancellationRequestedAt,
+    bool CancelledOnRequest,
     string? Reason);
 
-public sealed record OrderMilestoneView(string Status, DateTimeOffset At);
+/// <param name="Step">See <see cref="OrderSteps"/>.</param>
+/// <param name="Reason">Why the ERP rejected or cancelled the order or kept it, if it said so.</param>
+public sealed record OrderMilestoneView(string Step, DateTimeOffset At, string? Reason);
 
 /// <param name="Backorder">More than was on hand when ordered: delivered later.</param>
 public sealed record OrderLineView(string Sku, string Name, string Unit, decimal Quantity, decimal UnitNet, decimal VatRate, decimal NetAmount, bool Backorder);
@@ -105,7 +120,7 @@ public sealed record OrderVatView(decimal Rate, decimal Net, decimal Vat);
 
 public sealed record OrderAddressView(string Code, string? Name, string Street, string PostalCode, string City, string Country);
 
-/// <param name="Type">"invoice", "correction-invoice", "delivery-note", "proforma" or "other".</param>
+/// <param name="Type">"invoice", "correction-invoice", "delivery-note" or "proforma".</param>
 public sealed record LinkedDocumentView(string DocumentId, string Type, string Number, DateTimeOffset At);
 
 /// <summary>A page of orders, newest first, narrowed by any of the filters.</summary>
@@ -131,14 +146,16 @@ public sealed record OrderPage(IReadOnlyList<OrderSummaryView> Items, int Page, 
     public int PageCount => TotalCount == 0 ? 1 : (int)Math.Ceiling(TotalCount / (double)PageSize);
 }
 
+/// <param name="CustomerName">None while the customer is not known to the order list.</param>
+/// <param name="PlacedByName">None while the buyer is not known to the order list.</param>
 public sealed record OrderSummaryView(
     Guid Id,
     string Number,
     string? ErpNumber,
     string CustomerCode,
-    string CustomerName,
+    string? CustomerName,
     Guid PlacedBy,
-    string PlacedByName,
+    string? PlacedByName,
     DateTimeOffset PlacedAt,
     string Status,
     string Currency,
@@ -148,8 +165,8 @@ public sealed record OrderSummaryView(
     string? CustomerReference);
 
 /// <summary>
-/// What the ERP takes over: placed orders and orders the buyer cancelled, in the order they happened, after the
-/// position the ERP has already processed (0 for the beginning).
+/// What the ERP takes over: placed orders and the buyers' requests to cancel them, in the order they happened, after
+/// the position the ERP has already processed (0 for the beginning).
 /// </summary>
 public sealed record GetOrderFeed(long After, int Limit = 100) : IQuery<OrderFeedPage>
 {
@@ -159,7 +176,7 @@ public sealed record GetOrderFeed(long After, int Limit = 100) : IQuery<OrderFee
 /// <param name="LastPosition">The position to ask after next time (the same as asked when nothing is new).</param>
 public sealed record OrderFeedPage(IReadOnlyList<OrderFeedEntry> Entries, long LastPosition);
 
-/// <param name="Type">"placed" or "cancelled" (by the buyer).</param>
+/// <param name="Type">See <see cref="OrderFeedTypes"/>.</param>
 public sealed record OrderFeedEntry(long Position, string Type, DateTimeOffset At, OrderExport Order);
 
 /// <summary>An order as the ERP needs it.</summary>
@@ -178,7 +195,8 @@ public sealed record OrderExport(
     DateOnly? RequestedDate,
     OrderAddressView? DeliveryAddress);
 
-public sealed record OrderBuyer(Guid UserId, string Name, string Email);
+/// <param name="Name">None when the buyer's account is no longer active (as their e-mail).</param>
+public sealed record OrderBuyer(Guid UserId, string? Name, string? Email);
 
 public sealed record OrderExportLine(int Number, string Sku, string Name, string Unit, decimal Quantity, decimal UnitNet, decimal VatRate, decimal NetAmount, string PriceListCode, bool Backorder);
 
@@ -194,23 +212,51 @@ public static class OrderStatuses
     public static IReadOnlyList<string> All { get; } = [Placed, Accepted, InProgress, Completed, Rejected, Cancelled];
 }
 
+/// <summary>The steps in the history of an order: the statuses it went through and the buyer's cancellation requests.</summary>
+public static class OrderSteps
+{
+    public const string Placed = OrderStatuses.Placed;
+    public const string Accepted = OrderStatuses.Accepted;
+    public const string CancellationRequested = "cancellation-requested";
+    public const string CancellationRefused = "cancellation-refused";
+    public const string Rejected = OrderStatuses.Rejected;
+    public const string Cancelled = OrderStatuses.Cancelled;
+    public const string InProgress = OrderStatuses.InProgress;
+    public const string Completed = OrderStatuses.Completed;
+}
+
+public static class OrderFeedTypes
+{
+    public const string Placed = "placed";
+
+    /// <summary>The buyer asked to cancel the order: the ERP confirms (cancellation) or refuses (cancellation-refusal).</summary>
+    public const string CancellationRequested = "cancellation-requested";
+}
+
 /// <summary>
-/// An order was placed; the cart takes the items out. Published after the order event is stored (the event store is
-/// the outbox), at least once.
+/// An order was placed; the cart takes the items out. Like every order event below it is published after the order
+/// event is stored (the event store is the outbox), at least once.
 /// </summary>
 public sealed record OrderPlaced(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, DateTimeOffset PlacedAt, IReadOnlyList<OrderItemData> Items) : IIntegrationEvent;
 
-/// <summary>
-/// An order was accepted, rejected or cancelled (by the ERP, the seller or the buyer). Published like
-/// <see cref="OrderPlaced"/>.
-/// </summary>
-/// <param name="CancelledBy">"customer" or "seller" for a cancellation.</param>
-public sealed record OrderStatusChanged(
-    Guid OrderId,
-    string Number,
-    string CustomerCode,
-    Guid PlacedBy,
-    string Status,
-    string? CancelledBy,
-    string? Reason,
-    DateTimeOffset At) : IIntegrationEvent;
+/// <summary>The ERP took the order over: under its own number, or (number none) by issuing a document for it.</summary>
+public sealed record OrderAccepted(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string? ErpNumber, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The ERP refused the order.</summary>
+public sealed record OrderRejected(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string? Reason, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The buyer asked to cancel the order; the ERP decides.</summary>
+public sealed record OrderCancellationRequested(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, Guid RequestedBy, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The ERP keeps an order the buyer asked to cancel.</summary>
+public sealed record OrderCancellationRefused(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string? Reason, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The ERP cancelled the order.</summary>
+/// <param name="OnRequest">On the buyer's request (otherwise of the seller's own accord).</param>
+public sealed record OrderCancelled(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string? Reason, bool OnRequest, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The first delivery note of the order was issued: the goods are on their way.</summary>
+public sealed record OrderDispatched(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string DeliveryNoteId, DateTimeOffset At) : IIntegrationEvent;
+
+/// <summary>The first invoice of the order was issued: the order is completed.</summary>
+public sealed record OrderInvoiced(Guid OrderId, string Number, string CustomerCode, Guid PlacedBy, string InvoiceId, DateTimeOffset At) : IIntegrationEvent;

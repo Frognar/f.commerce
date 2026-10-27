@@ -112,6 +112,17 @@ public sealed record ReceivableView(string Currency, decimal Outstanding, decima
 /// <param name="FileName">A file name for the download, from the document number.</param>
 public sealed record DocumentFile(Stream Content, string FileName);
 
+/// <summary>The names of document types in the contracts (imports, filters, events).</summary>
+public static class DocumentTypes
+{
+    public const string Invoice = "invoice";
+    public const string CorrectionInvoice = "correction-invoice";
+    public const string DeliveryNote = "delivery-note";
+    public const string Proforma = "proforma";
+
+    public static IReadOnlyList<string> All { get; } = [Invoice, CorrectionInvoice, DeliveryNote, Proforma];
+}
+
 public static class DocumentStatuses
 {
     public const string Paid = "paid";

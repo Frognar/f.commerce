@@ -98,10 +98,10 @@ internal sealed class GetCartHandler(
         Maybe<decimal> Shown(decimal available) => display == StockDisplays.Exact ? available : Maybe<decimal>.None;
         return issue switch
         {
-            LineIssue.Unavailable => new CartLineIssueView("unavailable", true, null, null),
-            LineIssue.NoPrice => new CartLineIssueView("no-price", true, null, null),
-            LineIssue.DiscontinuedShortage shortage => new CartLineIssueView("discontinued-shortage", true, Shown(shortage.Available).OrNull(), null),
-            LineIssue.Backorder backorder => new CartLineIssueView("backorder", false, Shown(backorder.Available).OrNull(), backorder.NextDelivery.OrNull()),
+            LineIssue.Unavailable => new CartLineIssueView(CartLineIssues.Unavailable, true, null, null),
+            LineIssue.NoPrice => new CartLineIssueView(CartLineIssues.NoPrice, true, null, null),
+            LineIssue.DiscontinuedShortage shortage => new CartLineIssueView(CartLineIssues.DiscontinuedShortage, true, Shown(shortage.Available).OrNull(), null),
+            LineIssue.Backorder backorder => new CartLineIssueView(CartLineIssues.Backorder, false, Shown(backorder.Available).OrNull(), backorder.NextDelivery.OrNull()),
             _ => new CartLineIssueView("unknown", true, null, null),
         };
     }

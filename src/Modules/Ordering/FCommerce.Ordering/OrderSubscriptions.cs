@@ -18,7 +18,8 @@ namespace FCommerce.Ordering;
 /// <summary>
 /// Keeps the order list and the ERP feed up to date from order events. Every event rewrites the order's row from
 /// its whole stream, so handling an event again changes nothing; feed entries are keyed by the event's position.
-/// The buyer's name and e-mail and the customer's name are read once, when the order first appears.
+/// The buyer's name and e-mail and the customer's name are read when the order first appears, and again by later
+/// events of the order while they could not be read.
 /// </summary>
 internal sealed class OrderListProjection(
     OrderStore orders,
@@ -35,54 +36,71 @@ internal sealed class OrderListProjection(
     {
         foreach (var orderId in OrderStream.OrderId(recordedEvent.StreamId).AsEnumerable())
         {
-            var state = await orders.LoadAsync(orderId, cancellationToken);
-            foreach (var placed in state.Placed.AsEnumerable())
-            {
-                var row = await (await db.Orders.SingleOrNoneAsync(o => o.Id == orderId, cancellationToken))
-                    .Match(Task.FromResult, () => NewRowAsync(orderId, placed, cancellationToken));
-                row.Status = OrderViews.Status(state.Status);
-                row.ErpNumber = state.ErpNumber.OrNull();
-                row.UpdatedAt = clock.Now;
-                await FeedAsync(recordedEvent, orderId, cancellationToken);
-                await db.SaveChangesAsync(cancellationToken);
-            }
+            // An order stream starts with OrderPlaced: every command on a missing order is refused.
+            var state = await orders.LoadAsync(orderId, cancellationToken) as OrderState.Placed
+                ?? throw Stored.Corrupt($"order stream {orderId} has events but no OrderPlaced");
+            var row = await (await db.Orders.SingleOrNoneAsync(o => o.Id == orderId, cancellationToken))
+                .Match(Task.FromResult, () => Task.FromResult(NewRow(orderId, state)));
+            await NamesAsync(row, state.Order, cancellationToken);
+            row.Status = OrderViews.Status(state.Status);
+            row.ErpNumber = state.ErpNumber.Map(n => n.Value).OrNull();
+            row.UpdatedAt = clock.Now;
+            await FeedAsync(recordedEvent, orderId, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
         }
     }
 
-    private async Task<OrderRow> NewRowAsync(Guid orderId, OrderEvent.OrderPlaced placed, CancellationToken cancellationToken)
+    private OrderRow NewRow(Guid orderId, OrderState.Placed state)
     {
-        var buyer = (await contacts.HandleAsync(new GetUserContact(placed.PlacedBy), cancellationToken)).ToMaybe();
-        var customer = (await customers.HandleAsync(new GetCustomer(placed.CustomerCode), cancellationToken)).ToMaybe();
+        var placed = state.Order;
+        var totals = placed.Totals;
         var row = new OrderRow
         {
             Id = orderId,
-            Number = placed.Number,
-            CustomerCode = placed.CustomerCode,
-            CustomerName = customer.Map(c => c.Name).ValueOr(placed.CustomerCode),
-            SalespersonEmail = customer.Bind(c => c.Salesperson.ToMaybe()).Bind(s => s.Email.ToMaybe()).Map(e => e.ToLowerInvariant()).OrNull(),
+            Number = placed.Number.Value,
+            CustomerCode = placed.CustomerCode.Value,
             PlacedBy = placed.PlacedBy,
-            PlacedByName = buyer.Map(b => b.Name).ValueOr(string.Empty),
-            PlacedByEmail = buyer.Map(b => b.Email).ValueOr(string.Empty),
             PlacedAt = placed.PlacedAt,
             PlacedOn = clock.DayOf(placed.PlacedAt),
-            Status = OrderStatuses.Placed,
-            Currency = placed.Totals.Currency,
-            Net = placed.Totals.Net,
-            Gross = placed.Totals.Gross,
+            Status = OrderViews.Status(state.Status),
+            Currency = totals.Currency.Code,
+            Net = totals.Net,
+            Gross = totals.Gross,
             LineCount = placed.Lines.Count,
-            CustomerReference = placed.Details.CustomerReference.OrNull(),
+            CustomerReference = placed.Details.CustomerReference.Map(r => r.Value).OrNull(),
         };
         db.Orders.Add(row);
         return row;
     }
 
-    /// <summary>The ERP takes over placed orders and the ones the buyer cancelled.</summary>
+    /// <summary>Names stay unknown (null) while Access or Customers cannot tell them, and are read again next time.</summary>
+    private async Task NamesAsync(OrderRow row, OrderEvent.OrderPlaced placed, CancellationToken cancellationToken)
+    {
+        if (row.PlacedByName is null)
+        {
+            foreach (var buyer in (await contacts.HandleAsync(new GetUserContact(placed.PlacedBy), cancellationToken)).ToMaybe().AsEnumerable())
+            {
+                (row.PlacedByName, row.PlacedByEmail) = (buyer.Name, buyer.Email);
+            }
+        }
+
+        if (row.CustomerName is null)
+        {
+            foreach (var customer in (await customers.HandleAsync(new GetCustomer(placed.CustomerCode.Value), cancellationToken)).ToMaybe().AsEnumerable())
+            {
+                row.CustomerName = customer.Name;
+                row.SalespersonEmail = customer.Salesperson.ToMaybe().Bind(s => s.Email.ToMaybe()).Map(e => e.ToLowerInvariant()).OrNull();
+            }
+        }
+    }
+
+    /// <summary>The ERP takes over placed orders and the buyers' requests to cancel them.</summary>
     private async Task FeedAsync(RecordedEvent recordedEvent, Guid orderId, CancellationToken cancellationToken)
     {
         var type = recordedEvent.Data switch
         {
-            OrderEvent.OrderPlaced => Maybe.Some("placed"),
-            OrderEvent.OrderCancelled { By: CancelledBy.Customer } => Maybe.Some("cancelled"),
+            OrderEvent.OrderPlaced => Maybe.Some(OrderFeedTypes.Placed),
+            OrderEvent.CancellationRequested => Maybe.Some(OrderFeedTypes.CancellationRequested),
             _ => Maybe<string>.None,
         };
         foreach (var entry in type.AsEnumerable())
@@ -96,8 +114,8 @@ internal sealed class OrderListProjection(
 }
 
 /// <summary>
-/// Publishes the public events of orders. The event store is the outbox: an integration event follows a stored
-/// order event, at least once.
+/// Publishes what happened to orders, one public event per business event of the stream. The event store is the
+/// outbox: an integration event follows a stored order event, at least once.
 /// </summary>
 internal sealed class OrderIntegrationEvents(OrderStore orders, IIntegrationEventPublisher publisher) : IEventSubscription
 {
@@ -105,34 +123,37 @@ internal sealed class OrderIntegrationEvents(OrderStore orders, IIntegrationEven
 
     public bool Accepts(RecordedEvent recordedEvent) =>
         recordedEvent.StreamId.Category == OrderStream.Category
-        && recordedEvent.Data is OrderEvent.OrderPlaced or OrderEvent.OrderAccepted or OrderEvent.OrderRejected or OrderEvent.OrderCancelled;
+        && recordedEvent.Data is OrderEvent.OrderPlaced or OrderEvent.OrderAccepted or OrderEvent.OrderRejected
+            or OrderEvent.CancellationRequested or OrderEvent.CancellationRefused or OrderEvent.OrderCancelled
+            or OrderEvent.OrderDispatched or OrderEvent.OrderInvoiced;
 
     public async Task HandleAsync(RecordedEvent recordedEvent, CancellationToken cancellationToken)
     {
         foreach (var orderId in OrderStream.OrderId(recordedEvent.StreamId).AsEnumerable())
         {
-            var placed = recordedEvent.Data is OrderEvent.OrderPlaced own
-                ? Maybe.Some(own)
-                : (await orders.LoadAsync(orderId, cancellationToken)).Placed;
-            foreach (var integrationEvent in placed.Bind(order => Translate(orderId, order, recordedEvent.Data)).AsEnumerable())
-            {
-                await publisher.PublishAsync(integrationEvent, cancellationToken);
-            }
+            var placed = recordedEvent.Data as OrderEvent.OrderPlaced
+                ?? (await orders.LoadAsync(orderId, cancellationToken) as OrderState.Placed)?.Order
+                ?? throw Stored.Corrupt($"order stream {orderId} has events but no OrderPlaced");
+            await publisher.PublishAsync(Translate(orderId, placed, (OrderEvent)recordedEvent.Data), cancellationToken);
         }
     }
 
-    private static Maybe<IIntegrationEvent> Translate(Guid orderId, OrderEvent.OrderPlaced order, object data) =>
-        data switch
+    private static IIntegrationEvent Translate(Guid id, OrderEvent.OrderPlaced order, OrderEvent data)
+    {
+        var (number, customer, buyer) = (order.Number.Value, order.CustomerCode.Value, order.PlacedBy);
+        return data switch
         {
-            OrderEvent.OrderPlaced => new OrderPlaced(orderId, order.Number, order.CustomerCode, order.PlacedBy, order.PlacedAt, [.. order.Lines.Select(l => new OrderItemData(l.Sku, l.Quantity))]),
-            OrderEvent.OrderAccepted accepted => Changed(orderId, order, OrderStatuses.Accepted, Maybe<string>.None, Maybe<string>.None, accepted.At),
-            OrderEvent.OrderRejected rejected => Changed(orderId, order, OrderStatuses.Rejected, Maybe<string>.None, rejected.Reason, rejected.At),
-            OrderEvent.OrderCancelled cancelled => Changed(orderId, order, OrderStatuses.Cancelled, cancelled.By == CancelledBy.Customer ? "customer" : "seller", cancelled.Reason, cancelled.At),
-            _ => Maybe<IIntegrationEvent>.None,
+            OrderEvent.OrderPlaced => new OrderPlaced(id, number, customer, buyer, order.PlacedAt, [.. order.Lines.Select(l => new OrderItemData(l.Sku.Value, l.Quantity.Value))]),
+            OrderEvent.OrderAccepted e => new OrderAccepted(id, number, customer, buyer, e.ErpNumber.Map(n => n.Value).OrNull(), e.At),
+            OrderEvent.OrderRejected e => new OrderRejected(id, number, customer, buyer, e.Reason.Map(r => r.Value).OrNull(), e.At),
+            OrderEvent.CancellationRequested e => new OrderCancellationRequested(id, number, customer, buyer, e.By, e.At),
+            OrderEvent.CancellationRefused e => new OrderCancellationRefused(id, number, customer, buyer, e.Reason.Map(r => r.Value).OrNull(), e.At),
+            OrderEvent.OrderCancelled e => new OrderCancelled(id, number, customer, buyer, e.Reason.Map(r => r.Value).OrNull(), e.OnRequest, e.At),
+            OrderEvent.OrderDispatched e => new OrderDispatched(id, number, customer, buyer, e.DeliveryNote.Value, e.At),
+            OrderEvent.OrderInvoiced e => new OrderInvoiced(id, number, customer, buyer, e.Invoice.Value, e.At),
+            _ => throw new ArgumentOutOfRangeException(nameof(data), data, "Not a public order event."),
         };
-
-    private static Maybe<IIntegrationEvent> Changed(Guid orderId, OrderEvent.OrderPlaced order, string status, Maybe<string> by, Maybe<string> reason, DateTimeOffset at) =>
-        new OrderStatusChanged(orderId, order.Number, order.CustomerCode, order.PlacedBy, status, by.OrNull(), reason.OrNull(), at);
+    }
 }
 
 /// <summary>
@@ -149,17 +170,20 @@ internal sealed class LinkDocumentToOrders(OrderStore orders, OrderingDbContext 
             return;
         }
 
+        // Documents validated what it publishes: a value that does not parse is a broken contract.
+        var link = (from id in DocumentId.Parse(integrationEvent.Id.OrEmpty())
+                    from kind in OrderViews.DocumentKind(integrationEvent.Type.OrEmpty())
+                    from number in DocumentNumber.Parse(integrationEvent.Number.OrEmpty())
+                    select new OrderCommand.LinkDocument(id, kind, number))
+            .Match(command => command, error => throw new InvalidOperationException($"Document {integrationEvent.Id} cannot be linked: {error.Message}"));
+
         var ids = await db.Orders.AsNoTracking()
             .Where(o => o.CustomerCode == integrationEvent.CustomerCode && (numbers.Contains(o.Number) || (o.ErpNumber != null && numbers.Contains(o.ErpNumber))))
             .Select(o => o.Id)
             .ToListAsync(cancellationToken);
         foreach (var id in ids)
         {
-            var linked = await orders.DecideAsync(
-                id,
-                new OrderCommand.LinkDocument(integrationEvent.Id, OrderViews.DocumentKind(integrationEvent.Type), integrationEvent.Number),
-                "erp",
-                cancellationToken);
+            var linked = await orders.DecideAsync(id, link, "erp", cancellationToken);
             linked.Switch(_ => { }, error => throw new InvalidOperationException($"Linking document {integrationEvent.Id} to order {id} failed: {error.Code}"));
         }
     }

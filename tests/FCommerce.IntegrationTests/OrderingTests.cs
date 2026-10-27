@@ -164,7 +164,7 @@ public sealed class OrderingTests(HostFixture host)
     }
 
     [Fact]
-    public async Task The_erp_accepts_rejects_or_cancels_by_number_and_the_buyer_cancels_before_that()
+    public async Task The_erp_accepts_rejects_and_cancels_by_number_and_decides_on_the_buyers_requests_to_cancel()
     {
         var (buyer, skus) = await ShopAsync();
         await AddAsync(buyer, (skus[0], 1));
@@ -176,34 +176,56 @@ public sealed class OrderingTests(HostFixture host)
         Assert.Equal("ok", Code(await SendAsync<AcceptOrder, Unit>(new AcceptOrder(first.Number, "ZAM/77"))));
         Assert.Equal("ok", Code(await SendAsync<AcceptOrder, Unit>(new AcceptOrder(first.Number, "ZAM/77"))));
         Assert.Equal("order.already-accepted", Code(await SendAsync<RejectOrder, Unit>(new RejectOrder(first.Number, "Brak"))));
-        Assert.Equal("order.not-cancellable", Code(await SendAsync<CancelOrder, Unit>(new CancelOrder(first.OrderId, buyer.UserId))));
-        Assert.Equal("ok", Code(await SendAsync<CancelOrder, Unit>(new CancelOrder(second.OrderId, buyer.UserId))));
+        Assert.Equal("ok", Code(await SendAsync<RequestOrderCancellation, Unit>(new RequestOrderCancellation(first.OrderId, buyer.UserId))));
+        Assert.Equal("ok", Code(await SendAsync<RequestOrderCancellation, Unit>(new RequestOrderCancellation(second.OrderId, buyer.UserId))));
+        Assert.Equal("ok", Code(await SendAsync<CancelOrder, Unit>(new CancelOrder(second.Number, null))));
         Assert.Equal("order.cancelled", Code(await SendAsync<AcceptOrder, Unit>(new AcceptOrder(second.Number, "ZAM/78"))));
         Assert.Equal("order.not-found", Code(await SendAsync<AcceptOrder, Unit>(new AcceptOrder("WWW/1900/000001", "ZAM/1"))));
-        Assert.Equal("ok", Code(await SendAsync<CancelOrderBySeller, Unit>(new CancelOrderBySeller(first.Number, "Klient zrezygnował"))));
+        Assert.Equal("ok", Code(await SendAsync<RefuseOrderCancellation, Unit>(new RefuseOrderCancellation(first.Number, "Towar wysłany"))));
+        Assert.Equal("order.no-cancellation-request", Code(await SendAsync<RefuseOrderCancellation, Unit>(new RefuseOrderCancellation(first.Number, null))));
+        Assert.Equal("ok", Code(await SendAsync<CancelOrder, Unit>(new CancelOrder(first.Number, "Klient zrezygnował"))));
 
-        var accepted = await ListedAsync(buyer, first.OrderId, o => o.Status == OrderStatuses.Cancelled);
-        var cancelled = Ok(await QueryAsync<GetOrder, Result<OrderView, Error>>(new GetOrder(second.OrderId)));
+        var kept = await ListedAsync(buyer, first.OrderId, o => o.Status == OrderStatuses.Cancelled);
+        var firstView = Ok(await QueryAsync<GetOrder, Result<OrderView, Error>>(new GetOrder(first.OrderId)));
+        var secondView = Ok(await QueryAsync<GetOrder, Result<OrderView, Error>>(new GetOrder(second.OrderId)));
         var feed = await QueryAsync<GetOrderFeed, OrderFeedPage>(new GetOrderFeed(0, GetOrderFeed.MaxLimit));
 
-        Assert.Equal("ZAM/77", accepted.ErpNumber);
-        Assert.Equal((OrderStatuses.Cancelled, "customer"), (cancelled.Status, cancelled.CancelledBy));
-        Assert.Equal(["placed", "cancelled"], feed.Entries.Where(e => e.Order.Id == second.OrderId).Select(e => e.Type));
+        Assert.Equal("ZAM/77", kept.ErpNumber);
+        Assert.Equal((OrderStatuses.Cancelled, false, "Klient zrezygnował"), (firstView.Status, firstView.CancelledOnRequest, firstView.Reason));
         Assert.Equal(
-            [(OrderStatuses.Accepted, null), (OrderStatuses.Cancelled, "customer"), (OrderStatuses.Cancelled, "seller")],
-            await StatusEventsAsync(first.OrderId, second.OrderId, 3));
+            [OrderSteps.Placed, OrderSteps.Accepted, OrderSteps.CancellationRequested, OrderSteps.CancellationRefused, OrderSteps.Cancelled],
+            firstView.History.Select(h => h.Step));
+        Assert.Equal((OrderStatuses.Cancelled, true, (DateTimeOffset?)null), (secondView.Status, secondView.CancelledOnRequest, secondView.CancellationRequestedAt));
+        Assert.Equal([OrderFeedTypes.Placed, OrderFeedTypes.CancellationRequested], feed.Entries.Where(e => e.Order.Id == second.OrderId).Select(e => e.Type));
+        Assert.Equal(
+            [("accepted", true), ("requested", true), ("requested", false), ("cancelled-on-request", false), ("refused", true), ("cancelled", true)],
+            await OrderEventsAsync(first.OrderId, second.OrderId, 6));
     }
 
-    private async Task<IReadOnlyList<(string, string?)>> StatusEventsAsync(Guid first, Guid second, int count)
+    /// <summary>The published events of two orders: (what happened, whether to the first).</summary>
+    private async Task<IReadOnlyList<(string, bool)>> OrderEventsAsync(Guid first, Guid second, int count)
     {
+        static (Guid Order, string What) Of(IIntegrationEvent e) =>
+            e switch
+            {
+                OrderAccepted a => (a.OrderId, "accepted"),
+                OrderRejected r => (r.OrderId, "rejected"),
+                OrderCancellationRequested r => (r.OrderId, "requested"),
+                OrderCancellationRefused r => (r.OrderId, "refused"),
+                OrderCancelled c => (c.OrderId, c.OnRequest ? "cancelled-on-request" : "cancelled"),
+                OrderDispatched d => (d.OrderId, "dispatched"),
+                OrderInvoiced i => (i.OrderId, "invoiced"),
+                _ => (Guid.Empty, "other"),
+            };
+
         var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (host.Events.OrderStatusChanges.Count(e => e.OrderId == first || e.OrderId == second) < count)
+        while (host.Events.OrderEvents.Select(Of).Count(e => e.Order == first || e.Order == second) < count)
         {
             Assert.True(DateTime.UtcNow < deadline, "The order events were not published.");
             await Task.Delay(50, Token);
         }
 
-        return [.. host.Events.OrderStatusChanges.Where(e => e.OrderId == first || e.OrderId == second).Select(e => (e.Status, e.CancelledBy))];
+        return [.. host.Events.OrderEvents.Select(Of).Where(e => e.Order == first || e.Order == second).Select(e => (e.What, e.Order == first))];
     }
 
     [Fact]
@@ -232,7 +254,7 @@ public sealed class OrderingTests(HostFixture host)
 
         Assert.Equal((OrderStatuses.Completed, OrderStatuses.InProgress), (completed.Status, inProgress.Status));
         Assert.Equal(new[] { note, invoice }.Order(StringComparer.Ordinal), order.Documents.Select(d => d.DocumentId).Order(StringComparer.Ordinal));
-        Assert.Equal([OrderStatuses.Placed, OrderStatuses.Accepted, OrderStatuses.InProgress, OrderStatuses.Completed], order.History.Select(h => h.Status));
+        Assert.Equal([OrderSteps.Placed, OrderSteps.Accepted, OrderSteps.InProgress, OrderSteps.Completed], order.History.Select(h => h.Step));
     }
 
     [Fact]

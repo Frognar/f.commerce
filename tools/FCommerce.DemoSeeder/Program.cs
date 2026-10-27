@@ -10,14 +10,14 @@ using FCommerce.Pricing.Contracts;
 using FCommerce.Media.Contracts;
 using FCommerce.SharedKernel.Contracts;
 
-// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key> [orders [accept|deliver|invoice] | api <customer api key>]]
+// Usage: dotnet run --project tools/FCommerce.DemoSeeder [-- <host url> <integration api key> [orders [cancellations|accept|deliver|invoice] | api <customer api key>]]
 var baseUrl = args.Length > 0 ? args[0] : "http://localhost:5180";
 var apiKey = args.Length > 1 ? args[1] : "dev-integration-key";
 
 using var client = new HttpClient { BaseAddress = new Uri(baseUrl), Timeout = TimeSpan.FromMinutes(5) };
 client.DefaultRequestHeaders.Add("X-Api-Key", apiKey);
 
-// "orders": the ERP's part for orders placed in the demo (confirm, deliver, invoice); all three steps by default.
+// "orders": the ERP's part for orders placed in the demo (cancel on request, confirm, deliver, invoice); every step by default.
 if (args.Length > 2 && args[2] == "orders")
 {
     var step = args.Length > 3 ? args[3] : "all";
@@ -101,7 +101,8 @@ Console.WriteLine($"""
       Customers:    open the invitation e-mails to choose passwords, then sign in at {baseUrl}/pl/sign-in
       Orders:       place an order as a buyer (company administrators set order limits and delivery addresses in
                     {baseUrl}/pl/company/users), then play the ERP: dotnet run --project tools/FCommerce.DemoSeeder --
-                    {baseUrl} <api key> orders [accept|deliver|invoice] (all three steps without one).
+                    {baseUrl} <api key> orders [cancellations|accept|deliver|invoice] (every step without one). A buyer only asks
+                    to cancel an order; the "cancellations" step plays the ERP confirming those requests.
       Public API:   as a company administrator create a key at {baseUrl}/pl/company/api-keys (for yourself: an administrator also sees documents), then run the whole
                     path through the API: dotnet run --project tools/FCommerce.DemoSeeder -- {baseUrl} <integration key> api <customer key>
                     (catalog → cart → order → the ERP confirms, delivers, invoices → documents). Docs: {baseUrl}/openapi/public-v1.json

@@ -9,17 +9,26 @@ using FCommerce.SharedKernel.Contracts;
 namespace FCommerce.DemoSeeder;
 
 /// <summary>
-/// Plays the ERP for orders placed in the demo: reads the order feed, confirms the orders under an ERP number, then
-/// issues a delivery note (naming the ERP number) and an invoice (naming the platform number) with their PDFs. Each
-/// step can run alone, so the demo can show an order accepted, in progress and completed. Running it again changes
-/// nothing for orders already handled.
+/// Plays the ERP for orders placed in the demo: reads the order feed, cancels the orders the buyers asked to cancel,
+/// confirms the others under an ERP number, then issues a delivery note (naming the ERP number) and an invoice (naming
+/// the platform number) with their PDFs. Each step can run alone, so the demo can show an order accepted, in progress
+/// and completed. Running it again changes nothing for orders already handled.
 /// </summary>
 internal static class DemoOrders
 {
-    public static readonly string[] Steps = ["accept", "deliver", "invoice"];
+    public static readonly string[] Steps = ["cancellations", "accept", "deliver", "invoice"];
 
     public static async Task<int> RunAsync(HttpClient client, string step)
     {
+        if (step is "all" or "cancellations")
+        {
+            foreach (var requested in await CancellationRequestsAsync(client))
+            {
+                await CancelAsync(client, requested);
+                Console.WriteLine($"  {requested.Number}: cancelled on the buyer's request");
+            }
+        }
+
         var today = DateOnly.FromDateTime(DateTime.Now);
         var orders = await OpenOrdersAsync(client);
         Console.WriteLine($"orders to handle: {orders.Count}");
@@ -83,7 +92,19 @@ internal static class DemoOrders
     }
 
     /// <summary>Placed orders from the whole feed that were not cancelled or rejected since (handling one again changes nothing).</summary>
-    private static async Task<IReadOnlyList<OrderExport>> OpenOrdersAsync(HttpClient client)
+    private static async Task<IReadOnlyList<OrderExport>> OpenOrdersAsync(HttpClient client) =>
+        [.. (await LatestAsync(client))
+            .Where(e => e.Type == OrderFeedTypes.Placed && e.Order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Rejected))
+            .Select(e => e.Order)];
+
+    /// <summary>Orders whose buyers asked to cancel them and that the ERP can still cancel.</summary>
+    private static async Task<IReadOnlyList<OrderExport>> CancellationRequestsAsync(HttpClient client) =>
+        [.. (await LatestAsync(client))
+            .Where(e => e.Type == OrderFeedTypes.CancellationRequested && e.Order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Rejected or OrderStatuses.Completed))
+            .Select(e => e.Order)];
+
+    /// <summary>The latest feed entry of every order in the whole feed.</summary>
+    private static async Task<IReadOnlyCollection<OrderFeedEntry>> LatestAsync(HttpClient client)
     {
         var latest = new Dictionary<Guid, OrderFeedEntry>();
         var after = 0L;
@@ -103,9 +124,7 @@ internal static class DemoOrders
             after = page.LastPosition;
         }
 
-        return [.. latest.Values
-            .Where(e => e.Type == "placed" && e.Order.Status is not (OrderStatuses.Cancelled or OrderStatuses.Rejected))
-            .Select(e => e.Order)];
+        return latest.Values;
     }
 
     /// <summary>"WWW/2026/000042" → "ZAM/2026/5042": the ERP's own number of the order.</summary>
@@ -113,6 +132,16 @@ internal static class DemoOrders
         order.Number.Split('/') is [_, var year, var sequence] && long.TryParse(sequence, NumberStyles.None, CultureInfo.InvariantCulture, out var n)
             ? $"ZAM/{year}/{5000 + n}"
             : $"ZAM/{order.Id:N}"[..20];
+
+    private static async Task CancelAsync(HttpClient client, OrderExport order)
+    {
+        using var response = await client.PutAsJsonAsync($"/integration/v1/orders/{Uri.EscapeDataString(order.Number)}/cancellation", new OrderReasonData("Na prośbę klienta"));
+        if (response.StatusCode is not (HttpStatusCode.NoContent or HttpStatusCode.Conflict))
+        {
+            Console.Error.WriteLine($"cancellation of {order.Number}: {(int)response.StatusCode} {await response.Content.ReadAsStringAsync()}");
+            Environment.Exit(1);
+        }
+    }
 
     private static async Task AcceptAsync(HttpClient client, OrderExport order, string erpNumber)
     {

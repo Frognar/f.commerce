@@ -142,7 +142,7 @@ public sealed partial class OrderPagesTests(HostFixture host)
     }
 
     [Fact]
-    public async Task Buyers_see_their_own_orders_the_company_scope_sees_all_and_the_buyer_cancels_or_reorders()
+    public async Task Buyers_see_their_own_orders_the_company_scope_sees_all_and_the_buyer_asks_to_cancel_or_reorders()
     {
         var (sku, admin, buyer, accountant) = await CompanyAsync();
         using var _ = admin;
@@ -164,13 +164,13 @@ public sealed partial class OrderPagesTests(HostFixture host)
         var cart = (await buyer.GetAsync("/pl/cart")).Html;
 
         Assert.Equal(HttpStatusCode.NotFound, foreign.Status);
-        Assert.Contains("Anuluj zamówienie", seenByAdmin, StringComparison.Ordinal);
+        Assert.Contains("Poproś o anulowanie", seenByAdmin, StringComparison.Ordinal);
         Assert.Contains("Piotr Kupiec", seenByAdmin, StringComparison.Ordinal);
-        Assert.DoesNotContain("Anuluj zamówienie", seenByAccountant, StringComparison.Ordinal);
+        Assert.DoesNotContain("Poproś o anulowanie", seenByAccountant, StringComparison.Ordinal);
         Assert.Equal(HttpStatusCode.Forbidden, ForbiddenOrDenied(accountantCheckout));
-        Assert.Contains("Zamówienie zostało anulowane.", cancelled.Html, StringComparison.Ordinal);
-        Assert.Contains("Anulowane", cancelled.Html, StringComparison.Ordinal);
-        Assert.DoesNotContain(">Anuluj zamówienie<", cancelled.Html, StringComparison.Ordinal);
+        Assert.Contains("Prośba o anulowanie trafiła do sprzedawcy.", cancelled.Html, StringComparison.Ordinal);
+        Assert.Contains("czeka na decyzję sprzedawcy", cancelled.Html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Poproś o anulowanie<", cancelled.Html, StringComparison.Ordinal);
         Assert.Contains("Dodano do koszyka", reordered.Html, StringComparison.Ordinal);
         Assert.Contains($"Wkręt {sku}", cart, StringComparison.Ordinal);
     }

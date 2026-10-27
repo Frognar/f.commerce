@@ -79,29 +79,56 @@ internal sealed class ConfirmOrderPlaced(OrderMail mail, IQueryHandler<GetCustom
     }
 }
 
-/// <summary>Tells the buyer that the seller accepted, rejected or cancelled their order (not about their own cancellation).</summary>
-internal sealed class SendOrderStatusChanged(OrderMail mail) : IIntegrationEventHandler<OrderStatusChanged>
+/// <summary>Tells the buyer what the ERP decided about their order.</summary>
+internal sealed class OrderDecisionMail(OrderMail mail)
 {
-    public async Task HandleAsync(OrderStatusChanged changed, CancellationToken cancellationToken = default)
+    /// <param name="subject">The key of the subject text ({0}: the order number, {1}: the decision).</param>
+    /// <param name="decision">The key of the name of the decision ({1} in the subject and the body).</param>
+    public async Task SendAsync(Guid orderId, string number, Guid buyerId, string subject, string body, string decision, DateTimeOffset at, CancellationToken cancellationToken)
     {
-        if (changed.CancelledBy == "customer")
-        {
-            return;
-        }
-
         var storeName = await mail.StoreNameAsync(cancellationToken);
-        foreach (var buyer in (await mail.BuyerAsync(changed.PlacedBy, cancellationToken)).AsEnumerable())
+        foreach (var buyer in (await mail.BuyerAsync(buyerId, cancellationToken)).AsEnumerable())
         {
             var culture = buyer.Culture;
-            var status = EmailRenderer.Text($"OrderStatus.{changed.Status}", culture);
+            var name = EmailRenderer.Text(decision, culture);
             var email = new ActionEmail(
-                EmailRenderer.Text("OrderStatusSubject", culture, changed.Number, status),
+                EmailRenderer.Text(subject, culture, number, name),
                 EmailRenderer.Text("Greeting", culture, buyer.Name),
-                EmailRenderer.Text("OrderStatusBody", culture, changed.Number, status, mail.Date(changed.At, culture)),
+                EmailRenderer.Text(body, culture, number, name, mail.Date(at, culture)),
                 EmailRenderer.Text("OrderAction", culture),
-                Links.To(mail.Options, culture, $"company/orders/{changed.OrderId}"),
+                Links.To(mail.Options, culture, $"company/orders/{orderId}"),
                 EmailRenderer.Text("OrderNote", culture));
             await mail.SendAsync(Links.Address(buyer.Email), buyer.Name, culture, storeName, email, cancellationToken);
         }
     }
+
+    public Task StatusAsync(Guid orderId, string number, Guid buyerId, string status, DateTimeOffset at, CancellationToken cancellationToken) =>
+        SendAsync(orderId, number, buyerId, "OrderStatusSubject", "OrderStatusBody", $"OrderStatus.{status}", at, cancellationToken);
+}
+
+/// <summary>The ERP took the order over (by a confirmation or its first document).</summary>
+internal sealed class SendOrderAccepted(OrderDecisionMail mail) : IIntegrationEventHandler<OrderAccepted>
+{
+    public Task HandleAsync(OrderAccepted accepted, CancellationToken cancellationToken = default) =>
+        mail.StatusAsync(accepted.OrderId, accepted.Number, accepted.PlacedBy, OrderStatuses.Accepted, accepted.At, cancellationToken);
+}
+
+internal sealed class SendOrderRejected(OrderDecisionMail mail) : IIntegrationEventHandler<OrderRejected>
+{
+    public Task HandleAsync(OrderRejected rejected, CancellationToken cancellationToken = default) =>
+        mail.StatusAsync(rejected.OrderId, rejected.Number, rejected.PlacedBy, OrderStatuses.Rejected, rejected.At, cancellationToken);
+}
+
+/// <summary>The ERP cancelled the order: of its own accord, or confirming the buyer's request.</summary>
+internal sealed class SendOrderCancelled(OrderDecisionMail mail) : IIntegrationEventHandler<OrderCancelled>
+{
+    public Task HandleAsync(OrderCancelled cancelled, CancellationToken cancellationToken = default) =>
+        mail.StatusAsync(cancelled.OrderId, cancelled.Number, cancelled.PlacedBy, OrderStatuses.Cancelled, cancelled.At, cancellationToken);
+}
+
+/// <summary>The ERP keeps an order the buyer asked to cancel.</summary>
+internal sealed class SendOrderCancellationRefused(OrderDecisionMail mail) : IIntegrationEventHandler<OrderCancellationRefused>
+{
+    public Task HandleAsync(OrderCancellationRefused refused, CancellationToken cancellationToken = default) =>
+        mail.SendAsync(refused.OrderId, refused.Number, refused.PlacedBy, "OrderCancellationRefusedSubject", "OrderCancellationRefusedBody", "OrderCancellationRefused", refused.At, cancellationToken);
 }

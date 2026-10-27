@@ -40,29 +40,6 @@ public sealed class ModelingRulesTests
     /// </summary>
     private static readonly string[] KnownViolations =
     [
-        // Phase 1: Ordering
-        "FCommerce.Ordering.Domain.AddressBook",
-        "FCommerce.Ordering.Domain.CartLine",
-        "FCommerce.Ordering.Domain.CartSnapshot",
-        "FCommerce.Ordering.Domain.CheckoutForm",
-        "FCommerce.Ordering.Domain.DeliveryAddress",
-        "FCommerce.Ordering.Domain.LinkedDocument",
-        "FCommerce.Ordering.Domain.OrderCommand+Accept",
-        "FCommerce.Ordering.Domain.OrderCommand+CancelBySeller",
-        "FCommerce.Ordering.Domain.OrderCommand+LinkDocument",
-        "FCommerce.Ordering.Domain.OrderCommand+Place",
-        "FCommerce.Ordering.Domain.OrderCommand+Reject",
-        "FCommerce.Ordering.Domain.OrderDetails",
-        "FCommerce.Ordering.Domain.OrderEvent+DocumentLinked",
-        "FCommerce.Ordering.Domain.OrderEvent+OrderAccepted",
-        "FCommerce.Ordering.Domain.OrderEvent+OrderCancelled",
-        "FCommerce.Ordering.Domain.OrderEvent+OrderPlaced",
-        "FCommerce.Ordering.Domain.OrderEvent+OrderRejected",
-        "FCommerce.Ordering.Domain.OrderLine",
-        "FCommerce.Ordering.Domain.OrderState",
-        "FCommerce.Ordering.Domain.OrderTotals",
-        "FCommerce.Ordering.Domain.VatTotal",
-
         // Phase 2: Access and Authorization.Core
         "FCommerce.Access.Domain.Account",
         "FCommerce.Access.Domain.ApiKey",

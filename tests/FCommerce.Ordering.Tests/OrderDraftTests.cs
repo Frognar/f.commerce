@@ -1,31 +1,17 @@
 using FCommerce.Ordering.Domain;
-using FCommerce.SharedKernel.Collections;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.Testing;
+using static FCommerce.Ordering.Tests.OrderValues;
 
 namespace FCommerce.Ordering.Tests;
 
 public sealed class OrderDraftTests
 {
-    private static readonly DateOnly Today = new(2026, 10, 25);
-
-    private static readonly DeliveryAddress Warehouse = new("MAG", Maybe.Some("Magazyn"), "ul. Długa 1", "00-950", "Warszawa", "PL");
-    private static readonly DeliveryAddress Site = new("BUD", Maybe<string>.None, "ul. Krótka 2", "00-951", "Warszawa", "PL");
-
-    private static readonly OrderTotals Pln = new("PLN", 15m, [new VatTotal(23, 15m, 3.45m)], 3.45m, 18.45m);
-
-    private static CartLine Line(bool priced = true) =>
-        new("A", Maybe.Some("Śruba"), Maybe.Some("szt"), 10, priced ? 1.5m : Maybe<decimal>.None, priced ? 23m : Maybe<decimal>.None,
-            priced ? 15m : Maybe<decimal>.None, priced ? "HURT" : Maybe<string>.None, Backorder: true);
-
-    private static CartSnapshot Cart(bool complete = true, bool canOrder = true, long version = 3, OrderTotals[]? totals = null) =>
-        new(version, complete, canOrder, [Line()], [.. totals ?? [Pln]]);
-
-    private static CheckoutForm Form(string? address = null, DateOnly? date = null, string? reference = null, string? notes = null) =>
-        new(3, 18.45m, reference.ToMaybe(), notes.ToMaybe(), date.ToMaybe(), address.ToMaybe());
+    private static readonly DeliveryAddress Warehouse = Address("MAG", "Magazyn");
+    private static readonly DeliveryAddress Site = Address("BUD");
 
     private static AddressBook Book(params string[] allowed) =>
-        new([Warehouse, Site], Maybe.Some("MAG"), allowed.Length == 0 ? Maybe<EquatableArray<string>>.None : Maybe.Some<EquatableArray<string>>([.. allowed]));
+        AddressBook.Of([(Warehouse, true), (Site, false)], AddressScope.Of(allowed.Select(code => AddressCode.Parse(code).ShouldSucceed())));
 
     private static IEnumerable<string> Errors(CartSnapshot cart, CheckoutForm form, AddressBook book) =>
         OrderDraft.Validate(cart, form, book, Today).ShouldBeInvalid().Select(e => e.Code);
@@ -33,11 +19,24 @@ public sealed class OrderDraftTests
     [Fact]
     public void A_reviewed_cart_becomes_an_order_with_frozen_lines_and_the_buyers_details()
     {
-        var order = OrderDraft.Validate(Cart(), Form("BUD", Today.AddDays(3), " PO-77 ", " Proszę dzwonić "), Book(), Today).ShouldBeValid();
+        var line = Line(backorder: true);
 
-        Assert.Equal([new OrderLine("A", "Śruba", "szt", 10, 1.5m, 23, 15m, "HURT", true)], order.Lines);
-        Assert.Equal(Pln, order.Totals);
-        Assert.Equal(new OrderDetails(Maybe.Some("PO-77"), Maybe.Some("Proszę dzwonić"), Maybe.Some(Today.AddDays(3)), Maybe.Some(Site)), order.Details);
+        var order = OrderDraft.Validate(Cart(lines: Priced(line)), Form(address: "BUD", date: Today.AddDays(3), reference: " PO-77 ", notes: " Proszę dzwonić "), Book(), Today).ShouldBeValid();
+
+        Assert.Equal([line], order.Lines);
+        Assert.Equal((15m, 3.45m, 18.45m), (order.Totals.Net, order.Totals.Vat, order.Totals.Gross));
+        Assert.Equal(("PO-77", "Proszę dzwonić"), (order.Details.CustomerReference.ShouldBeSome().Value, order.Details.Notes.ShouldBeSome().Value));
+        Assert.Equal((Today.AddDays(3), Site), (order.Details.RequestedDate.ShouldBeSome(), order.Details.Address.ShouldBeSome()));
+    }
+
+    [Fact]
+    public void Totals_follow_from_the_lines_with_vat_per_rate_as_an_invoice_computes_it()
+    {
+        var totals = OrderTotals.Of(Values.Currency("PLN"), [Line("A", 3, 0.335m, 23), Line("B", 1, 10m, 8), Line("C", 1, 0.01m, 23)]);
+
+        Assert.Equal([(8m, 10m, 0.8m), (23m, 1.02m, 0.23m)], totals.Rates.Select(r => (r.Rate.Percent, r.Net, r.Vat)));
+        Assert.Equal((11.02m, 1.03m, 12.05m), (totals.Net, totals.Vat, totals.Gross));
+        Assert.Equal(1.01m, Line("A", 3, 0.335m).NetAmount);
     }
 
     [Fact]
@@ -45,32 +44,43 @@ public sealed class OrderDraftTests
     {
         Assert.Equal(Warehouse, OrderDraft.Validate(Cart(), Form(), Book(), Today).ShouldBeValid().Details.Address.ShouldBeSome());
         Assert.Equal(Site, OrderDraft.Validate(Cart(), Form(), Book("BUD"), Today).ShouldBeValid().Details.Address.ShouldBeSome());
-        OrderDraft.Validate(Cart(), Form(), new AddressBook([], Maybe<string>.None, Maybe<EquatableArray<string>>.None), Today).ShouldBeValid().Details.Address.ShouldBeNone();
+        OrderDraft.Validate(Cart(), Form(), AddressBook.Empty, Today).ShouldBeValid().Details.Address.ShouldBeNone();
+    }
+
+    [Fact]
+    public void An_address_book_has_unique_codes_and_a_default_among_them()
+    {
+        var book = AddressBook.Of([(Site, false), (Address("BUD", "Inna"), true), (Warehouse, true)], AddressScope.All);
+
+        Assert.Equal([Site, Warehouse], book.Addresses);
+        Assert.Equal("MAG", book.DefaultCode.ShouldBeSome().Value);
+        Assert.Equal(AddressScope.All, AddressScope.Of([]));
     }
 
     [Fact]
     public void Only_permitted_addresses_are_accepted()
     {
-        Assert.Equal(["order.address-not-allowed"], Errors(Cart(), Form("MAG"), Book("BUD")));
-        Assert.Equal(["order.address-not-allowed"], Errors(Cart(), Form("NONE"), Book()));
+        Assert.Equal(["order.address-not-allowed"], Errors(Cart(), Form(address: "MAG"), Book("BUD")));
+        Assert.Equal(["order.address-not-allowed"], Errors(Cart(), Form(address: "NONE"), Book()));
         Assert.Equal(["order.no-address-allowed"], Errors(Cart(), Form(), Book("GONE")));
     }
 
     [Fact]
-    public void The_cart_must_be_the_one_reviewed_complete_and_orderable()
+    public void The_cart_must_be_the_one_reviewed_complete_priced_orderable_and_in_one_currency()
     {
-        Assert.Equal(["order.cart-incomplete"], Errors(Cart(complete: false), Form(), Book()));
-        Assert.Equal(["order.cannot-order"], Errors(Cart(canOrder: false), Form(), Book()));
+        Assert.Equal(["order.cart-incomplete"], Errors(Cart(CartReadiness.Incomplete), Form(), Book()));
+        Assert.Equal(["order.cannot-order"], Errors(Cart(CartReadiness.NotOrderable), Form(), Book()));
+        Assert.Equal(["order.cannot-order"], Errors(Cart(CartReadiness.NotOrderable, lines: Unpriced()), Form(), Book()));
         Assert.Equal(["order.cart-changed"], Errors(Cart(version: 4), Form(), Book()));
-        Assert.Equal(["order.cart-changed"], Errors(Cart(totals: [Pln with { Gross = 18.46m }]), Form(), Book()));
-        Assert.Equal(["order.mixed-currencies"], Errors(Cart(totals: [Pln, Pln with { Currency = "EUR" }]), Form(), Book()));
-        Assert.Equal(["order.cart-incomplete"], Errors(Cart() with { Lines = [Line(priced: false)] }, Form(), Book()));
+        Assert.Equal(["order.cart-changed"], Errors(Cart(), Form(gross: 18.46m), Book()));
+        Assert.Equal(["order.mixed-currencies"], Errors(Cart(lines: [Priced(Line("A")), Priced(Line("B"), "EUR")]), Form(), Book()));
+        Assert.Equal(["order.cart-incomplete"], Errors(Cart(lines: [Priced(Line()), Unpriced("B")]), Form(), Book()));
     }
 
     [Fact]
     public void Every_problem_of_the_form_is_reported_with_its_field()
     {
-        var errors = OrderDraft.Validate(Cart(canOrder: false), Form("NONE", Today.AddDays(-1), new string('R', 51), new string('N', 1001)), Book(), Today).ShouldBeInvalid();
+        var errors = OrderDraft.Validate(Cart(CartReadiness.NotOrderable), Form(address: "NONE", date: Today.AddDays(-1), reference: new string('R', 51), notes: new string('N', 1001)), Book(), Today).ShouldBeInvalid();
 
         Assert.Equal(
             [("order.cannot-order", ""), ("order.customer-reference-too-long", "customerReference"), ("order.notes-too-long", "notes"), ("order.requested-date-past", "requestedDate"), ("order.address-not-allowed", "addressCode")],
@@ -81,9 +91,8 @@ public sealed class OrderDraftTests
     [Fact]
     public void Order_numbers_have_a_prefix_the_year_and_a_six_digit_sequence()
     {
-        Assert.Equal("WWW/2026/000042", OrderNumbers.Format("WWW", 2026, 42));
-        Assert.Equal("B2B", OrderNumbers.Prefix(" B2B ").ShouldSucceed());
-        Assert.Equal("order-number.prefix", OrderNumbers.Prefix("W/W").ShouldFail().Code);
-        Assert.Equal("order-number.prefix", OrderNumbers.Prefix("").ShouldFail().Code);
+        Assert.Equal("WWW/2026/000042", OrderNumbers.Format(OrderNumberPrefix.Parse(" WWW ").ShouldSucceed(), 2026, 42).Value);
+        Assert.Equal("order-number.prefix", OrderNumberPrefix.Parse("W/W").ShouldFail().Code);
+        Assert.Equal("order-number.prefix", OrderNumberPrefix.Parse("").ShouldFail().Code);
     }
 }

@@ -40,8 +40,8 @@ internal static partial class PublicApiEndpoints
             .WithSummary("The orders the key's user may see (their own, or the company's with the company order scope), newest first.");
         orders.MapGet("/{id:guid}", GetOrderAsync)
             .WithSummary("One order with its lines, status history and ERP documents.");
-        orders.MapPost("/{id:guid}/cancellation", CancelOrderAsync)
-            .WithSummary("Cancels an order the ERP has not taken over yet (status \"placed\").");
+        orders.MapPost("/{id:guid}/cancellation", RequestCancellationAsync)
+            .WithSummary("Asks the seller to cancel an order that is not invoiced (202); the ERP decides, see the order's cancellationRequestedAt and history. Asking again changes nothing.");
     }
 
     private static async Task<IResult> GetCartAsync(CartAccess carts, IQueryHandler<GetCart, CartView> getCart, SupportedCultures cultures, CancellationToken cancellationToken) =>
@@ -181,11 +181,11 @@ internal static partial class PublicApiEndpoints
             async viewer => (await VisibleOrderAsync(viewer, id, orders, getOrder, cancellationToken)).Match(Results.Ok, NotFoundOrder),
             () => Task.FromResult(ApiResults.Forbidden()));
 
-    private static async Task<IResult> CancelOrderAsync(
+    private static async Task<IResult> RequestCancellationAsync(
         Guid id,
         OrderAccess orders,
         IQueryHandler<GetOrder, Result<OrderView, Error>> getOrder,
-        ICommandHandler<CancelOrder, Result<Unit, Error>> cancel,
+        ICommandHandler<RequestOrderCancellation, Result<Unit, Error>> requestCancellation,
         CancellationToken cancellationToken) =>
         await (await orders.ViewerAsync(cancellationToken)).Match(
             async viewer => await (await VisibleOrderAsync(viewer, id, orders, getOrder, cancellationToken)).Match(
@@ -196,8 +196,8 @@ internal static partial class PublicApiEndpoints
                         return ApiResults.Forbidden("This key's user may not cancel this order.");
                     }
 
-                    return await (await cancel.HandleAsync(new CancelOrder(found.Id, viewer.UserId), cancellationToken)).Match(
-                        async _ => (await getOrder.HandleAsync(new GetOrder(id), cancellationToken)).ToHttpResult(view => Results.Ok(view)),
+                    return await (await requestCancellation.HandleAsync(new RequestOrderCancellation(found.Id, viewer.UserId), cancellationToken)).Match(
+                        async _ => (await getOrder.HandleAsync(new GetOrder(id), cancellationToken)).ToHttpResult(view => Results.Accepted(value: view)),
                         error => Task.FromResult(error.ToProblem()));
                 },
                 () => Task.FromResult(NotFoundOrder())),

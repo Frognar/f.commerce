@@ -83,18 +83,20 @@ public sealed class OrderEmailTests
     }
 
     [Fact]
-    public async Task The_buyer_hears_when_the_seller_accepts_rejects_or_cancels_but_not_about_their_own_cancellation()
+    public async Task The_buyer_hears_what_the_erp_decided_about_their_order()
     {
         var recorder = new Recorder();
-        var handler = new SendOrderStatusChanged(Mail(recorder));
+        var mail = new OrderDecisionMail(Mail(recorder));
         var ct = TestContext.Current.CancellationToken;
 
-        await handler.HandleAsync(new OrderStatusChanged(OrderId, Placed.Number, "K1", Buyer, OrderStatuses.Accepted, null, null, PlacedAt), ct);
-        await handler.HandleAsync(new OrderStatusChanged(OrderId, Placed.Number, "K1", Buyer, OrderStatuses.Cancelled, "customer", null, PlacedAt), ct);
-        await handler.HandleAsync(new OrderStatusChanged(OrderId, Placed.Number, "K1", Guid.NewGuid(), OrderStatuses.Rejected, null, "Brak", PlacedAt), ct);
+        await new SendOrderAccepted(mail).HandleAsync(new OrderAccepted(OrderId, Placed.Number, "K1", Buyer, "ZAM/1", PlacedAt), ct);
+        await new SendOrderCancelled(mail).HandleAsync(new OrderCancelled(OrderId, Placed.Number, "K1", Buyer, null, true, PlacedAt), ct);
+        await new SendOrderCancellationRefused(mail).HandleAsync(new OrderCancellationRefused(OrderId, Placed.Number, "K1", Buyer, "Wysłane", PlacedAt), ct);
+        await new SendOrderRejected(mail).HandleAsync(new OrderRejected(OrderId, Placed.Number, "K1", Guid.NewGuid(), "Brak", PlacedAt), ct);
 
-        var email = Assert.Single(recorder.Sent);
-        Assert.Equal("Zamówienie WWW/2026/000042: przyjęte", email.Subject);
-        Assert.Contains($"https://b2b.example.com/pl/company/orders/{OrderId}", email.Text, StringComparison.Ordinal);
+        Assert.Equal(
+            ["Zamówienie WWW/2026/000042: przyjęte", "Zamówienie WWW/2026/000042: anulowane", "Zamówienie WWW/2026/000042: realizowane mimo prośby o anulowanie"],
+            recorder.Sent.Select(e => e.Subject));
+        Assert.All(recorder.Sent, email => Assert.Contains($"https://b2b.example.com/pl/company/orders/{OrderId}", email.Text, StringComparison.Ordinal));
     }
 }

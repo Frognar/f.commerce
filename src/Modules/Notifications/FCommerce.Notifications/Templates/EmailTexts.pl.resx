@@ -41,4 +41,7 @@
   <data name="OrderStatus.accepted" xml:space="preserve"><value>przyjęte</value></data>
   <data name="OrderStatus.rejected" xml:space="preserve"><value>odrzucone</value></data>
   <data name="OrderStatus.cancelled" xml:space="preserve"><value>anulowane</value></data>
+  <data name="OrderCancellationRefusedSubject" xml:space="preserve"><value>Zamówienie {0}: {1}</value></data>
+  <data name="OrderCancellationRefusedBody" xml:space="preserve"><value>Sprzedawca nie anulował Twojego zamówienia {0} i realizuje je dalej ({2}).</value></data>
+  <data name="OrderCancellationRefused" xml:space="preserve"><value>realizowane mimo prośby o anulowanie</value></data>
 </root>

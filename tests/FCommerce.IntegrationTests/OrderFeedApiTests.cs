@@ -139,27 +139,44 @@ public sealed class OrderFeedApiTests(HostFixture host, NoOrderFeedHostFixture n
         var orders = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetOrder, Result<OrderView, Error>>>();
         var first = (await orders.HandleAsync(new GetOrder(accepted.OrderId), Token)).Match(o => o, e => throw new InvalidOperationException(e.Code));
         var second = (await orders.HandleAsync(new GetOrder(rejected.OrderId), Token)).Match(o => o, e => throw new InvalidOperationException(e.Code));
-        Assert.Equal((OrderStatuses.Cancelled, "seller", "Klient zrezygnował", "ZAM/2026/77"), (first.Status, first.CancelledBy, first.Reason, first.ErpNumber));
+        Assert.Equal((OrderStatuses.Cancelled, false, "Klient zrezygnował", "ZAM/2026/77"), (first.Status, first.CancelledOnRequest, first.Reason, first.ErpNumber));
         Assert.Equal((OrderStatuses.Rejected, "Brak towaru"), (second.Status, second.Reason));
     }
 
     [Fact]
-    public async Task An_order_the_buyer_cancelled_appears_in_the_feed_and_cannot_be_accepted()
+    public async Task A_buyers_request_to_cancel_appears_in_the_feed_and_the_erp_confirms_or_refuses_it()
     {
-        var (order, _) = await OrderAsync();
-        await FedAsync(order.OrderId, "placed");
-        await using (var scope = host.Factory.Services.CreateAsyncScope())
-        {
-            var placedBy = (await scope.ServiceProvider.GetRequiredService<IQueryHandler<GetOrder, Result<OrderView, Error>>>().HandleAsync(new GetOrder(order.OrderId), Token))
-                .Match(o => o.PlacedBy, e => throw new InvalidOperationException(e.Code));
-            (await scope.ServiceProvider.GetRequiredService<ICommandHandler<CancelOrder, Result<Unit, Error>>>().HandleAsync(new CancelOrder(order.OrderId, placedBy), Token))
-                .Match(_ => 0, e => throw new InvalidOperationException(e.Code));
-        }
+        var (confirmed, _) = await OrderAsync();
+        var (refused, _) = await OrderAsync();
+        await FedAsync(confirmed.OrderId, "placed");
+        await FedAsync(refused.OrderId, "placed");
+        await RequestCancellationAsync(confirmed.OrderId);
+        await RequestCancellationAsync(refused.OrderId);
 
-        var cancelled = await FedAsync(order.OrderId, "cancelled");
+        var requested = await FedAsync(confirmed.OrderId, OrderFeedTypes.CancellationRequested);
 
-        Assert.Equal(OrderStatuses.Cancelled, cancelled.Order.Status);
-        Assert.Equal(HttpStatusCode.Conflict, await PutStatusAsync(Path(order.Number, "acceptance"), new OrderAcceptanceData("ZAM/1")));
+        Assert.Equal(OrderStatuses.Placed, requested.Order.Status);
+        Assert.Equal(HttpStatusCode.NoContent, await PutStatusAsync(Path(confirmed.Number, "cancellation"), new OrderReasonData(null)));
+        Assert.Equal(HttpStatusCode.Conflict, await PutStatusAsync(Path(confirmed.Number, "acceptance"), new OrderAcceptanceData("ZAM/1")));
+        Assert.Equal(HttpStatusCode.NoContent, await PutStatusAsync(Path(refused.Number, "cancellation-refusal"), new OrderReasonData("Towar w drodze")));
+        Assert.Equal(HttpStatusCode.Conflict, await PutStatusAsync(Path(refused.Number, "cancellation-refusal"), new OrderReasonData(null)));
+        Assert.Equal(HttpStatusCode.NoContent, await PutStatusAsync(Path(refused.Number, "acceptance"), new OrderAcceptanceData("ZAM/2")));
+
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var orders = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetOrder, Result<OrderView, Error>>>();
+        var cancelled = (await orders.HandleAsync(new GetOrder(confirmed.OrderId), Token)).Match(o => o, e => throw new InvalidOperationException(e.Code));
+        var kept = (await orders.HandleAsync(new GetOrder(refused.OrderId), Token)).Match(o => o, e => throw new InvalidOperationException(e.Code));
+        Assert.Equal((OrderStatuses.Cancelled, true), (cancelled.Status, cancelled.CancelledOnRequest));
+        Assert.Equal((OrderStatuses.Accepted, (DateTimeOffset?)null, "Towar w drodze"), (kept.Status, kept.CancellationRequestedAt, kept.History[^2].Reason));
+    }
+
+    private async Task RequestCancellationAsync(Guid orderId)
+    {
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var placedBy = (await scope.ServiceProvider.GetRequiredService<IQueryHandler<GetOrder, Result<OrderView, Error>>>().HandleAsync(new GetOrder(orderId), Token))
+            .Match(o => o.PlacedBy, e => throw new InvalidOperationException(e.Code));
+        (await scope.ServiceProvider.GetRequiredService<ICommandHandler<RequestOrderCancellation, Result<Unit, Error>>>().HandleAsync(new RequestOrderCancellation(orderId, placedBy), Token))
+            .Match(_ => 0, e => throw new InvalidOperationException(e.Code));
     }
 
     [Fact]

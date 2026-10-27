@@ -5,50 +5,95 @@ using FCommerce.Customers.Contracts;
 using FCommerce.Ordering.Contracts;
 using FCommerce.Ordering.Domain;
 using FCommerce.SharedKernel.Collections;
+using FCommerce.SharedKernel.Contact;
+using FCommerce.SharedKernel.Monetary;
 using FCommerce.SharedKernel.Optional;
 using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Validation;
 
 namespace FCommerce.Ordering;
 
-/// <summary>The reviewed cart and the delivery addresses of a buyer, read through the cart and customer contracts.</summary>
+/// <summary>
+/// The reviewed cart and the delivery addresses of a buyer, read through the cart and customer contracts. The other
+/// modules validated what they send; a value that does not parse here is a broken contract, not a buyer's mistake.
+/// </summary>
 internal sealed class CheckoutReader(
     IQueryHandler<GetCart, CartView> carts,
     IQueryHandler<GetCustomer, Result<CustomerDetails, Error>> customers)
 {
     public async Task<(CartSnapshot Cart, AddressBook Addresses)> ReadAsync(BuyerTerms buyer, IReadOnlyList<string> cultures, CancellationToken cancellationToken)
     {
-        var limit = buyer.OrderLimit.ToMaybe()
-            .Bind(amount => buyer.OrderLimitCurrency.ToMaybe().Map(currency => new CartOrderLimit(amount, currency)));
-        var cart = await carts.HandleAsync(new GetCart(new CartOwner(buyer.UserId, buyer.CustomerCode), cultures, limit.OrNull()), cancellationToken);
+        var cart = Snapshot(await carts.HandleAsync(new GetCart(new CartOwner(buyer.UserId, buyer.CustomerCode), cultures, Limit(buyer).OrNull()), cancellationToken));
         var customer = (await customers.HandleAsync(new GetCustomer(buyer.CustomerCode), cancellationToken)).ToMaybe();
-        return (Snapshot(cart), Book(customer, buyer.AllowedAddressCodes.ToMaybe()));
+        return customer.Match(
+            details => (cart, Book(details, buyer.AllowedAddressCodes.OrEmpty())),
+            () => (cart with { Readiness = CartReadiness.Incomplete }, AddressBook.Empty));
     }
+
+    /// <summary>No limit, or one with its currency: a limit without a currency must not turn into no limit.</summary>
+    private static Maybe<CartOrderLimit> Limit(BuyerTerms buyer) =>
+        (buyer.OrderLimit, buyer.OrderLimitCurrency) switch
+        {
+            (null, null) => Maybe<CartOrderLimit>.None,
+            ({ } amount, { } currency) => new CartOrderLimit(amount, currency),
+            _ => throw new InvalidOperationException("The buyer's order limit needs both its amount and its currency."),
+        };
 
     public static CartSnapshot Snapshot(CartView cart) =>
         new(
-            cart.Version,
-            cart.Complete,
-            cart.CanOrder,
-            [.. cart.Lines.Select(line => new CartLine(
-                line.Sku,
-                line.Name.ToMaybe(),
-                line.Unit.ToMaybe(),
-                line.Quantity,
-                line.UnitNet.ToMaybe(),
-                line.VatRate.ToMaybe(),
-                line.NetAmount.ToMaybe(),
-                line.PriceListCode.ToMaybe(),
-                line.Issues.Any(issue => issue.Code == "backorder")))],
-            [.. cart.Totals.Select(t => new OrderTotals(t.Currency, t.Net, [.. t.Rates.Select(r => new VatTotal(r.Rate, r.Net, r.Vat))], t.Vat, t.Gross))]);
+            Contract(CartVersion.Parse(cart.Version), "cart version"),
+            !cart.Complete ? CartReadiness.Incomplete : cart.CanOrder ? CartReadiness.Orderable : CartReadiness.NotOrderable,
+            [.. cart.Lines.Select(Line)]);
 
-    private static AddressBook Book(Maybe<CustomerDetails> customer, Maybe<IReadOnlyList<string>> allowed) =>
-        new(
-            customer.Match(
-                c => (EquatableArray<DeliveryAddress>)[.. c.DeliveryAddresses.Select(a => new DeliveryAddress(a.Code, a.Name.ToMaybe(), a.Address.Street, a.Address.PostalCode, a.Address.City, a.Address.Country))],
-                () => EquatableArray<DeliveryAddress>.Empty),
-            customer.Bind(c => c.DeliveryAddresses.FirstOrNone(a => a.IsDefault)).Map(a => a.Code),
-            allowed.Where(codes => codes.Count > 0).Map(codes => (EquatableArray<string>)[.. codes]));
+    /// <summary>A line with a price and everything an order line needs is priced; any other line is not.</summary>
+    private static CheckoutLine Line(CartLineView line)
+    {
+        var sku = Contract(Sku.Parse(line.Sku), "cart SKU");
+        var quantity = Contract(OrderQuantity.Parse(line.Quantity), "cart quantity");
+        var name = line.Name.ToMaybe().Map(raw => Contract(LineName.Parse(raw), "product name"));
+        var unit = line.Unit.ToMaybe().Map(raw => Contract(UnitCode.Parse(raw), "unit"));
+        var priced =
+            from productName in name
+            from unitCode in unit
+            from currency in line.Currency.ToMaybe()
+            from price in line.UnitNet.ToMaybe()
+            from rate in line.VatRate.ToMaybe()
+            from list in line.PriceListCode.ToMaybe()
+            select (CheckoutLine)new CheckoutLine.Priced(
+                Contract(Currency.Parse(currency), "currency"),
+                new OrderLine(
+                    sku,
+                    productName,
+                    unitCode,
+                    quantity,
+                    Contract(NetPrice.Parse(price), "net price"),
+                    Contract(VatRate.Parse(rate), "VAT rate"),
+                    Contract(PriceListCode.Parse(list), "price list"),
+                    line.Issues.Any(issue => issue.Code == CartLineIssues.Backorder)));
+        return priced.ValueOr(() => new CheckoutLine.Unpriced(sku, name, unit, quantity));
+    }
+
+    /// <summary>The customer's addresses; without the customer the cart is not complete, so nothing is ordered to a guess.</summary>
+    private static AddressBook Book(CustomerDetails customer, IReadOnlyList<string> allowed) =>
+        AddressBook.Of(
+            customer.DeliveryAddresses.Select(a => (Address(a), a.IsDefault)),
+            AddressScope.Of(allowed.Where(code => code.Trim().Length > 0).Select(code => Contract(AddressCode.Parse(code), "allowed address code"))));
+
+    private static DeliveryAddress Address(DeliveryAddressView address)
+    {
+        var country = Contract(CountryCode.Parse(address.Address.Country), "country");
+        return new DeliveryAddress(
+            Contract(AddressCode.Parse(address.Code), "address code"),
+            address.Name.ToMaybe().Map(name => Contract(AddressText.Parse(name), "address name")),
+            Contract(AddressText.Parse(address.Address.Street), "street"),
+            Contract(PostalCode.Parse(address.Address.PostalCode, country), "postal code"),
+            Contract(AddressText.Parse(address.Address.City), "city"),
+            country);
+    }
+
+    private static T Contract<T>(Result<T, Error> value, string what)
+        where T : notnull =>
+        value.Match(valid => valid, error => throw new InvalidOperationException($"The checkout read an invalid {what}: {error.Message}"));
 }
 
 internal sealed class GetCheckoutHandler(CheckoutReader reader, OrderingClock clock) : IQueryHandler<GetCheckout, CheckoutView>
@@ -56,25 +101,28 @@ internal sealed class GetCheckoutHandler(CheckoutReader reader, OrderingClock cl
     public async Task<CheckoutView> HandleAsync(GetCheckout query, CancellationToken cancellationToken = default)
     {
         var (cart, addresses) = await reader.ReadAsync(query.Buyer, query.Cultures.OrEmpty(), cancellationToken);
-        var noAddress = !addresses.Addresses.IsEmpty && addresses.Permitted.IsEmpty;
-        IReadOnlyList<string> issues =
-        [
-            .. cart.Complete ? [] : new[] { "cart-incomplete" },
-            .. cart.Lines.IsEmpty ? ["empty"] : Array.Empty<string>(),
-            .. !cart.CanOrder && !cart.Lines.IsEmpty ? ["cannot-order"] : Array.Empty<string>(),
-            .. noAddress ? ["no-address-allowed"] : Array.Empty<string>(),
-        ];
+        IReadOnlyList<string> issues = Issues(cart, addresses);
         return new CheckoutView(
-            cart.Version,
-            cart.Complete && cart.CanOrder && cart.Totals.Count == 1 && !noAddress,
+            cart.Version.Value,
+            issues.Count == 0,
             issues,
-            [.. cart.Lines.Select(line => new OrderLineView(
-                line.Sku, line.Name.ValueOr(line.Sku), line.Unit.ValueOr(string.Empty), line.Quantity, line.UnitNet.ValueOr(0m), line.VatRate.ValueOr(0m), line.NetAmount.ValueOr(0m), line.Backorder))],
-            cart.Totals.FirstOrNone().Map(OrderViews.Total).OrNull(),
+            [.. cart.Lines.Select(OrderViews.Line)],
+            cart.Total.Map(OrderViews.Total).OrNull(),
             [.. addresses.Permitted.Select(OrderViews.Address)],
-            addresses.Suggested.Map(a => a.Code).OrNull(),
+            addresses.Suggested.Map(a => a.Code.Value).OrNull(),
             clock.Today);
     }
+
+    /// <summary>What prevents placing the order, in the order <see cref="OrderDraft.Validate"/> checks it.</summary>
+    private static IReadOnlyList<string> Issues(CartSnapshot cart, AddressBook addresses) =>
+    [
+        .. cart.Readiness == CartReadiness.Incomplete || (cart.Readiness == CartReadiness.Orderable && cart.Lines.Any(line => line is CheckoutLine.Unpriced))
+            ? ["cart-incomplete"] : Array.Empty<string>(),
+        .. cart.Lines.IsEmpty ? ["empty"] : Array.Empty<string>(),
+        .. cart.Readiness == CartReadiness.NotOrderable && !cart.Lines.IsEmpty ? ["cannot-order"] : Array.Empty<string>(),
+        .. cart.PricedLines.Select(line => line.Currency).Distinct().Count() > 1 ? ["mixed-currencies"] : Array.Empty<string>(),
+        .. !addresses.Addresses.IsEmpty && addresses.Permitted.IsEmpty ? ["no-address-allowed"] : Array.Empty<string>(),
+    ];
 }
 
 /// <summary>
@@ -99,53 +147,75 @@ internal sealed class PlaceOrderHandler(CheckoutReader reader, OrderStore orders
             command.AddressCode.ToMaybe());
         var today = clock.Today;
 
-        return await OrderDraft.Validate(cart, form, addresses, today).ToResult().BindAsync(async order =>
-        {
-            var number = await numbers.NextAsync(today.Year, cancellationToken);
-            var placed = await orders.DecideAsync(
-                command.OrderId,
-                new OrderCommand.Place(number, command.Buyer.CustomerCode, command.Buyer.UserId, order),
-                command.Buyer.UserId.ToString("N"),
-                cancellationToken);
-            return await placed.Match<Task<Result<OrderPlacement, Error>>>(
-                _ => Task.FromResult(Result.Ok<OrderPlacement, Error>(new OrderPlacement(command.OrderId, number, false, Items(order.Lines)))),
-                async error => error.Code == "order.exists"
-                    ? (await ExistingAsync(command, cancellationToken)).ValueOr(Result.Fail<OrderPlacement, Error>(error))
-                    : Result.Fail<OrderPlacement, Error>(error));
-        });
+        return await CustomerCode.Parse(command.Buyer.CustomerCode.OrEmpty())
+            .Bind(customer => OrderDraft.Validate(cart, form, addresses, today).ToResult().Map(order => (Customer: customer, Order: order)))
+            .BindAsync(async valid =>
+            {
+                var number = await numbers.NextAsync(today.Year, cancellationToken);
+                var placed = await orders.DecideAsync(
+                    command.OrderId,
+                    new OrderCommand.Place(number, valid.Customer, command.Buyer.UserId, valid.Order),
+                    command.Buyer.UserId.ToString("N"),
+                    cancellationToken);
+                return await placed.Match<Task<Result<OrderPlacement, Error>>>(
+                    _ => Task.FromResult(Result.Ok<OrderPlacement, Error>(new OrderPlacement(command.OrderId, number.Value, false, Items(valid.Order.Lines)))),
+                    async error => error.Code == "order.exists"
+                        ? (await ExistingAsync(command, cancellationToken)).ValueOr(Result.Fail<OrderPlacement, Error>(error))
+                        : Result.Fail<OrderPlacement, Error>(error));
+            });
     }
 
     /// <summary>The order placed before under this id; another buyer's id is not theirs to see.</summary>
     private async Task<Maybe<Result<OrderPlacement, Error>>> ExistingAsync(PlaceOrder command, CancellationToken cancellationToken) =>
-        (await orders.LoadAsync(command.OrderId, cancellationToken)).Placed.Map(placed =>
-            placed.PlacedBy == command.Buyer.UserId && placed.CustomerCode == command.Buyer.CustomerCode
-                ? Result.Ok<OrderPlacement, Error>(new OrderPlacement(command.OrderId, placed.Number, true, Items(placed.Lines)))
-                : Error.Conflict("order.exists", "This order has already been placed."));
+        await orders.LoadAsync(command.OrderId, cancellationToken) is OrderState.Placed { Order: var placed }
+            ? placed.PlacedBy == command.Buyer.UserId && placed.CustomerCode.Value == command.Buyer.CustomerCode
+                ? Result.Ok<OrderPlacement, Error>(new OrderPlacement(command.OrderId, placed.Number.Value, true, Items(placed.Lines)))
+                : Error.Conflict("order.exists", "This order has already been placed.")
+            : Maybe<Result<OrderPlacement, Error>>.None;
 
-    private static IReadOnlyList<OrderItemData> Items(EquatableArray<OrderLine> lines) =>
-        [.. lines.Select(line => new OrderItemData(line.Sku, line.Quantity))];
+    private static IReadOnlyList<OrderItemData> Items(NonEmptyArray<OrderLine> lines) =>
+        [.. lines.Select(line => new OrderItemData(line.Sku.Value, line.Quantity.Value))];
 }
 
-internal sealed class CancelOrderHandler(OrderStore orders) : ICommandHandler<CancelOrder, Result<Unit, Error>>
+/// <summary>The buyer asks; the request goes to the ERP through the order feed.</summary>
+internal sealed class RequestOrderCancellationHandler(OrderStore orders) : ICommandHandler<RequestOrderCancellation, Result<Unit, Error>>
 {
-    public async Task<Result<Unit, Error>> HandleAsync(CancelOrder command, CancellationToken cancellationToken = default) =>
-        (await orders.DecideAsync(command.OrderId, new OrderCommand.CancelByCustomer(), command.UserId.ToString("N"), cancellationToken)).Map(_ => Unit.Value);
+    public async Task<Result<Unit, Error>> HandleAsync(RequestOrderCancellation command, CancellationToken cancellationToken = default) =>
+        (await orders.DecideAsync(command.OrderId, new OrderCommand.RequestCancellation(command.UserId), command.UserId.ToString("N"), cancellationToken)).Map(_ => Unit.Value);
 }
 
 internal sealed class AcceptOrderHandler(OrderStore orders) : ICommandHandler<AcceptOrder, Result<Unit, Error>>
 {
     public Task<Result<Unit, Error>> HandleAsync(AcceptOrder command, CancellationToken cancellationToken = default) =>
-        orders.DecideByNumberAsync(command.Number.OrEmpty(), new OrderCommand.Accept(command.ErpNumber.OrEmpty()), cancellationToken);
+        orders.DecideByNumberAsync(
+            command.Number.OrEmpty(),
+            ErpOrderNumber.Parse(command.ErpNumber.OrEmpty()).Map(number => (OrderCommand)new OrderCommand.Accept(number)),
+            cancellationToken);
 }
 
 internal sealed class RejectOrderHandler(OrderStore orders) : ICommandHandler<RejectOrder, Result<Unit, Error>>
 {
     public Task<Result<Unit, Error>> HandleAsync(RejectOrder command, CancellationToken cancellationToken = default) =>
-        orders.DecideByNumberAsync(command.Number.OrEmpty(), new OrderCommand.Reject(command.Reason.ToMaybe()), cancellationToken);
+        orders.DecideByNumberAsync(
+            command.Number.OrEmpty(),
+            Reason.ParseOptional(command.Reason.ToMaybe()).Map(reason => (OrderCommand)new OrderCommand.Reject(reason)),
+            cancellationToken);
 }
 
-internal sealed class CancelOrderBySellerHandler(OrderStore orders) : ICommandHandler<CancelOrderBySeller, Result<Unit, Error>>
+internal sealed class CancelOrderHandler(OrderStore orders) : ICommandHandler<CancelOrder, Result<Unit, Error>>
 {
-    public Task<Result<Unit, Error>> HandleAsync(CancelOrderBySeller command, CancellationToken cancellationToken = default) =>
-        orders.DecideByNumberAsync(command.Number.OrEmpty(), new OrderCommand.CancelBySeller(command.Reason.ToMaybe()), cancellationToken);
+    public Task<Result<Unit, Error>> HandleAsync(CancelOrder command, CancellationToken cancellationToken = default) =>
+        orders.DecideByNumberAsync(
+            command.Number.OrEmpty(),
+            Reason.ParseOptional(command.Reason.ToMaybe()).Map(reason => (OrderCommand)new OrderCommand.Cancel(reason)),
+            cancellationToken);
+}
+
+internal sealed class RefuseOrderCancellationHandler(OrderStore orders) : ICommandHandler<RefuseOrderCancellation, Result<Unit, Error>>
+{
+    public Task<Result<Unit, Error>> HandleAsync(RefuseOrderCancellation command, CancellationToken cancellationToken = default) =>
+        orders.DecideByNumberAsync(
+            command.Number.OrEmpty(),
+            Reason.ParseOptional(command.Reason.ToMaybe()).Map(reason => (OrderCommand)new OrderCommand.RefuseCancellation(reason)),
+            cancellationToken);
 }

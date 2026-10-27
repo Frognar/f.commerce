@@ -54,7 +54,7 @@ internal sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> opti
             feed.HasKey(f => f.Position);
             feed.Property(f => f.Position).HasColumnName("position").ValueGeneratedNever();
             feed.Property(f => f.OrderId).HasColumnName("order_id");
-            feed.Property(f => f.Type).HasColumnName("type").HasMaxLength(20);
+            feed.Property(f => f.Type).HasColumnName("type").HasMaxLength(32);
             feed.Property(f => f.At).HasColumnName("at");
         });
 
@@ -80,16 +80,18 @@ internal sealed class OrderRow
 
     public required string CustomerCode { get; set; }
 
-    public string CustomerName { get; set; } = string.Empty;
+    /// <summary>Null while the customer could not be read (filled in by a later event of the order).</summary>
+    public string? CustomerName { get; set; }
 
     /// <summary>Of the customer, for operators who see only their customers' orders.</summary>
     public string? SalespersonEmail { get; set; }
 
     public Guid PlacedBy { get; set; }
 
-    public string PlacedByName { get; set; } = string.Empty;
+    /// <summary>Null while the buyer could not be read (filled in by a later event of the order).</summary>
+    public string? PlacedByName { get; set; }
 
-    public string PlacedByEmail { get; set; } = string.Empty;
+    public string? PlacedByEmail { get; set; }
 
     public DateTimeOffset PlacedAt { get; set; }
 

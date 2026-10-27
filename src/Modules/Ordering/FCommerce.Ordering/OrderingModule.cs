@@ -20,15 +20,21 @@ public static class OrderingModule
 {
     public static IServiceCollection AddOrderingModule(this IServiceCollection services, OrderingOptions options)
     {
-        var prefix = OrderNumbers.Prefix(options.NumberPrefix).Match(p => p, error => throw new InvalidOperationException($"Ordering:NumberPrefix: {error.Message}"));
-        services.AddSingleton(new OrderingOptions { NumberPrefix = prefix, TimeZone = options.TimeZone });
+        var prefix = OrderNumberPrefix.Parse(options.NumberPrefix).Match(p => p, error => throw new InvalidOperationException($"Ordering:NumberPrefix: {error.Message}"));
+        services.AddSingleton(prefix);
+        services.AddSingleton(new OrderingOptions { NumberPrefix = prefix.Value, TimeZone = options.TimeZone });
         services.AddSingleton<OrderingClock>();
 
         services.AddMessageType<OrderEvent.OrderPlaced>("ordering.order-placed.v1");
         services.AddMessageType<OrderEvent.OrderAccepted>("ordering.order-accepted.v1");
+        services.AddMessageType<OrderEvent.ErpNumberAssigned>("ordering.erp-number-assigned.v1");
         services.AddMessageType<OrderEvent.OrderRejected>("ordering.order-rejected.v1");
+        services.AddMessageType<OrderEvent.CancellationRequested>("ordering.cancellation-requested.v1");
+        services.AddMessageType<OrderEvent.CancellationRefused>("ordering.cancellation-refused.v1");
         services.AddMessageType<OrderEvent.OrderCancelled>("ordering.order-cancelled.v1");
         services.AddMessageType<OrderEvent.DocumentLinked>("ordering.document-linked.v1");
+        services.AddMessageType<OrderEvent.OrderDispatched>("ordering.order-dispatched.v1");
+        services.AddMessageType<OrderEvent.OrderInvoiced>("ordering.order-invoiced.v1");
 
         services.AddModuleDbContext<OrderingDbContext>(OrderingDbContext.Schema);
         services.AddScoped<OrderStore>();
@@ -37,10 +43,11 @@ public static class OrderingModule
 
         services.AddScoped<IQueryHandler<GetCheckout, CheckoutView>, GetCheckoutHandler>();
         services.AddScoped<ICommandHandler<PlaceOrder, Result<OrderPlacement, Error>>, PlaceOrderHandler>();
-        services.AddScoped<ICommandHandler<CancelOrder, Result<Unit, Error>>, CancelOrderHandler>();
+        services.AddScoped<ICommandHandler<RequestOrderCancellation, Result<Unit, Error>>, RequestOrderCancellationHandler>();
         services.AddScoped<ICommandHandler<AcceptOrder, Result<Unit, Error>>, AcceptOrderHandler>();
         services.AddScoped<ICommandHandler<RejectOrder, Result<Unit, Error>>, RejectOrderHandler>();
-        services.AddScoped<ICommandHandler<CancelOrderBySeller, Result<Unit, Error>>, CancelOrderBySellerHandler>();
+        services.AddScoped<ICommandHandler<CancelOrder, Result<Unit, Error>>, CancelOrderHandler>();
+        services.AddScoped<ICommandHandler<RefuseOrderCancellation, Result<Unit, Error>>, RefuseOrderCancellationHandler>();
         services.AddScoped<IQueryHandler<GetOrder, Result<OrderView, Error>>, GetOrderHandler>();
         services.AddScoped<IQueryHandler<GetOrders, Result<OrderPage, Error>>, GetOrdersHandler>();
         services.AddScoped<IQueryHandler<GetOrderFeed, OrderFeedPage>, GetOrderFeedHandler>();

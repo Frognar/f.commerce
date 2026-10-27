@@ -12,8 +12,6 @@ namespace FCommerce.Host.Api;
 
 internal static partial class PublicApiEndpoints
 {
-    private static readonly string[] DocumentTypes = ["invoice", "correction-invoice", "delivery-note", "proforma"];
-
     private static readonly string[] DocumentStatusFilters = [DocumentStatuses.Unpaid, DocumentStatuses.Overdue, DocumentStatuses.Paid];
 
     private static void MapDocuments(RouteGroupBuilder api)
@@ -34,9 +32,9 @@ internal static partial class PublicApiEndpoints
         IQueryHandler<GetCustomerDocuments, Result<DocumentPage, Error>> documents,
         CancellationToken cancellationToken)
     {
-        if (search.Type is { } type && !DocumentTypes.Contains(type))
+        if (search.Type is { } type && !DocumentTypes.All.Contains(type))
         {
-            return ApiResults.BadRequest("api.invalid-filter", $"type must be one of: {string.Join(", ", DocumentTypes)}.", "type");
+            return ApiResults.BadRequest("api.invalid-filter", $"type must be one of: {string.Join(", ", DocumentTypes.All)}.", "type");
         }
 
         if (search.Status is { } status && !DocumentStatusFilters.Contains(status))

@@ -6,6 +6,7 @@ using FCommerce.Catalog.Contracts;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.Ordering.Contracts;
+using FCommerce.SharedKernel.Messaging;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -72,7 +73,13 @@ public partial class HostFixture : IAsyncLifetime
                 services.AddSingleton<IIntegrationEventHandler<PortalContactsChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<DocumentChanged>>(Events);
                 services.AddSingleton<IIntegrationEventHandler<OrderPlaced>>(Events);
-                services.AddSingleton<IIntegrationEventHandler<OrderStatusChanged>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderAccepted>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderRejected>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderCancellationRequested>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderCancellationRefused>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderCancelled>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderDispatched>>(Events);
+                services.AddSingleton<IIntegrationEventHandler<OrderInvoiced>>(Events);
                 services.AddSingleton<IEmailSender>(Mail);
             })));
         _ = Factory.Server; // start now, so failures surface in the fixture
@@ -154,14 +161,17 @@ public partial class HostFixture : IAsyncLifetime
 
     public sealed class EventRecorder
         : IIntegrationEventHandler<ProductChanged>, IIntegrationEventHandler<CustomerChanged>, IIntegrationEventHandler<PortalContactsChanged>,
-            IIntegrationEventHandler<DocumentChanged>, IIntegrationEventHandler<OrderPlaced>, IIntegrationEventHandler<OrderStatusChanged>
+            IIntegrationEventHandler<DocumentChanged>, IIntegrationEventHandler<OrderPlaced>,
+            IIntegrationEventHandler<OrderAccepted>, IIntegrationEventHandler<OrderRejected>, IIntegrationEventHandler<OrderCancellationRequested>,
+            IIntegrationEventHandler<OrderCancellationRefused>, IIntegrationEventHandler<OrderCancelled>, IIntegrationEventHandler<OrderDispatched>,
+            IIntegrationEventHandler<OrderInvoiced>
     {
         private readonly ConcurrentQueue<ProductChanged> productChanges = new();
         private readonly ConcurrentQueue<CustomerChanged> customerChanges = new();
         private readonly ConcurrentQueue<PortalContactsChanged> portalContactChanges = new();
         private readonly ConcurrentQueue<DocumentChanged> documentChanges = new();
         private readonly ConcurrentQueue<OrderPlaced> ordersPlaced = new();
-        private readonly ConcurrentQueue<OrderStatusChanged> orderStatusChanges = new();
+        private readonly ConcurrentQueue<IIntegrationEvent> orderEvents = new();
 
         public IReadOnlyCollection<ProductChanged> ProductChanges => productChanges;
 
@@ -173,7 +183,8 @@ public partial class HostFixture : IAsyncLifetime
 
         public IReadOnlyCollection<OrderPlaced> OrdersPlaced => ordersPlaced;
 
-        public IReadOnlyCollection<OrderStatusChanged> OrderStatusChanges => orderStatusChanges;
+        /// <summary>What happened to orders after they were placed, in the order published.</summary>
+        public IReadOnlyCollection<IIntegrationEvent> OrderEvents => orderEvents;
 
         public Task HandleAsync(ProductChanged integrationEvent, CancellationToken cancellationToken = default)
         {
@@ -205,9 +216,23 @@ public partial class HostFixture : IAsyncLifetime
             return Task.CompletedTask;
         }
 
-        public Task HandleAsync(OrderStatusChanged integrationEvent, CancellationToken cancellationToken = default)
+        public Task HandleAsync(OrderAccepted integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderRejected integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderCancellationRequested integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderCancellationRefused integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderCancelled integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderDispatched integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        public Task HandleAsync(OrderInvoiced integrationEvent, CancellationToken cancellationToken = default) => Order(integrationEvent);
+
+        private Task Order(IIntegrationEvent integrationEvent)
         {
-            orderStatusChanges.Enqueue(integrationEvent);
+            orderEvents.Enqueue(integrationEvent);
             return Task.CompletedTask;
         }
     }

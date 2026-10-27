@@ -60,8 +60,8 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Ordering
 
                     b.Property<string>("Type")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
                         .HasColumnName("type");
 
                     b.HasKey("Position");
@@ -88,7 +88,6 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Ordering
                         .HasColumnName("customer_code");
 
                     b.Property<string>("CustomerName")
-                        .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)")
                         .HasColumnName("customer_name");
@@ -132,13 +131,11 @@ namespace FCommerce.Infrastructure.Postgres.Migrations.Ordering
                         .HasColumnName("placed_by");
 
                     b.Property<string>("PlacedByEmail")
-                        .IsRequired()
                         .HasMaxLength(254)
                         .HasColumnType("character varying(254)")
                         .HasColumnName("placed_by_email");
 
                     b.Property<string>("PlacedByName")
-                        .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)")
                         .HasColumnName("placed_by_name");

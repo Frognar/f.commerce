@@ -473,8 +473,15 @@
   <data name="OrderStatus.completed" xml:space="preserve"><value>Zrealizowane</value></data>
   <data name="OrderStatus.rejected" xml:space="preserve"><value>Odrzucone</value></data>
   <data name="OrderStatus.cancelled" xml:space="preserve"><value>Anulowane</value></data>
-  <data name="CancelledBy.customer" xml:space="preserve"><value>(przez klienta)</value></data>
-  <data name="CancelledBy.seller" xml:space="preserve"><value>(przez sprzedawcę)</value></data>
+  <data name="OrderStatus.cancellation-requested" xml:space="preserve"><value>Prośba o anulowanie</value></data>
+  <data name="OrderStatus.cancellation-refused" xml:space="preserve"><value>Anulowanie odrzucone</value></data>
+  <data name="CancelledOnRequest" xml:space="preserve"><value>(na prośbę klienta)</value></data>
+  <data name="CancellationPending" xml:space="preserve"><value>Prośba o anulowanie</value></data>
+  <data name="CancellationPendingSince" xml:space="preserve"><value>czeka na decyzję sprzedawcy od {0}</value></data>
+  <data name="CancellationRequested" xml:space="preserve"><value>Prośba o anulowanie trafiła do sprzedawcy. Jego decyzję zobaczysz w historii zamówienia.</value></data>
+  <data name="Error.order.completed" xml:space="preserve"><value>Zafakturowanego zamówienia nie można anulować.</value></data>
+  <data name="Error.order.rejected" xml:space="preserve"><value>Zamówienie zostało odrzucone.</value></data>
+  <data name="Error.order.cancelled" xml:space="preserve"><value>Zamówienie zostało anulowane.</value></data>
   <data name="StatusReason" xml:space="preserve"><value>Powód</value></data>
   <data name="PlacedFrom" xml:space="preserve"><value>Złożone od</value></data>
   <data name="PlacedTo" xml:space="preserve"><value>Złożone do</value></data>
@@ -488,10 +495,8 @@
   <data name="OrderPlacedNotice" xml:space="preserve"><value>Dziękujemy! Zamówienie {0} zostało złożone. Potwierdzenie wysłaliśmy e-mailem.</value></data>
   <data name="OrderHistory" xml:space="preserve"><value>Historia zamówienia</value></data>
   <data name="OrderDocuments" xml:space="preserve"><value>Dokumenty zamówienia</value></data>
-  <data name="DocumentType.other" xml:space="preserve"><value>Inny dokument</value></data>
-  <data name="CancelOrder" xml:space="preserve"><value>Anuluj zamówienie</value></data>
-  <data name="CancelOrderConfirm" xml:space="preserve"><value>Anulować to zamówienie?</value></data>
-  <data name="OrderCancelled" xml:space="preserve"><value>Zamówienie zostało anulowane.</value></data>
+  <data name="CancelOrder" xml:space="preserve"><value>Poproś o anulowanie</value></data>
+  <data name="CancelOrderConfirm" xml:space="preserve"><value>Poprosić sprzedawcę o anulowanie tego zamówienia?</value></data>
   <data name="Error.cart.not-available" xml:space="preserve"><value>Nie możesz teraz zamawiać dla tej firmy.</value></data>
   <data name="Error.order.cart-changed" xml:space="preserve"><value>Koszyk lub ceny zmieniły się od chwili wyświetlenia. Sprawdź je i złóż zamówienie ponownie.</value></data>
   <data name="Error.order.cart-incomplete" xml:space="preserve"><value>Nie udało się teraz sprawdzić cen lub stanów. Spróbuj za chwilę.</value></data>
@@ -503,7 +508,7 @@
   <data name="Error.order.notes-too-long" xml:space="preserve"><value>Uwagi mogą mieć najwyżej 1000 znaków.</value></data>
   <data name="Error.order.requested-date-past" xml:space="preserve"><value>Żądana data nie może być w przeszłości.</value></data>
   <data name="Error.order.requested-date-too-far" xml:space="preserve"><value>Żądana data może być najwyżej rok naprzód.</value></data>
-  <data name="Error.order.not-cancellable" xml:space="preserve"><value>Sprzedawca przyjął już to zamówienie — aby je anulować, skontaktuj się z nim.</value></data>
+  <data name="Error.order.not-cancellable" xml:space="preserve"><value>Nie możesz poprosić o anulowanie tego zamówienia.</value></data>
   <data name="Error.order.not-found" xml:space="preserve"><value>Nie ma takiego zamówienia.</value></data>
   <data name="Error.order.exists" xml:space="preserve"><value>To zamówienie zostało już złożone.</value></data>
   <data name="Customer" xml:space="preserve"><value>Kontrahent</value></data>

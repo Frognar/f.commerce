@@ -141,7 +141,7 @@ public sealed class ApiOrdersTests(HostFixture host)
     }
 
     [Fact]
-    public async Task An_order_is_cancelled_until_the_erp_takes_it_over()
+    public async Task The_buyer_asks_to_cancel_and_the_erp_decides()
     {
         var company = await support.CompanyAsync();
         var (key, _) = await support.KeyAsync(company, company.BuyerId);
@@ -151,27 +151,31 @@ public sealed class ApiOrdersTests(HostFixture host)
         var order = await ReadAsync<OrderView>(first, HttpStatusCode.Created);
         await AddAsync(client, company.Sku, 1);
         using var second = await PlaceAsync(client, Guid.CreateVersion7(), await CheckoutAsync(client));
-        var accepted = await ReadAsync<OrderView>(second, HttpStatusCode.Created);
+        var rejected = await ReadAsync<OrderView>(second, HttpStatusCode.Created);
 
-        using var cancel = await client.PostAsync($"/api/v1/orders/{order.Id}/cancellation", NoBody, Token);
+        using var request = await client.PostAsync($"/api/v1/orders/{order.Id}/cancellation", NoBody, Token);
+        using var again = await client.PostAsync($"/api/v1/orders/{order.Id}/cancellation", NoBody, Token);
         using (var erp = host.CreateIntegrationClient())
         {
             // The ERP finds the order by number in the read model, which catches up asynchronously.
             var status = await ApiSupport.EventuallyAsync(
                 async () =>
                 {
-                    using var acceptance = await erp.PutAsJsonAsync($"/integration/v1/orders/{Uri.EscapeDataString(accepted.Number)}/acceptance", new OrderAcceptanceData("ZAM/1"), Token);
-                    return acceptance.StatusCode;
+                    using var rejection = await erp.PutAsJsonAsync($"/integration/v1/orders/{Uri.EscapeDataString(rejected.Number)}/rejection", new OrderReasonData("Brak"), Token);
+                    return rejection.StatusCode;
                 },
                 code => code != HttpStatusCode.NotFound);
             Assert.Equal(HttpStatusCode.NoContent, status);
         }
 
-        using var tooLate = await client.PostAsync($"/api/v1/orders/{accepted.Id}/cancellation", NoBody, Token);
+        using var tooLate = await client.PostAsync($"/api/v1/orders/{rejected.Id}/cancellation", NoBody, Token);
 
-        Assert.Equal(OrderStatuses.Cancelled, (await ReadAsync<OrderView>(cancel)).Status);
+        var requested = await ReadAsync<OrderView>(request, HttpStatusCode.Accepted);
+        Assert.Equal(OrderStatuses.Placed, requested.Status);
+        Assert.NotNull(requested.CancellationRequestedAt);
+        Assert.Equal(requested.CancellationRequestedAt, (await ReadAsync<OrderView>(again, HttpStatusCode.Accepted)).CancellationRequestedAt);
         Assert.Equal(HttpStatusCode.Conflict, tooLate.StatusCode);
-        Assert.Contains("order.not-cancellable", await tooLate.Content.ReadAsStringAsync(Token), StringComparison.Ordinal);
+        Assert.Contains("order.rejected", await tooLate.Content.ReadAsStringAsync(Token), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -203,7 +207,7 @@ public sealed class ApiOrdersTests(HostFixture host)
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.Empty(buyersList!.Items);
         using var stillThere = await admin.PostAsync($"/api/v1/orders/{order.Id}/cancellation", NoBody, Token);
-        Assert.Equal(HttpStatusCode.OK, stillThere.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, stillThere.StatusCode);
     }
 
     [Fact]

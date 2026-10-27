@@ -36,7 +36,7 @@ public sealed class DocumentsModel(
 {
     public const string ResultsId = "document-results";
 
-    public static readonly string[] Types = ["invoice", "correction-invoice", "delivery-note", "proforma"];
+    public static readonly IReadOnlyList<string> Types = DocumentTypes.All;
 
     public static readonly string[] Statuses = [DocumentStatuses.Unpaid, DocumentStatuses.Overdue, DocumentStatuses.Paid];
 

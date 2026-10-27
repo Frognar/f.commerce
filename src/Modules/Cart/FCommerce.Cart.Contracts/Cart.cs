@@ -108,10 +108,25 @@ public sealed record CartLineView(
     bool Blocking,
     string? PriceListCode = null);
 
-/// <param name="Code">"unavailable", "no-price", "discontinued-shortage" (blocks) or "backorder" (delivered later).</param>
+/// <param name="Code">See <see cref="CartLineIssues"/>.</param>
 /// <param name="Available">What is on hand; only when the stock display is "exact".</param>
 /// <param name="NextDelivery">For a backorder, when the next delivery is expected.</param>
 public sealed record CartLineIssueView(string Code, bool Blocks, decimal? Available, DateOnly? NextDelivery);
+
+public static class CartLineIssues
+{
+    /// <summary>The product is no longer in the catalog (blocks).</summary>
+    public const string Unavailable = "unavailable";
+
+    /// <summary>No price for this buyer (blocks).</summary>
+    public const string NoPrice = "no-price";
+
+    /// <summary>Discontinued and more than is on hand (blocks).</summary>
+    public const string DiscontinuedShortage = "discontinued-shortage";
+
+    /// <summary>More than is on hand: the rest is delivered later (does not block).</summary>
+    public const string Backorder = "backorder";
+}
 
 public sealed record CartTotalView(string Currency, decimal Net, IReadOnlyList<CartVatView> Rates, decimal Vat, decimal Gross);
 

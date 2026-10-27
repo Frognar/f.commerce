@@ -58,41 +58,44 @@ internal sealed class OrderStore(IEventStore store, OrderingDbContext db, Orderi
             cancellationToken);
 
     /// <summary>The order with this platform number.</summary>
-    public async Task<Result<Guid, Error>> FindAsync(string number, CancellationToken cancellationToken) =>
-        (await db.Orders.AsNoTracking().Where(o => o.Number == number.Trim()).Select(o => o.Id).ToListAsync(cancellationToken))
+    public async Task<Result<Guid, Error>> FindAsync(OrderNumber number, CancellationToken cancellationToken) =>
+        (await db.Orders.AsNoTracking().Where(o => o.Number == number.Value).Select(o => o.Id).ToListAsync(cancellationToken))
             .FirstOrNone()
             .ToResult(() => Error.NotFound("order.not-found", $"There is no order '{number}'."));
 
-    public async Task<Result<Unit, Error>> DecideByNumberAsync(string number, OrderCommand command, CancellationToken cancellationToken) =>
-        await (await FindAsync(number, cancellationToken)).BindAsync(async id =>
-            (await DecideAsync(id, command, "erp", cancellationToken)).Map(_ => Unit.Value));
+    /// <summary>A decision of the ERP about the order with this number (as the ERP sent it).</summary>
+    public async Task<Result<Unit, Error>> DecideByNumberAsync(string number, Result<OrderCommand, Error> command, CancellationToken cancellationToken) =>
+        await OrderNumber.Parse(number)
+            .Bind(parsed => command.Map(valid => (Number: parsed, Command: valid)))
+            .BindAsync(async request => await (await FindAsync(request.Number, cancellationToken)).BindAsync(async id =>
+                (await DecideAsync(id, request.Command, "erp", cancellationToken)).Map(_ => Unit.Value)));
 }
 
 /// <summary>
 /// Gives out order numbers, one counter per prefix and year. Two orders at the same moment both read the counter;
 /// the optimistic concurrency token lets one of them write, the other retries.
 /// </summary>
-internal sealed class OrderNumberCounter(OrderingDbContext db, OrderingOptions options)
+internal sealed class OrderNumberCounter(OrderingDbContext db, OrderNumberPrefix prefix)
 {
     private const int MaxAttempts = 10;
 
-    public async Task<string> NextAsync(int year, CancellationToken cancellationToken)
+    public async Task<OrderNumber> NextAsync(int year, CancellationToken cancellationToken)
     {
         for (var attempt = 1; ; attempt++)
         {
             db.ChangeTracker.Clear();
-            var counter = await db.Counters.SingleOrNoneAsync(c => c.Prefix == options.NumberPrefix && c.Year == year, cancellationToken);
+            var counter = await db.Counters.SingleOrNoneAsync(c => c.Prefix == prefix.Value && c.Year == year, cancellationToken);
             var next = counter.Match(
                 row => ++row.Last,
                 () =>
                 {
-                    db.Counters.Add(new OrderCounterRow { Prefix = options.NumberPrefix, Year = year, Last = 1 });
+                    db.Counters.Add(new OrderCounterRow { Prefix = prefix.Value, Year = year, Last = 1 });
                     return 1L;
                 });
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
-                return OrderNumbers.Format(options.NumberPrefix, year, next);
+                return OrderNumbers.Format(prefix, year, next);
             }
             catch (DbUpdateException) when (attempt < MaxAttempts)
             {

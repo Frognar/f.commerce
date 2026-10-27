@@ -38,7 +38,11 @@ public static class NotificationsModule
         services.AddIntegrationEventHandler<RegistrationSubmitted, NotifyOperatorsOfRegistration>();
         services.AddIntegrationEventHandler<RegistrationRejected, SendRegistrationRejected>();
         services.AddIntegrationEventHandler<Ordering.Contracts.OrderPlaced, ConfirmOrderPlaced>();
-        services.AddIntegrationEventHandler<Ordering.Contracts.OrderStatusChanged, SendOrderStatusChanged>();
+        services.AddScoped<OrderDecisionMail>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderAccepted, SendOrderAccepted>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderRejected, SendOrderRejected>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderCancelled, SendOrderCancelled>();
+        services.AddIntegrationEventHandler<Ordering.Contracts.OrderCancellationRefused, SendOrderCancellationRefused>();
         return services;
     }
 }

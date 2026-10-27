@@ -70,7 +70,7 @@ internal static class IntegrationEndpoints
 
         orders.MapGet("/feed", async (long? after, int? limit, IQueryHandler<GetOrderFeed, OrderFeedPage> handler, CancellationToken ct) =>
                 Results.Ok(await handler.HandleAsync(new GetOrderFeed(Math.Max(after ?? 0, 0), limit ?? 100), ct)))
-            .WithSummary("Placed orders and orders the buyer cancelled, after a position (0: from the start); keep lastPosition and ask after it next time.");
+            .WithSummary("Placed orders and the buyers' requests to cancel them (type \"cancellation-requested\": confirm with /cancellation or refuse with /cancellation-refusal), after a position (0: from the start); keep lastPosition and ask after it next time.");
 
         orders.MapPut("/{number}/acceptance", async (string number, OrderAcceptanceData? body, ICommandHandler<AcceptOrder, Result<Unit, Error>> handler, CancellationToken ct) =>
                 (await handler.HandleAsync(new AcceptOrder(Uri.UnescapeDataString(number), body?.ErpNumber ?? string.Empty), ct)).ToHttpResult(_ => Results.NoContent()))
@@ -80,9 +80,13 @@ internal static class IntegrationEndpoints
                 (await handler.HandleAsync(new RejectOrder(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
             .WithSummary("The ERP refuses an order it has not accepted; 409 for an accepted or cancelled order.");
 
-        orders.MapPut("/{number}/cancellation", async (string number, OrderReasonData? body, ICommandHandler<CancelOrderBySeller, Result<Unit, Error>> handler, CancellationToken ct) =>
-                (await handler.HandleAsync(new CancelOrderBySeller(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
-            .WithSummary("The seller cancels an order that is not invoiced yet.");
+        orders.MapPut("/{number}/cancellation", async (string number, OrderReasonData? body, ICommandHandler<CancelOrder, Result<Unit, Error>> handler, CancellationToken ct) =>
+                (await handler.HandleAsync(new CancelOrder(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
+            .WithSummary("The ERP cancels an order that is not invoiced yet (on the buyer's request or of its own accord); repeating it changes nothing.");
+
+        orders.MapPut("/{number}/cancellation-refusal", async (string number, OrderReasonData? body, ICommandHandler<RefuseOrderCancellation, Result<Unit, Error>> handler, CancellationToken ct) =>
+                (await handler.HandleAsync(new RefuseOrderCancellation(Uri.UnescapeDataString(number), body?.Reason), ct)).ToHttpResult(_ => Results.NoContent()))
+            .WithSummary("The ERP keeps an order the buyer asked to cancel; 409 when nobody asked.");
 
         return app;
     }
