@@ -11,24 +11,30 @@ public sealed class StockTests
 
     private static UnvalidatedStock Input(decimal quantity = 12.5m) => new(" SR-M8 ", 7, quantity, Today.AddDays(3), 100m);
 
-    private static Delivery Delivery(int inDays, decimal? quantity = null) =>
-        new(Today.AddDays(inDays), quantity is { } q ? q : Maybe<decimal>.None);
+    private static Amount A(decimal quantity) => Amount.Parse(quantity).ShouldSucceed();
 
-    private static StockFigure Figure(decimal quantity, Delivery? next = null) => new(quantity, next is null ? Maybe<Delivery>.None : next);
+    private static Delivery Delivery(int inDays, decimal? quantity = null) =>
+        new(Today.AddDays(inDays), quantity is { } q ? A(q) : Maybe<Amount>.None);
+
+    /// <summary>A figure as the domain makes it from stored stock.</summary>
+    private static StockFigure Figure(decimal quantity, Delivery? next = null) =>
+        Stock.Figure(new StockContent(StockQuantity.Parse(quantity).ShouldSucceed(), next is null ? Maybe<Delivery>.None : next), Today);
+
+    private static (decimal Quantity, Maybe<Delivery> Delivery) Of(StockFigure figure) => (figure.Quantity.Value, figure.NextDelivery);
 
     [Fact]
     public void Valid_stock_is_normalized()
     {
         var entry = Stock.Validate(Input()).ShouldBeValid();
 
-        Assert.Equal(("SR-M8", 7L, 12.5m), (entry.Sku, entry.Version.Value, entry.Content.Quantity));
+        Assert.Equal(("SR-M8", 7L, 12.5m), (entry.Sku.Value, entry.Version.Value, entry.Content.Quantity.Value));
         Assert.Equal(Delivery(3, 100m), entry.Content.NextDelivery.ShouldBeSome());
     }
 
     [Fact]
     public void Negative_quantities_from_the_erp_are_accepted()
     {
-        Assert.Equal(-3m, Stock.Validate(Input(-3m)).ShouldBeValid().Content.Quantity);
+        Assert.Equal(-3m, Stock.Validate(Input(-3m)).ShouldBeValid().Content.Quantity.Value);
     }
 
     [Fact]
@@ -56,8 +62,18 @@ public sealed class StockTests
         var warehouse = Stock.Validate(new UnvalidatedWarehouse(" WRO ", 1, "Wrocław", Visible: true, SortOrder: 2, Active: true)).ShouldBeValid();
         var invalid = Stock.Validate(new UnvalidatedWarehouse("", 1, " ", true, 0, true)).ShouldBeInvalid();
 
-        Assert.Equal(("WRO", "Wrocław", 2), (warehouse.Code.Value, warehouse.Content.Name, warehouse.Content.SortOrder));
+        Assert.Equal(("WRO", "Wrocław", 2, WarehouseVisibility.Public), (warehouse.Code.Value, warehouse.Content.Name.Value, warehouse.Content.SortOrder, warehouse.Content.Visibility));
         Assert.Equal(["code", "name"], invalid.Select(e => e.Field.ValueOr("")));
+    }
+
+    [Theory]
+    [InlineData(true, true, WarehouseVisibility.Public)]
+    [InlineData(false, true, WarehouseVisibility.Internal)]
+    [InlineData(true, false, WarehouseVisibility.Withdrawn)]
+    [InlineData(false, false, WarehouseVisibility.Withdrawn)]
+    public void A_withdrawn_warehouse_is_withdrawn_shown_or_not(bool visible, bool active, WarehouseVisibility expected)
+    {
+        Assert.Equal(expected, Stock.VisibilityOf(visible, active));
     }
 
     [Theory]
@@ -66,9 +82,9 @@ public sealed class StockTests
     [InlineData(1)]
     public void A_figure_shows_no_negative_stock_and_keeps_deliveries_from_today_on(int inDays)
     {
-        var figure = Stock.Figure(new StockContent(-5m, Delivery(inDays, 10m)), Today);
+        var figure = Figure(-5m, Delivery(inDays, 10m));
 
-        Assert.Equal(0m, figure.Quantity);
+        Assert.Equal(0m, figure.Quantity.Value);
         Assert.Equal(inDays >= 0, figure.NextDelivery.Exists(d => d.Date == Today.AddDays(inDays)));
     }
 
@@ -77,13 +93,13 @@ public sealed class StockTests
     {
         var total = Stock.Total([Figure(5m, Delivery(7, 10m)), Figure(2.5m, Delivery(3, 20m)), Figure(0m, Delivery(3, 5m)), Figure(1m)]);
 
-        Assert.Equal(Figure(8.5m, Delivery(3, 25m)), total);
+        Assert.Equal((8.5m, Maybe.Some(Delivery(3, 25m))), Of(total));
     }
 
     [Fact]
     public void The_delivery_quantity_of_the_total_is_known_only_when_every_delivery_of_that_day_has_it()
     {
-        Assert.Equal(Figure(0m, Delivery(3)), Stock.Total([Figure(0m, Delivery(3, 20m)), Figure(0m, Delivery(3))]));
+        Assert.Equal((0m, Maybe.Some(Delivery(3))), Of(Stock.Total([Figure(0m, Delivery(3, 20m)), Figure(0m, Delivery(3))])));
         Assert.Equal(StockFigure.Empty, Stock.Total([]));
     }
 
@@ -96,19 +112,19 @@ public sealed class StockTests
     [InlineData(0.001, 0, StockStatus.Available)]
     public void Status_is_none_at_zero_low_up_to_the_threshold_and_available_above(decimal quantity, decimal threshold, StockStatus status)
     {
-        Assert.Equal(status, Stock.StatusOf(quantity, threshold));
+        Assert.Equal(status, Stock.StatusOf(A(quantity), A(threshold)));
     }
 
     [Fact]
-    public void Levels_leave_out_every_quantity()
+    public void Levels_leave_out_every_quantity_and_the_status_follows_the_quantity()
     {
         var figure = Figure(4m, Delivery(2, 30m));
 
-        var levels = Stock.Present(figure, new StockPolicy(StockDisplayMode.Levels, 10m));
-        var exact = Stock.Present(figure, new StockPolicy(StockDisplayMode.Exact, 10m));
+        var levels = Assert.IsType<StockPresentation.Levels>(Stock.Present(figure, new StockPolicy(StockDisplayMode.Levels, A(10m))));
+        var exact = Assert.IsType<StockPresentation.Exact>(Stock.Present(figure, new StockPolicy(StockDisplayMode.Exact, A(10m))));
 
-        Assert.Equal(new StockPresentation(StockStatus.Low, Maybe<decimal>.None, Delivery(2)), levels);
-        Assert.Equal(new StockPresentation(StockStatus.Low, 4m, Delivery(2, 30m)), exact);
+        Assert.Equal((StockStatus.Low, Today.AddDays(2)), (levels.Status, levels.NextDelivery.ShouldBeSome()));
+        Assert.Equal((StockStatus.Low, 4m, Delivery(2, 30m)), (exact.Status, exact.Quantity.Value, exact.NextDelivery.ShouldBeSome()));
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.Inventory.Domain;
 using FCommerce.SharedKernel.Imports;
@@ -5,7 +6,10 @@ using FCommerce.SharedKernel.Optional;
 
 namespace FCommerce.Inventory.Persistence;
 
-/// <summary>A warehouse. Mapping back to the domain trusts stored data (it was validated when written).</summary>
+/// <summary>
+/// A warehouse. Its visibility is two columns (for the stock queries): a withdrawn warehouse is not visible. Mapping
+/// back does not check the rules of the values again (they were checked when written).
+/// </summary>
 internal sealed class WarehouseRow
 {
     public required string Code { get; init; }
@@ -32,10 +36,15 @@ internal sealed class WarehouseRow
     public void Apply(Warehouse warehouse, DateTimeOffset now)
     {
         Version = warehouse.Version.Value;
-        Name = warehouse.Content.Name;
-        Visible = warehouse.Content.Visible;
+        Name = warehouse.Content.Name.Value;
+        (Visible, Active) = warehouse.Content.Visibility switch
+        {
+            WarehouseVisibility.Public => (true, true),
+            WarehouseVisibility.Internal => (false, true),
+            WarehouseVisibility.Withdrawn => (false, false),
+            _ => throw new ArgumentOutOfRangeException(nameof(warehouse), warehouse.Content.Visibility, "A warehouse visibility without a stored form."),
+        };
         SortOrder = warehouse.Content.SortOrder;
-        Active = warehouse.Content.Active;
         UpdatedAt = now;
     }
 
@@ -43,10 +52,19 @@ internal sealed class WarehouseRow
         new(
             Persisted.Rehydrate<WarehouseCode, string>(Code),
             Persisted.Rehydrate<SourceVersion, long>(Version),
-            new WarehouseContent(Name, Visible, SortOrder, Active));
+            new WarehouseContent(
+                Persisted.Rehydrate<StockText, string>(Name),
+                (Visible, Active) switch
+                {
+                    (true, true) => WarehouseVisibility.Public,
+                    (false, true) => WarehouseVisibility.Internal,
+                    (false, false) => WarehouseVisibility.Withdrawn,
+                    _ => throw Stored.Corrupt($"warehouse {Code} is visible but withdrawn"),
+                },
+                SortOrder));
 }
 
-/// <summary>Stock of a SKU in a warehouse.</summary>
+/// <summary>Stock of a SKU in a warehouse; a delivery quantity only with its date.</summary>
 internal sealed class StockRow
 {
     public required string WarehouseCode { get; init; }
@@ -65,7 +83,7 @@ internal sealed class StockRow
 
     public static StockRow From(WarehouseCode warehouse, StockEntry entry, DateTimeOffset now)
     {
-        var row = new StockRow { WarehouseCode = warehouse.Value, Sku = entry.Sku };
+        var row = new StockRow { WarehouseCode = warehouse.Value, Sku = entry.Sku.Value };
         row.Apply(entry, now);
         return row;
     }
@@ -73,14 +91,21 @@ internal sealed class StockRow
     public void Apply(StockEntry entry, DateTimeOffset now)
     {
         Version = entry.Version.Value;
-        Quantity = entry.Content.Quantity;
+        Quantity = entry.Content.Quantity.Value;
         NextDeliveryDate = entry.Content.NextDelivery.Map(d => d.Date).OrNull();
-        NextDeliveryQuantity = entry.Content.NextDelivery.Bind(d => d.Quantity).OrNull();
+        NextDeliveryQuantity = entry.Content.NextDelivery.Bind(d => d.Quantity).Map(q => q.Value).OrNull();
         UpdatedAt = now;
     }
 
-    public StockEntry ToDomain() => new(Sku, Persisted.Rehydrate<SourceVersion, long>(Version), Content());
+    public StockEntry ToDomain() => new(Persisted.Rehydrate<StockText, string>(Sku), Persisted.Rehydrate<SourceVersion, long>(Version), Content());
 
     public StockContent Content() =>
-        new(Quantity, NextDeliveryDate.ToMaybe().Map(date => new Delivery(date, NextDeliveryQuantity.ToMaybe())));
+        new(
+            Persisted.Rehydrate<StockQuantity, decimal>(Quantity),
+            (NextDeliveryDate, NextDeliveryQuantity) switch
+            {
+                (null, null) => Maybe<Delivery>.None,
+                ({ } date, var quantity) => new Delivery(date, quantity.ToMaybe().Map(Persisted.Rehydrate<Amount, decimal>)),
+                _ => throw Stored.Corrupt($"stock of {Sku} in {WarehouseCode} has a delivery quantity without its date"),
+            });
 }

@@ -26,6 +26,7 @@ internal sealed class ImportPriceListsHandler(PricingDbContext db, TimeProvider 
 
         var codes = batch.Valid.Select(v => v.Item.Code.Value).ToList();
         var rows = await db.PriceLists.Where(l => codes.Contains(l.Code)).ToDictionaryAsync(l => l.Code, cancellationToken);
+        batch = batch.Require(list => Prices.KeepsCurrency(rows.GetValueOrNone(list.Code.Value).Map(row => row.ToDomain()), list), list => list.Code.Value);
         var changes = batch.Valid
             .Select(v => Prices.Reconcile(rows.GetValueOrNone(v.Item.Code.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
@@ -65,10 +66,10 @@ internal sealed class ImportPricesHandler(PricingDbContext db, TimeProvider time
     {
         var batch = ImportBatch.Validate(prices, p => p.Sku.ToMaybe(), p => Prices.Validate(ToUnvalidated(p)));
 
-        var skus = batch.Valid.Select(v => v.Item.Sku).ToList();
+        var skus = batch.Valid.Select(v => v.Item.Sku.Value).ToList();
         var rows = await db.Prices.Where(p => p.PriceListCode == code.Value && skus.Contains(p.Sku)).ToDictionaryAsync(p => p.Sku, cancellationToken);
         var changes = batch.Valid
-            .Select(v => Prices.Reconcile(rows.GetValueOrNone(v.Item.Sku).Map(row => row.ToDomain()), v.Item))
+            .Select(v => Prices.Reconcile(rows.GetValueOrNone(v.Item.Sku.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         var now = time.GetUtcNow();
@@ -80,10 +81,10 @@ internal sealed class ImportPricesHandler(PricingDbContext db, TimeProvider time
                     db.Prices.Add(PriceRow.From(code, created.Current, now));
                     break;
                 case Change<Price>.Updated updated:
-                    rows[updated.Current.Sku].Apply(updated.Current, now);
+                    rows[updated.Current.Sku.Value].Apply(updated.Current, now);
                     break;
                 case Change<Price>.Unchanged unchanged:
-                    rows[unchanged.Current.Sku].Version = unchanged.Current.Version.Value;
+                    rows[unchanged.Current.Sku.Value].Version = unchanged.Current.Version.Value;
                     break;
             }
         }
@@ -98,7 +99,7 @@ internal sealed class ImportPricesHandler(PricingDbContext db, TimeProvider time
             data.Version,
             data.NetPrice,
             data.VatRate,
-            [.. data.Breaks.OrEmpty().Select(b => new PriceBreak(b.FromQuantity, b.NetPrice))],
+            [.. data.Breaks.OrEmpty().Select(b => new UnvalidatedPriceBreak(b.FromQuantity, b.NetPrice))],
             data.Active);
 }
 
@@ -111,13 +112,13 @@ internal sealed class PriceResolver(
     IQueryHandler<GetPlatformSettings, PlatformSettingsView> settings,
     IQueryHandler<GetCustomer, Result<CustomerDetails, Error>> customers)
 {
-    public Task<Result<IReadOnlyList<(string Sku, decimal Quantity, PriceOutcome Outcome)>, Error>> ResolveAsync(
+    public Task<Result<IReadOnlyList<(Sku Sku, PriceQuantity Quantity, PriceOutcome Outcome)>, Error>> ResolveAsync(
         PriceViewer viewer, IReadOnlyList<PriceLine> lines, int maxLines, CancellationToken cancellationToken) =>
         ValidateLines(lines, maxLines).BindAsync(async valid =>
         {
             var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
             var customer = await CustomerAsync(viewer, cancellationToken);
-            var defaultCode = platform.DefaultPriceListCode.ToMaybe().Bind(code => PriceListCode.Parse(code).ToMaybe());
+            var defaultCode = platform.DefaultPriceListCode.ToMaybe().Map(code => Contract(PriceListCode.Parse(code), "default price list"));
 
             var wanted = defaultCode.AsEnumerable().Concat(customer.Bind(c => c.PriceList).AsEnumerable()).Select(c => c.Value).ToList();
             var lists = await db.PriceLists.AsNoTracking()
@@ -127,25 +128,29 @@ internal sealed class PriceResolver(
 
             var pricingViewer = PriceResolution.Viewer(viewer.SignedIn, customer, ActiveList);
             var sources = PriceResolution.Sources(pricingViewer, new PricingPolicy(defaultCode.Bind(ActiveList), platform.IsOn(Feature.PublicPrices.Value)));
-            var prices = await PricesAsync(sources.Select(s => s.Code.Value).ToList(), valid.Select(l => l.Sku).Distinct().ToList(), cancellationToken);
+            var prices = await PricesAsync(sources.Select(s => s.Code.Value).ToList(), valid.Select(l => l.Sku.Value).Distinct().ToList(), cancellationToken);
 
-            return Result.Ok<IReadOnlyList<(string, decimal, PriceOutcome)>, Error>(
-                [.. valid.Select(line => (line.Sku, line.Quantity, PriceResolution.Resolve(pricingViewer, sources, code => prices.GetValueOrNone((code.Value, line.Sku)))))]);
+            return Result.Ok<IReadOnlyList<(Sku, PriceQuantity, PriceOutcome)>, Error>(
+                [.. valid.Select(line => (line.Sku, line.Quantity, PriceResolution.Resolve(pricingViewer, sources, code => prices.GetValueOrNone((code.Value, line.Sku.Value)))))]);
         });
 
-    private static Result<IReadOnlyList<(string Sku, decimal Quantity)>, Error> ValidateLines(IReadOnlyList<PriceLine> lines, int maxLines) =>
+    private static Result<IReadOnlyList<(Sku Sku, PriceQuantity Quantity)>, Error> ValidateLines(IReadOnlyList<PriceLine> lines, int maxLines) =>
         lines.Count > maxLines
             ? Error.Validation("prices.too-many-lines", $"At most {maxLines} lines per query.")
             : lines.Traverse(line =>
-                from sku in SourceCodes.Parse(line.Sku.OrEmpty(), Prices.MaxSku, "sku", "SKU")
-                from quantity in Prices.ParseQuantity(line.Quantity)
+                from sku in Sku.Parse(line.Sku.OrEmpty())
+                from quantity in PriceQuantity.Parse(line.Quantity)
                 select (sku, quantity));
+
+    /// <summary>A price list code another module validated: one that does not read is a broken contract, never "no price list".</summary>
+    private static PriceListCode Contract(Result<PriceListCode, Error> code, string what) =>
+        code.Match(valid => valid, error => throw new InvalidOperationException($"Invalid {what}: {error.Message}"));
 
     /// <summary>The viewer's customer as pricing sees it; none without a customer or when it does not exist.</summary>
     private async Task<Maybe<CustomerTerms>> CustomerAsync(PriceViewer viewer, CancellationToken cancellationToken) =>
         await viewer.CustomerCode.ToMaybe().Where(_ => viewer.SignedIn).Match(
             async code => (await customers.HandleAsync(new GetCustomer(code), cancellationToken)).ToMaybe()
-                .Map(c => new CustomerTerms(c.Active, c.PriceListCode.ToMaybe().Bind(list => PriceListCode.Parse(list).ToMaybe()))),
+                .Map(c => new CustomerTerms(c.Active, c.PriceListCode.ToMaybe().Map(list => Contract(PriceListCode.Parse(list), "price list of a customer")))),
             () => Task.FromResult(Maybe<CustomerTerms>.None));
 
     private async Task<Dictionary<(string List, string Sku), PriceContent>> PricesAsync(List<string> lists, List<string> skus, CancellationToken cancellationToken) =>
@@ -164,18 +169,19 @@ internal sealed class GetPricesHandler(PriceResolver resolver) : IQueryHandler<G
         resolver.ResolveAsync(query.Viewer, query.Lines.OrEmpty(), GetPrices.MaxLines, cancellationToken)
             .Map(lines => (IReadOnlyList<ProductPrice>)[.. lines.Select(line => View(line.Sku, line.Quantity, line.Outcome))]);
 
-    private static ProductPrice View(string sku, decimal quantity, PriceOutcome outcome) =>
+    private static ProductPrice View(Sku sku, PriceQuantity quantity, PriceOutcome outcome) =>
         outcome switch
         {
-            PriceOutcome.Priced priced => new ProductPrice(sku, quantity, PriceStatuses.Priced, Offer(priced, quantity)),
-            PriceOutcome.SignInRequired => new ProductPrice(sku, quantity, PriceStatuses.SignInRequired, null),
-            _ => new ProductPrice(sku, quantity, PriceStatuses.OnRequest, null),
+            PriceOutcome.Priced priced => new ProductPrice(sku.Value, quantity.Value, PriceStatuses.Priced, Offer(priced, quantity)),
+            PriceOutcome.SignInRequired => new ProductPrice(sku.Value, quantity.Value, PriceStatuses.SignInRequired, null),
+            PriceOutcome.OnRequest => new ProductPrice(sku.Value, quantity.Value, PriceStatuses.OnRequest, null),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, "A price outcome without a status."),
         };
 
-    private static OfferedPrice Offer(PriceOutcome.Priced priced, decimal quantity)
+    private static OfferedPrice Offer(PriceOutcome.Priced priced, PriceQuantity quantity)
     {
         var vat = priced.Price.Vat;
-        PriceTierView Tier(PriceBreak tier) => new(tier.FromQuantity, tier.Net, Prices.GrossUnit(tier.Net, vat));
+        PriceTierView Tier(PriceBreak tier) => new(tier.FromQuantity.Value, tier.Net.Value, Prices.GrossUnit(tier.Net, vat));
         return new OfferedPrice(
             priced.List.Code.Value,
             priced.List.Currency.Code,
@@ -192,13 +198,13 @@ internal sealed class QuoteLinesHandler(PriceResolver resolver) : IQueryHandler<
         resolver.ResolveAsync(query.Viewer, query.Lines.OrEmpty(), QuoteLines.MaxLines, cancellationToken).Map(lines =>
         {
             var quoted = lines.Select(line => (line.Sku, line.Quantity, line.Outcome, Line: line.Outcome is PriceOutcome.Priced priced
-                ? Maybe.Some(Quotes.Line(priced.List.Currency, priced.Price, line.Quantity))
-                : Maybe<QuotedValue>.None)).ToList();
+                ? Maybe.Some((List: priced.List, Value: Quotes.Line(priced.List.Currency, priced.Price, line.Quantity)))
+                : Maybe<(ActivePriceList List, QuotedValue Value)>.None)).ToList();
             return new Quote(
                 [.. quoted.Select(q => q.Line.Match(
-                    value => new QuotedLine(q.Sku, q.Quantity, PriceStatuses.Priced, ((PriceOutcome.Priced)q.Outcome).List.Code.Value, value.Currency.Code, value.Vat.Percent, value.UnitNet, value.UnitGross, value.NetAmount),
-                    () => new QuotedLine(q.Sku, q.Quantity, q.Outcome is PriceOutcome.SignInRequired ? PriceStatuses.SignInRequired : PriceStatuses.OnRequest, null, null, null, null, null, null)))],
-                [.. Quotes.Total(quoted.Choose(q => q.Line)).Select(total => new QuoteTotal(
+                    line => new QuotedLine(q.Sku.Value, q.Quantity.Value, PriceStatuses.Priced, line.List.Code.Value, line.Value.Currency.Code, line.Value.Vat.Percent, line.Value.UnitNet.Value, line.Value.UnitGross, line.Value.NetAmount),
+                    () => new QuotedLine(q.Sku.Value, q.Quantity.Value, q.Outcome is PriceOutcome.SignInRequired ? PriceStatuses.SignInRequired : PriceStatuses.OnRequest, null, null, null, null, null, null)))],
+                [.. Quotes.Total(quoted.Choose(q => q.Line.Map(line => line.Value))).Select(total => new QuoteTotal(
                     total.Currency.Code,
                     total.Net,
                     [.. total.Rates.Select(rate => new VatAmount(rate.Vat.Percent, rate.Net, rate.VatAmount))],

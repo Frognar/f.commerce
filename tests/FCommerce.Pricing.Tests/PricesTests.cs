@@ -6,9 +6,14 @@ namespace FCommerce.Pricing.Tests;
 
 public sealed class PricesTests
 {
-    private static UnvalidatedPrice Price(decimal net = 10m, params PriceBreak[] breaks) => new(" SR-M8 ", 1, net, 23m, breaks, Active: true);
+    private static UnvalidatedPrice Price(decimal net = 10m, params UnvalidatedPriceBreak[] breaks) => new(" SR-M8 ", 1, net, 23m, breaks, Active: true);
 
     private static VatRate Vat(decimal percent) => VatRate.Parse(percent).ShouldSucceed();
+
+    private static PriceQuantity Quantity(decimal quantity) => PriceQuantity.Parse(quantity).ShouldSucceed();
+
+    private static PriceList List(string currency, long version) =>
+        Prices.Validate(new UnvalidatedPriceList("DETAL", version, "Cennik", currency, Active: true)).ShouldBeValid();
 
     [Fact]
     public void A_valid_price_list_is_normalized()
@@ -29,11 +34,11 @@ public sealed class PricesTests
     [Fact]
     public void A_valid_price_has_its_tiers()
     {
-        var price = Prices.Validate(Price(10m, new PriceBreak(50, 9.5m), new PriceBreak(200, 9.1234m))).ShouldBeValid();
+        var price = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(50, 9.5m), new UnvalidatedPriceBreak(200, 9.1234m))).ShouldBeValid();
 
-        Assert.Equal("SR-M8", price.Sku);
-        Assert.Equal(10m, price.Content.Tiers.Base);
-        Assert.Equal([new PriceBreak(1, 10m), new PriceBreak(50, 9.5m), new PriceBreak(200, 9.1234m)], price.Content.Tiers.All);
+        Assert.Equal("SR-M8", price.Sku.Value);
+        Assert.Equal(10m, price.Content.Tiers.Base.Value);
+        Assert.Equal([(1m, 10m), (50m, 9.5m), (200m, 9.1234m)], price.Content.Tiers.All.Select(t => (t.FromQuantity.Value, t.Net.Value)));
         Assert.Equal(23m, price.Content.Vat.Percent);
     }
 
@@ -63,11 +68,11 @@ public sealed class PricesTests
     [Fact]
     public void Breaks_apply_above_one_unit_in_strictly_ascending_quantities()
     {
-        var fromOne = Prices.Validate(Price(10m, new PriceBreak(1, 9m))).ShouldBeInvalid();
-        var descending = Prices.Validate(Price(10m, new PriceBreak(100, 9m), new PriceBreak(50, 9.5m))).ShouldBeInvalid();
-        var duplicate = Prices.Validate(Price(10m, new PriceBreak(50, 9m), new PriceBreak(50, 8m))).ShouldBeInvalid();
-        var tooMany = Prices.Validate(Price(10m, [.. Enumerable.Range(2, 21).Select(q => new PriceBreak(q, 9m))])).ShouldBeInvalid();
-        var badItem = Prices.Validate(Price(10m, new PriceBreak(50.0001m, 0m))).ShouldBeInvalid();
+        var fromOne = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(1, 9m))).ShouldBeInvalid();
+        var descending = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(100, 9m), new UnvalidatedPriceBreak(50, 9.5m))).ShouldBeInvalid();
+        var duplicate = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(50, 9m), new UnvalidatedPriceBreak(50, 8m))).ShouldBeInvalid();
+        var tooMany = Prices.Validate(Price(10m, [.. Enumerable.Range(2, 21).Select(q => new UnvalidatedPriceBreak(q, 9m))])).ShouldBeInvalid();
+        var badItem = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(50.0001m, 0m))).ShouldBeInvalid();
 
         Assert.Equal(("break.from-quantity", "breaks[0].fromQuantity"), (Assert.Single(fromOne).Code, fromOne[0].Field.ValueOr("")));
         Assert.Equal("breaks.not-ascending", Assert.Single(descending).Code);
@@ -84,9 +89,9 @@ public sealed class PricesTests
     [InlineData(1000, 9)]
     public void The_tier_is_the_last_one_the_quantity_reaches(decimal quantity, decimal net)
     {
-        var tiers = Prices.Validate(Price(10m, new PriceBreak(50, 9.5m), new PriceBreak(100, 9m))).ShouldBeValid().Content.Tiers;
+        var tiers = Prices.Validate(Price(10m, new UnvalidatedPriceBreak(50, 9.5m), new UnvalidatedPriceBreak(100, 9m))).ShouldBeValid().Content.Tiers;
 
-        Assert.Equal(net, tiers.For(quantity).Net);
+        Assert.Equal(net, tiers.For(Quantity(quantity)).Net.Value);
     }
 
     [Theory]
@@ -98,7 +103,7 @@ public sealed class PricesTests
     [InlineData(0.05, 23, 0.06)]
     public void Gross_is_rounded_half_away_from_zero_to_the_places_of_the_net_price(decimal net, decimal vat, decimal gross)
     {
-        Assert.Equal(gross, Prices.GrossUnit(net, Vat(vat)));
+        Assert.Equal(gross, Prices.GrossUnit(NetPrice.Parse(net).ShouldSucceed(), Vat(vat)));
     }
 
     [Fact]
@@ -114,5 +119,14 @@ public sealed class PricesTests
         Assert.IsType<Change<Price>.Unchanged>(Prices.Reconcile(stored, newer));
         Assert.IsType<Change<Price>.Updated>(Prices.Reconcile(stored, changed));
         Assert.IsType<Change<Price>.Updated>(Prices.Reconcile(stored, withdrawn));
+    }
+
+    [Fact]
+    public void A_price_list_keeps_its_currency()
+    {
+        Assert.Equal("price-list.currency-changed", Assert.Single(Prices.KeepsCurrency(List("PLN", 1), List("EUR", 2))).Code);
+        Assert.Empty(Prices.KeepsCurrency(List("PLN", 1), List("PLN", 2)));
+        Assert.Empty(Prices.KeepsCurrency(default, List("EUR", 1)));
+        Assert.Empty(Prices.KeepsCurrency(List("PLN", 2), List("EUR", 2))); // not newer: the import ignores it anyway
     }
 }

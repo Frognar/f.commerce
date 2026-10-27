@@ -32,9 +32,14 @@ internal sealed class GetCartHandler(
         var (cart, version) = await carts.LoadWithVersionAsync(query.Owner, cancellationToken);
         var skus = cart.Items.Select(item => item.Sku.Value).ToList();
         var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
-        var display = !platform.IsOn(Feature.StockLevels.Value) ? StockDisplays.Hidden
-            : platform.StockDisplay == "Exact" ? StockDisplays.Exact
-            : StockDisplays.Levels;
+        var display = !platform.IsOn(Feature.StockLevels.Value)
+            ? StockDisplays.Hidden
+            : platform.StockDisplay switch
+            {
+                StockDisplayModes.Exact => StockDisplays.Exact,
+                StockDisplayModes.Levels => StockDisplays.Levels,
+                var other => throw new InvalidOperationException($"Settings report an unknown stock display '{other}'."),
+            };
 
         var offered = skus.Count == 0
             ? Result.Ok<IReadOnlyList<ProductSummary>, Error>([])

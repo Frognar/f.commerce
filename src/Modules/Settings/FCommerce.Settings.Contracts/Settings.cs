@@ -8,7 +8,7 @@ public sealed record GetPlatformSettings : IQuery<PlatformSettingsView>;
 
 /// <param name="CatalogVisibility">"Public" or "SignedInOnly".</param>
 /// <param name="Features">Features available in this installation, with their switch state.</param>
-/// <param name="StockDisplay">"Levels" (available / low / out of stock) or "Exact" (quantities).</param>
+/// <param name="StockDisplay">See <see cref="StockDisplayModes"/>.</param>
 /// <param name="LowStockThreshold">In "Levels", quantities up to this are shown as low.</param>
 public sealed record PlatformSettingsView(
     long Version,
@@ -59,3 +59,12 @@ public sealed record SettingsChange(long Version, DateTimeOffset At, Guid? Actor
 
 /// <summary>The settings changed. Published as "settings.platform-settings-changed.v1".</summary>
 public sealed record PlatformSettingsChanged(long Version) : IIntegrationEvent;
+
+/// <summary>How the seller shows stock.</summary>
+public static class StockDisplayModes
+{
+    /// <summary>Available / low / out of stock, without quantities.</summary>
+    public const string Levels = "Levels";
+
+    public const string Exact = "Exact";
+}

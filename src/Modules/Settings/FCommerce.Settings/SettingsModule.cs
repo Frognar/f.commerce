@@ -91,7 +91,12 @@ internal sealed class GetPlatformSettingsHandler(SettingsSnapshot snapshot) : IQ
                 settings.Contact.OperatorNotifications.Map(e => e.Value).OrNull()),
             settings.Commerce.DefaultPriceListCode.OrNull(),
             settings.Commerce.DefaultContactTemplate,
-            settings.Stock.Mode.ToString(),
+            settings.Stock.Mode switch
+            {
+                StockDisplayMode.Levels => StockDisplayModes.Levels,
+                StockDisplayMode.Exact => StockDisplayModes.Exact,
+                _ => throw new ArgumentOutOfRangeException(nameof(settings), settings.Stock.Mode, "A stock display without a name."),
+            },
             settings.Stock.LowThreshold);
     }
 }

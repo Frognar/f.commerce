@@ -1,4 +1,5 @@
 using System.Text.Json;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.Pricing.Domain;
 using FCommerce.SharedKernel.Collections;
@@ -7,7 +8,7 @@ using FCommerce.SharedKernel.Monetary;
 
 namespace FCommerce.Pricing.Persistence;
 
-/// <summary>A price list header. Mapping back to the domain trusts stored data (it was validated when written).</summary>
+/// <summary>A price list header. Mapping back to the domain does not check the rules of the values again (they were checked when written).</summary>
 internal sealed class PriceListRow
 {
     public required string Code { get; init; }
@@ -32,7 +33,7 @@ internal sealed class PriceListRow
     public void Apply(PriceList list, DateTimeOffset now)
     {
         Version = list.Version.Value;
-        Name = list.Content.Name;
+        Name = list.Content.Name.Value;
         Currency = list.Content.Currency.Code;
         Active = list.Content.Active;
         UpdatedAt = now;
@@ -42,13 +43,13 @@ internal sealed class PriceListRow
         new(
             Persisted.Rehydrate<PriceListCode, string>(Code),
             Persisted.Rehydrate<SourceVersion, long>(Version),
-            new PriceListContent(Name, Persisted.Rehydrate<Currency, string>(Currency), Active));
+            new PriceListContent(Persisted.Rehydrate<PriceListName, string>(Name), Persisted.Rehydrate<Currency, string>(Currency), Active));
 
     public ActivePriceList ToActive() =>
         new(Persisted.Rehydrate<PriceListCode, string>(Code), Persisted.Rehydrate<Currency, string>(Currency));
 }
 
-/// <summary>The price of a SKU in a price list; the base price is a column, the breaks are JSON.</summary>
+/// <summary>The price of a SKU in a price list; the base price is a column, the breaks above it are JSON (never null, ascending).</summary>
 internal sealed class PriceRow
 {
     public required string PriceListCode { get; init; }
@@ -70,7 +71,7 @@ internal sealed class PriceRow
 
     public static PriceRow From(PriceListCode list, Price price, DateTimeOffset now)
     {
-        var row = new PriceRow { PriceListCode = list.Value, Sku = price.Sku, Breaks = "[]" };
+        var row = new PriceRow { PriceListCode = list.Value, Sku = price.Sku.Value, Breaks = "[]" };
         row.Apply(price, now);
         return row;
     }
@@ -78,20 +79,20 @@ internal sealed class PriceRow
     public void Apply(Price price, DateTimeOffset now)
     {
         Version = price.Version.Value;
-        NetPrice = price.Content.Tiers.Base;
+        NetPrice = price.Content.Tiers.Base.Value;
         VatRate = price.Content.Vat.Percent;
         Breaks = JsonSerializer.Serialize(price.Content.Tiers.Breaks, PersistenceJson.Options);
         Active = price.Content.Active;
         UpdatedAt = now;
     }
 
-    public Price ToDomain() => new(Sku, Persisted.Rehydrate<SourceVersion, long>(Version), Content());
+    public Price ToDomain() => new(Persisted.Rehydrate<Domain.Sku, string>(Sku), Persisted.Rehydrate<SourceVersion, long>(Version), Content());
 
     public PriceContent Content()
     {
-        var breaks = JsonSerializer.Deserialize<EquatableArray<PriceBreak>>(Breaks, PersistenceJson.Options);
+        var breaks = JsonSerializer.Deserialize<EquatableArray<PriceBreak>>(Stored.Required(Breaks, "price breaks"), PersistenceJson.Options);
         return new PriceContent(
-            Persisted.Rehydrate<PriceTiers, EquatableArray<PriceBreak>>([new PriceBreak(1, NetPrice), .. breaks]),
+            Persisted.Rehydrate<PriceTiers, EquatableArray<PriceBreak>>([new PriceBreak(PriceQuantity.One, Persisted.Rehydrate<NetPrice, decimal>(NetPrice)), .. breaks]),
             Persisted.Rehydrate<VatRate, decimal>(VatRate),
             Active);
     }

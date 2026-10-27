@@ -33,6 +33,7 @@ public sealed class ModelingRulesTests
         ["FCommerce.Catalog.Domain.Facet"] = "built from search results for display",
         ["FCommerce.Catalog.Domain.FacetValue"] = "built from search results for display",
         ["FCommerce.Cart.Domain.PastedLineError"] = "reports a line of the raw pasted text",
+        ["FCommerce.Inventory.Domain.WarehouseContent"] = "the sort order: any number orders warehouses",
     };
 
     /// <summary>
@@ -41,21 +42,6 @@ public sealed class ModelingRulesTests
     /// </summary>
     private static readonly string[] KnownViolations =
     [
-        // Phase 6: Pricing and Inventory
-        "FCommerce.Pricing.Domain.CurrencyTotal",
-        "FCommerce.Pricing.Domain.Price",
-        "FCommerce.Pricing.Domain.PriceBreak",
-        "FCommerce.Pricing.Domain.PriceListContent",
-        "FCommerce.Pricing.Domain.QuotedValue",
-        "FCommerce.Pricing.Domain.RateTotal",
-        "FCommerce.Inventory.Domain.Delivery",
-        "FCommerce.Inventory.Domain.StockContent",
-        "FCommerce.Inventory.Domain.StockEntry",
-        "FCommerce.Inventory.Domain.StockFigure",
-        "FCommerce.Inventory.Domain.StockPolicy",
-        "FCommerce.Inventory.Domain.StockPresentation",
-        "FCommerce.Inventory.Domain.WarehouseContent",
-
         // Phase 7: Catalog, Settings, Media
         "FCommerce.Catalog.Domain.CategoryContent",
         "FCommerce.Media.Domain.ImageVariant",

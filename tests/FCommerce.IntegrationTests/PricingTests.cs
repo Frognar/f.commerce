@@ -72,6 +72,20 @@ public sealed class PricingTests(HostFixture host)
     }
 
     [Fact]
+    public async Task A_price_list_keeps_its_currency()
+    {
+        var list = Unique("CL");
+        await ImportListsAsync(new PriceListData(list, 1, "Cennik", "PLN"));
+
+        var euro = await ImportListsAsync(new PriceListData(list, 2, "Cennik", "EUR"));
+        var renamed = await ImportListsAsync(new PriceListData(list, 3, "Cennik detaliczny", "PLN"));
+
+        var rejected = Assert.Single(euro.Report!.Rejected);
+        Assert.Equal(("price-list.currency-changed", "currency"), (rejected.Errors[0].Code, rejected.Errors[0].Field));
+        Assert.Equal(1, renamed.Report!.Updated);
+    }
+
+    [Fact]
     public async Task Prices_of_an_unknown_list_too_large_batches_and_missing_keys_are_refused()
     {
         var unknown = await ImportPricesAsync(Unique("NOPE"), new PriceData("X", 1, 1m, 23m));

@@ -77,10 +77,10 @@ internal sealed class ImportStockHandler(InventoryDbContext db, InventoryClock c
             s => s.Sku.ToMaybe(),
             s => Stock.Validate(new UnvalidatedStock(s.Sku.OrEmpty(), s.Version, s.Quantity, s.NextDeliveryDate.ToMaybe(), s.NextDeliveryQuantity.ToMaybe())));
 
-        var skus = batch.Valid.Select(v => v.Item.Sku).ToList();
+        var skus = batch.Valid.Select(v => v.Item.Sku.Value).ToList();
         var rows = await db.Stock.Where(s => s.WarehouseCode == code.Value && skus.Contains(s.Sku)).ToDictionaryAsync(s => s.Sku, cancellationToken);
         var changes = batch.Valid
-            .Select(v => Stock.Reconcile(rows.GetValueOrNone(v.Item.Sku).Map(row => row.ToDomain()), v.Item))
+            .Select(v => Stock.Reconcile(rows.GetValueOrNone(v.Item.Sku.Value).Map(row => row.ToDomain()), v.Item))
             .ToList();
 
         foreach (var change in changes)
@@ -91,10 +91,10 @@ internal sealed class ImportStockHandler(InventoryDbContext db, InventoryClock c
                     db.Stock.Add(StockRow.From(code, created.Current, clock.Now));
                     break;
                 case Change<StockEntry>.Updated updated:
-                    rows[updated.Current.Sku].Apply(updated.Current, clock.Now);
+                    rows[updated.Current.Sku.Value].Apply(updated.Current, clock.Now);
                     break;
                 case Change<StockEntry>.Unchanged unchanged:
-                    rows[unchanged.Current.Sku].Version = unchanged.Current.Version.Value;
+                    rows[unchanged.Current.Sku.Value].Version = unchanged.Current.Version.Value;
                     break;
             }
         }
@@ -112,25 +112,41 @@ internal static class StockSettings
         var platform = await settings.HandleAsync(new GetPlatformSettings(), cancellationToken);
         return platform.IsOn(Feature.StockLevels.Value)
             ? new StockPolicy(
-                Enums.Parse<StockDisplayMode>(platform.StockDisplay)
-                    .Match(mode => mode, error => throw new InvalidOperationException($"Settings report an unknown stock display: {error.Message}")),
-                platform.LowStockThreshold)
+                platform.StockDisplay switch
+                {
+                    StockDisplayModes.Levels => StockDisplayMode.Levels,
+                    StockDisplayModes.Exact => StockDisplayMode.Exact,
+                    var other => throw new InvalidOperationException($"Settings report an unknown stock display '{other}'."),
+                },
+                Amount.Parse(platform.LowStockThreshold).Match(threshold => threshold, error => throw new InvalidOperationException($"Settings report an invalid low-stock threshold: {error.Message}")))
             : Maybe<StockPolicy>.None;
     }
 
     public static string DisplayName(StockPolicy policy) =>
-        policy.Mode == StockDisplayMode.Exact ? StockDisplays.Exact : StockDisplays.Levels;
+        policy.Mode switch
+        {
+            StockDisplayMode.Exact => StockDisplays.Exact,
+            StockDisplayMode.Levels => StockDisplays.Levels,
+            _ => throw new ArgumentOutOfRangeException(nameof(policy), policy.Mode, "A stock display without a name."),
+        };
 
     public static string StatusName(StockStatus status) =>
         status switch
         {
             StockStatus.Available => StockStatuses.Available,
             StockStatus.Low => StockStatuses.Low,
-            _ => StockStatuses.None,
+            StockStatus.None => StockStatuses.None,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "A stock status without a name."),
         };
 
-    public static Maybe<DeliveryView> Delivery(Maybe<Delivery> delivery) =>
-        delivery.Map(d => new DeliveryView(d.Date, d.Quantity.OrNull()));
+    /// <summary>The presentation as its contract parts: the quantity and the delivery's quantity only in the exact display.</summary>
+    public static (string Status, Maybe<decimal> Quantity, Maybe<DeliveryView> NextDelivery) View(StockPresentation shown) =>
+        shown switch
+        {
+            StockPresentation.Exact exact => (StatusName(exact.Status), exact.Quantity.Value, exact.NextDelivery.Map(d => new DeliveryView(d.Date, d.Quantity.Map(q => q.Value).OrNull()))),
+            StockPresentation.Levels levels => (StatusName(levels.Status), Maybe<decimal>.None, levels.NextDelivery.Map(date => new DeliveryView(date, null))),
+            _ => throw new ArgumentOutOfRangeException(nameof(shown), shown, "A stock presentation without a view."),
+        };
 }
 
 /// <summary>Stock in visible, active warehouses of the given SKUs as figures for today.</summary>
@@ -140,6 +156,7 @@ internal static class VisibleStock
         skus.Count > max
             ? Error.Validation("stock.too-many-skus", $"At most {max} SKUs per query.")
             : skus.Traverse(sku => SourceCodes.Parse(sku.OrEmpty(), Stock.MaxSku, "sku", "SKU"));
+
 
     public static async Task<ILookup<string, StockFigure>> FiguresAsync(InventoryDbContext db, IReadOnlyList<string> skus, DateOnly today, CancellationToken cancellationToken)
     {
@@ -172,8 +189,8 @@ internal sealed class GetStockSummariesHandler(InventoryDbContext db, InventoryC
             StockSettings.DisplayName(policy),
             [.. skus.Select(sku =>
             {
-                var shown = Stock.Present(Stock.Total(bySku[sku]), policy);
-                return new StockSummary(sku, StockSettings.StatusName(shown.Status), shown.Quantity.OrNull(), StockSettings.Delivery(shown.NextDelivery).OrNull());
+                var (status, quantity, delivery) = StockSettings.View(Stock.Present(Stock.Total(bySku[sku]), policy));
+                return new StockSummary(sku, status, quantity.OrNull(), delivery.OrNull());
             })]);
     }
 }
@@ -188,7 +205,7 @@ internal sealed class GetAvailabilityHandler(InventoryDbContext db, InventoryClo
             return (IReadOnlyList<Availability>)[.. skus.Select(sku =>
             {
                 var total = Stock.Total(bySku[sku]);
-                return new Availability(sku, total.Quantity, total.NextDelivery.Map(d => d.Date).OrNull());
+                return new Availability(sku, total.Quantity.Value, total.NextDelivery.Map(d => d.Date).OrNull());
             })];
         });
 }
@@ -218,14 +235,14 @@ internal sealed class GetProductStockHandler(InventoryDbContext db, InventoryClo
             .Select(w => (Warehouse: w, Figure: stock.GetValueOrNone(w.Code).Match(row => Stock.Figure(row.Content(), today), () => StockFigure.Empty)))
             .ToList();
 
-        var total = Stock.Present(Stock.Total(figures.Select(f => f.Figure)), policy);
+        var total = StockSettings.View(Stock.Present(Stock.Total(figures.Select(f => f.Figure)), policy));
         return new ProductStock(
             StockSettings.DisplayName(policy),
-            new StockSummary(sku, StockSettings.StatusName(total.Status), total.Quantity.OrNull(), StockSettings.Delivery(total.NextDelivery).OrNull()),
+            new StockSummary(sku, total.Status, total.Quantity.OrNull(), total.NextDelivery.OrNull()),
             [.. figures.Select(f =>
             {
-                var shown = Stock.Present(f.Figure, policy);
-                return new WarehouseStock(f.Warehouse.Code, f.Warehouse.Name, StockSettings.StatusName(shown.Status), shown.Quantity.OrNull(), StockSettings.Delivery(shown.NextDelivery).OrNull());
+                var (status, quantity, delivery) = StockSettings.View(Stock.Present(f.Figure, policy));
+                return new WarehouseStock(f.Warehouse.Code, f.Warehouse.Name, status, quantity.OrNull(), delivery.OrNull());
             })]);
     }
 }
