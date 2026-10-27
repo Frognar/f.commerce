@@ -5,6 +5,7 @@ using FCommerce.Application.Messaging;
 using FCommerce.Customers.Contracts;
 using FCommerce.Documents.Contracts;
 using FCommerce.SharedKernel.Imports;
+using FCommerce.SharedKernel.Results;
 using FCommerce.SharedKernel.Contracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -172,10 +173,42 @@ public sealed class DocumentsTests(HostFixture host)
 
         var rejected = Assert.Single(report.Rejected);
         Assert.Equal(1, rejected.Index);
-        Assert.Equal(["type", "issueDate", "gross"], rejected.Errors.Select(e => e.Field));
+        Assert.Equal(["type", "issueDate"], rejected.Errors.Select(e => e.Field)); // the amounts are checked against a known type
         Assert.Equal(HttpStatusCode.NotFound, await UploadAsync(Unique("FV"), Pdf("unknown")));
         Assert.Equal(HttpStatusCode.BadRequest, await UploadAsync(known, "<html></html>"u8.ToArray()));
         Assert.Equal(HttpStatusCode.Unauthorized, await UploadAsync(known, Pdf("no key"), apiKey: null));
         Assert.Equal(1, (await ImportAsync(Invoice(known, code, "FV/1", dueInDays: 5))).Stale);
+    }
+
+    [Fact]
+    public async Task The_status_filter_finds_exactly_the_documents_with_that_status()
+    {
+        var code = Unique("K");
+        DocumentData Doc(string type, decimal? gross, decimal? paid, int? dueInDays) =>
+            new(Unique("D"), 1, code, type, Unique("N"), Today.AddDays(-30), DueDate: dueInDays is { } days ? Today.AddDays(days) : null,
+                Currency: gross is null ? null : "PLN", Net: gross, Gross: gross, Paid: paid);
+        await ImportAsync(
+            Doc("invoice", 100m, 0m, -1),
+            Doc("invoice", 100m, 100m, -1),
+            Doc("invoice", 100m, 40m, 0),
+            Doc("invoice", 100m, 0m, null),
+            Doc("correction-invoice", -50m, 0m, -1),
+            Doc("proforma", 100m, 0m, -1),
+            Doc("delivery-note", null, null, null));
+
+        await using var scope = host.Factory.Services.CreateAsyncScope();
+        var documents = scope.ServiceProvider.GetRequiredService<IQueryHandler<GetCustomerDocuments, Result<DocumentPage, Error>>>();
+        async Task<IReadOnlyList<DocumentSummary>> ListAsync(string? status) =>
+            (await documents.HandleAsync(new GetCustomerDocuments(code, Status: status, PageSize: 100), Token)).Match(page => page.Items, e => throw new InvalidOperationException(e.Code));
+
+        var all = await ListAsync(null);
+        foreach (var status in new[] { DocumentStatuses.Paid, DocumentStatuses.Unpaid, DocumentStatuses.Overdue })
+        {
+            Assert.Equal(
+                all.Where(d => d.Status == status).Select(d => d.Id).Order(StringComparer.Ordinal),
+                (await ListAsync(status)).Select(d => d.Id).Order(StringComparer.Ordinal));
+        }
+
+        Assert.Equal([2, 2, 1, 2], new[] { DocumentStatuses.Paid, DocumentStatuses.Unpaid, DocumentStatuses.Overdue, DocumentStatuses.None }.Select(s => all.Count(d => d.Status == s)));
     }
 }

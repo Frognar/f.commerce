@@ -17,14 +17,19 @@ public sealed class DocumentTests
 
     private static Currency Pln => Currency.Parse("PLN").ShouldSucceed();
 
+    private static IEnumerable<string> Numbers(Document document) => document.Content.OrderNumbers.Select(n => n.Value);
+
+    private static NonNegativeAmount Due(decimal amount) => NonNegativeAmount.Parse(amount).ShouldSucceed();
+
     [Fact]
     public void A_valid_invoice_is_normalized()
     {
         var document = Valid(Invoice());
 
-        Assert.Equal(("FV-1", "K-001", DocumentType.Invoice), (document.Id.Value, document.Content.CustomerCode, document.Content.Type));
-        Assert.Equal(new DocumentAmounts(Pln, 1000m, 1230m, 0m), document.Content.Amounts);
-        Assert.Equal(["ZAM/7"], document.Content.OrderNumbers);
+        Assert.Equal(("FV-1", "K-001", DocumentType.Invoice), (document.Id.Value, document.Content.CustomerCode.Value, document.Content.Type));
+        var amounts = Assert.IsType<DocumentKind.Invoice>(document.Content.Kind).Amounts;
+        Assert.Equal((Pln, 1000m, 1230m, 0m), (amounts.Currency, amounts.Net, amounts.Gross, amounts.Paid.Value));
+        Assert.Equal(["ZAM/7"], Numbers(document));
     }
 
     [Fact]
@@ -33,7 +38,7 @@ public sealed class DocumentTests
         var document = Valid(Invoice() with { OrderNumbers = [" WWW/2026/000002 ", "ZAM/7", "", "WWW/2026/000002"] });
         var none = Valid(Invoice() with { OrderNumber = default });
 
-        Assert.Equal(["ZAM/7", "WWW/2026/000002"], document.Content.OrderNumbers);
+        Assert.Equal(["ZAM/7", "WWW/2026/000002"], Numbers(document));
         Assert.Empty(none.Content.OrderNumbers);
     }
 
@@ -53,12 +58,12 @@ public sealed class DocumentTests
         var note = Valid(Invoice() with { Type = "delivery-note", Currency = default, Net = default, Gross = default, Paid = default, DueDate = default });
         var proforma = Valid(Invoice() with { Type = "proforma", Paid = default });
 
-        note.Content.Amounts.ShouldBeNone();
-        Assert.Equal(0m, proforma.Content.Amounts.ShouldBeSome().Paid);
+        Assert.IsType<DocumentKind.DeliveryNote>(note.Content.Kind).Amounts.ShouldBeNone();
+        Assert.Equal(0m, Assert.IsType<DocumentKind.Proforma>(proforma.Content.Kind).Amounts.ShouldBeSome().Paid.Value);
     }
 
     [Fact]
-    public void Every_problem_is_reported_with_its_path()
+    public void Every_problem_is_reported_with_its_path_the_amounts_with_a_known_type()
     {
         var input = Invoice() with
         {
@@ -75,27 +80,23 @@ public sealed class DocumentTests
         var errors = Domain.Documents.Validate(input).ShouldBeInvalid();
 
         Assert.Equal(
-            ["id", "version", "type", "number", "issueDate", "currency", "net", "gross"],
+            ["id", "version", "type", "number", "issueDate"],
             errors.Select(e => e.Field));
+        Assert.Equal(
+            ["currency", "net", "gross"],
+            Domain.Documents.Validate(input with { Type = "invoice", Id = "FV-1", Version = 1, Number = "FV/1", IssueDate = Today.AddDays(-20) }).ShouldBeInvalid().Select(e => e.Field));
     }
 
-    [Theory]
-    [InlineData("Invoice", null, null, "gross", "amounts.missing")]
-    [InlineData("invoice", -100, -123, "gross", "amount.negative")]
-    public void Invoices_need_non_negative_amounts(string type, int? net, int? gross, string field, string code)
+    [Fact]
+    public void Invoices_need_their_amounts_never_negative()
     {
-        var input = Invoice() with
-        {
-            Type = type,
-            Net = net.ToMaybe().Map(value => (decimal)value),
-            Gross = gross.ToMaybe().Map(value => (decimal)value),
-            Currency = net.ToMaybe().Map(_ => "PLN"),
-            Paid = default,
-        };
+        var missing = Invoice() with { Net = default, Gross = default, Currency = default, Paid = default };
+        var negative = Invoice() with { Net = -100m, Gross = -123m, Paid = -1m };
 
-        var error = Assert.Single(Domain.Documents.Validate(input).ShouldBeInvalid());
-
-        Assert.Equal((field, code), (error.Field, error.Code));
+        Assert.Equal([("gross", "amounts.missing")], Domain.Documents.Validate(missing).ShouldBeInvalid().Select(e => (e.Field.ValueOr(""), e.Code)));
+        Assert.Equal(
+            [("net", "amount.negative"), ("gross", "amount.negative"), ("paid", "paid.negative")],
+            Domain.Documents.Validate(negative).ShouldBeInvalid().Select(e => (e.Field.ValueOr(""), e.Code)));
     }
 
     [Fact]
@@ -104,7 +105,7 @@ public sealed class DocumentTests
         var correction = Valid(Invoice() with { Type = "correction-invoice", Net = -100m, Gross = -123m });
 
         Assert.Equal(0m, Domain.Documents.Outstanding(correction.Content));
-        Assert.Equal(PaymentStatus.Paid, Domain.Documents.StatusOn(correction.Content, Today));
+        Assert.Equal(PaymentStatus.Paid, Domain.Documents.StatusOn(correction.Content, Today).ShouldBeSome());
     }
 
     [Fact]
@@ -126,7 +127,7 @@ public sealed class DocumentTests
     {
         var document = Valid(Invoice() with { Paid = paid, DueDate = dueInDays.ToMaybe().Map(days => Today.AddDays(days)) });
 
-        Assert.Equal(Enum.Parse<PaymentStatus>(expected), Domain.Documents.StatusOn(document.Content, Today));
+        Assert.Equal(Enum.Parse<PaymentStatus>(expected), Domain.Documents.StatusOn(document.Content, Today).ShouldBeSome());
     }
 
     [Fact]
@@ -134,7 +135,7 @@ public sealed class DocumentTests
     {
         var proforma = Valid(Invoice() with { Type = "proforma" });
 
-        Assert.Equal(PaymentStatus.NotApplicable, Domain.Documents.StatusOn(proforma.Content, Today));
+        Domain.Documents.StatusOn(proforma.Content, Today).ShouldBeNone();
         Assert.Equal(0m, Domain.Documents.Outstanding(proforma.Content));
     }
 
@@ -144,15 +145,15 @@ public sealed class DocumentTests
         var eur = Currency.Parse("EUR").ShouldSucceed();
         OpenItem[] items =
         [
-            new(Pln, 100m, Today.AddDays(-1)),
-            new(Pln, 50m, Today),
-            new(Pln, 0m, Today.AddDays(-30)),
-            new(eur, 20m, default),
+            new(Pln, Due(100m), Today.AddDays(-1)),
+            new(Pln, Due(50m), Today),
+            new(Pln, Due(0m), Today.AddDays(-30)),
+            new(eur, Due(20m), default),
         ];
 
         var receivables = Domain.Documents.Receivables(items, Today);
 
-        Assert.Equal([new Receivable(eur, 20m, 0m, 0), new Receivable(Pln, 150m, 100m, 1)], receivables);
+        Assert.Equal([("EUR", 20m, 0m, 0), ("PLN", 150m, 100m, 1)], receivables.Select(r => (r.Currency.Code, r.Outstanding, r.Overdue, r.OverdueCount)));
     }
 
     [Fact]
@@ -194,7 +195,7 @@ public sealed class DocumentTests
         var valid = Valid(Invoice() with { Lines = [Line(1, " SR-M8 ", 10), Line(2, null, 1, "Transport")] });
         var errors = Domain.Documents.Validate(Invoice() with { Lines = [Line(0, "A", 1.0001m, " ") with { Unit = "", NetPrice = -1m }] }).ShouldBeInvalid();
 
-        Assert.Equal(["SR-M8", ""], valid.Content.Lines.Select(l => l.Sku.ValueOr("")));
+        Assert.Equal(["SR-M8", ""], valid.Content.Lines.Select(l => l.Sku.Map(s => s.Value).ValueOr("")));
         Assert.Equal(["lines[0].number", "lines[0].name", "lines[0].quantity", "lines[0].unit", "lines[0].netPrice"], errors.Select(e => e.Field.ValueOr("")));
     }
 
@@ -205,7 +206,7 @@ public sealed class DocumentTests
 
         var reorderable = Domain.Documents.Reorderable(document.Content);
 
-        Assert.Equal([("A", 15m), ("B", 2.5m)], reorderable.Items);
+        Assert.Equal([("A", 15m), ("B", 2.5m)], reorderable.Items.Select(i => (i.Sku.Value, i.Quantity)));
         Assert.Equal(1, reorderable.Skipped);
     }
 
@@ -216,5 +217,14 @@ public sealed class DocumentTests
         var incoming = Valid(Invoice(version: 2) with { Lines = [Line(1, "A", 12)] });
 
         Assert.IsType<Change<Document>.Updated>(Domain.Documents.Reconcile(stored, incoming));
+    }
+
+    [Fact]
+    public void A_proforma_with_amounts_is_still_not_paid_and_owes_nothing()
+    {
+        var proforma = Valid(Invoice() with { Type = "proforma" });
+
+        Assert.Equal(0m, Domain.Documents.Outstanding(proforma.Content));
+        Assert.Equal(1230m, proforma.Content.Kind.Money.ShouldBeSome().Gross);
     }
 }

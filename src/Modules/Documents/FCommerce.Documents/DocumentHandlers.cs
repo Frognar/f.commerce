@@ -76,11 +76,11 @@ internal sealed class ImportDocumentsHandler(DocumentsDbContext db, Outbox<Docum
     private static DocumentChanged Event(Document document) =>
         new DocumentChanged(
             document.Id.Value,
-            document.Content.CustomerCode,
-            Domain.Documents.TypeNames.First(n => n.Value == document.Content.Type).Key,
-            document.Content.Number,
+            document.Content.CustomerCode.Value,
+            DocumentViews.TypeName(document.Content.Type),
+            document.Content.Number.Value,
             document.Content.Dates.Issued,
-            [.. document.Content.OrderNumbers]);
+            [.. document.Content.OrderNumbers.Select(number => number.Value)]);
 
     private static UnvalidatedDocument ToUnvalidated(DocumentData data) =>
         new(
@@ -116,8 +116,7 @@ internal sealed class StoreDocumentFileHandler(DocumentsDbContext db, IBlobStore
                 async stored =>
                 {
                     await blobs.PutAsync(DocumentRow.FileKey(id), command.Content, cancellationToken);
-                    stored.FileSize = command.Content.Length;
-                    stored.FileUpdatedAt = clock.Now;
+                    stored.AttachFile(command.Content.Length, clock.Now);
                     await db.SaveChangesAsync(cancellationToken);
                     return Result.Ok<Unit, Error>(Unit.Value);
                 },
@@ -128,8 +127,6 @@ internal sealed class StoreDocumentFileHandler(DocumentsDbContext db, IBlobStore
 internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, DocumentsClock clock) : IQueryHandler<GetCustomerDocuments, Result<DocumentPage, Error>>
 {
     public const int MaxPageSize = 100;
-
-    private static readonly DocumentType[] Payable = [.. Enum.GetValues<DocumentType>().Where(Domain.Documents.IsPayable)];
 
     public Task<Result<DocumentPage, Error>> HandleAsync(GetCustomerDocuments query, CancellationToken cancellationToken = default) =>
         (from type in Maybe.ParseOptional(query.Type.ToMaybe(), raw => ParseType(raw.Trim()))
@@ -148,16 +145,7 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
         documents = query.IssuedFrom.ToMaybe().Match(from => documents.Where(d => d.IssueDate >= from), () => documents);
         documents = query.IssuedTo.ToMaybe().Match(to => documents.Where(d => d.IssueDate <= to), () => documents);
 
-        // The status rules of Documents.StatusOn, as a query over the stored outstanding amount (row columns may be null).
-        documents = status.Match(
-            s => s switch
-            {
-                PaymentStatus.Paid => documents.Where(d => Payable.Contains(d.Type) && d.Outstanding == 0),
-                PaymentStatus.Unpaid => documents.Where(d => d.Outstanding > 0 && (d.DueDate == null || d.DueDate >= today)),
-                PaymentStatus.Overdue => documents.Where(d => d.Outstanding > 0 && d.DueDate < today),
-                _ => documents,
-            },
-            () => documents);
+        documents = status.Match(s => documents.Where(DocumentViews.WithStatus(s, today)), () => documents);
 
         var total = await documents.CountAsync(cancellationToken);
         var rows = await documents
@@ -171,20 +159,21 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
     {
         var document = row.ToDomain();
         var content = document.Content;
+        var money = content.Kind.Money;
         return new DocumentSummary(
             document.Id.Value,
-            Domain.Documents.TypeNames.First(n => n.Value == content.Type).Key,
-            content.Number,
+            DocumentViews.TypeName(content.Type),
+            content.Number.Value,
             content.Dates.Issued,
             content.Dates.Due.OrNull(),
-            content.Amounts.Map(a => a.Currency.Code).OrNull(),
-            content.Amounts.Map(a => a.Gross).OrNull(),
-            row.Outstanding,
-            StatusName(Domain.Documents.StatusOn(content, today)),
-            content.OrderNumbers.IsEmpty ? null : string.Join(", ", content.OrderNumbers),
-            row.FileSize is not null,
-            row.ReorderableLines,
-            [.. content.OrderNumbers]);
+            money.Map(a => a.Currency.Code).OrNull(),
+            money.Map(a => a.Gross).OrNull(),
+            Domain.Documents.Outstanding(content),
+            Domain.Documents.StatusOn(content, today).Map(DocumentViews.StatusName).ValueOr(DocumentStatuses.None),
+            content.OrderNumbers.IsEmpty ? null : string.Join(", ", content.OrderNumbers.Select(number => number.Value)),
+            row.HasFile,
+            Domain.Documents.Reorderable(content).Items.Count,
+            [.. content.OrderNumbers.Select(number => number.Value)]);
     }
 
     private static Result<DocumentType, Error> ParseType(string raw) =>
@@ -201,13 +190,43 @@ internal sealed class GetCustomerDocumentsHandler(DocumentsDbContext db, Documen
             _ => Error.Validation("status.unknown", $"Unknown payment status '{raw}'."),
         };
 
-    private static string StatusName(PaymentStatus status) =>
+}
+
+/// <summary>Domain values as contract names, and payment statuses as queries; every value has its own, none falls back.</summary>
+internal static class DocumentViews
+{
+    private static readonly DocumentType[] Payable = [.. Enum.GetValues<DocumentType>().Where(Domain.Documents.IsPayable)];
+
+    public static string TypeName(DocumentType type) =>
+        type switch
+        {
+            DocumentType.Invoice => DocumentTypes.Invoice,
+            DocumentType.CorrectionInvoice => DocumentTypes.CorrectionInvoice,
+            DocumentType.DeliveryNote => DocumentTypes.DeliveryNote,
+            DocumentType.Proforma => DocumentTypes.Proforma,
+            _ => throw new ArgumentOutOfRangeException(nameof(type), type, "A document type without a name."),
+        };
+
+    public static string StatusName(PaymentStatus status) =>
         status switch
         {
             PaymentStatus.Paid => DocumentStatuses.Paid,
             PaymentStatus.Unpaid => DocumentStatuses.Unpaid,
             PaymentStatus.Overdue => DocumentStatuses.Overdue,
-            _ => DocumentStatuses.None,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "A payment status without a name."),
+        };
+
+    /// <summary>
+    /// <see cref="Domain.Documents.StatusOn"/> as a query over the stored outstanding amount (which the domain wrote and
+    /// which is zero for documents that are not paid). The tests check that both agree.
+    /// </summary>
+    public static System.Linq.Expressions.Expression<Func<DocumentRow, bool>> WithStatus(PaymentStatus status, DateOnly today) =>
+        status switch
+        {
+            PaymentStatus.Paid => d => Payable.Contains(d.Type) && d.Outstanding == 0,
+            PaymentStatus.Unpaid => d => d.Outstanding > 0 && (d.DueDate == null || d.DueDate >= today),
+            PaymentStatus.Overdue => d => d.Outstanding > 0 && d.DueDate < today,
+            _ => throw new ArgumentOutOfRangeException(nameof(status), status, "A payment status without a query."),
         };
 }
 
@@ -236,7 +255,7 @@ internal sealed class GetReceivablesHandler(DocumentsDbContext db, DocumentsCloc
             .Select(d => new { d.Currency, d.Outstanding, d.DueDate })
             .ToListAsync(cancellationToken);
 
-        return [.. Domain.Documents.Receivables(open.Choose(d => d.Currency.ToMaybe().Map(code => new OpenItem(Persisted.Rehydrate<Currency, string>(code), d.Outstanding, d.DueDate.ToMaybe()))), clock.Today)
+        return [.. Domain.Documents.Receivables(open.Select(d => new OpenItem(Persisted.Rehydrate<Currency, string>(Stored.Required(d.Currency, "currency of an open document")), Persisted.Rehydrate<NonNegativeAmount, decimal>(d.Outstanding), d.DueDate.ToMaybe())), clock.Today)
             .Select(r => new ReceivableView(r.Currency.Code, r.Outstanding, r.Overdue, r.OverdueCount))];
     }
 }
@@ -252,9 +271,10 @@ internal sealed class GetDocumentLinesHandler(DocumentsDbContext db) : IQueryHan
                     var content = row.ToDomain().Content;
                     var reorderable = Domain.Documents.Reorderable(content);
                     return new DocumentLines(
-                        content.Number,
-                        [.. content.Lines.Select(l => new DocumentLineView(l.Number, l.Sku.OrNull(), l.Name, l.Quantity, l.Unit, l.NetPrice.OrNull(), l.NetAmount.OrNull()))],
-                        [.. reorderable.Items.Select(i => new ReorderableLine(i.Sku, i.Quantity))],
+                        content.Number.Value,
+                        [.. content.Lines.Select(l => new DocumentLineView(
+                            l.Number.Value, l.Sku.Map(s => s.Value).OrNull(), l.Name.Value, l.Quantity.Value, l.Unit.Value, l.NetPrice.Map(p => p.Value).OrNull(), l.NetAmount.Map(a => a.Value).OrNull()))],
+                        [.. reorderable.Items.Select(i => new ReorderableLine(i.Sku.Value, i.Quantity))],
                         reorderable.Skipped);
                 })
                 .ToResult(() => Error.NotFound("document.not-found", "The document does not exist.")));
@@ -268,7 +288,7 @@ internal sealed class OpenDocumentFileHandler(DocumentsDbContext db, IBlobStore 
         {
             var row = await db.Documents.AsNoTracking()
                 .SingleOrNoneAsync(d => d.Id == id.Value && d.CustomerCode == query.CustomerCode && d.FileSize != null, cancellationToken);
-            var file = await row.Match(
+            var file = await row.Where(stored => stored.HasFile).Match(
                 async stored => (await blobs.OpenReadAsync(DocumentRow.FileKey(id), cancellationToken)).Map(stream => new DocumentFile(stream, FileName(stored.Number))),
                 () => Task.FromResult(Maybe<DocumentFile>.None));
             return file.ToResult(() => Error.NotFound("document.not-found", "The document does not exist."));
