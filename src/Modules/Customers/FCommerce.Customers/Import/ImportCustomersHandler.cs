@@ -69,14 +69,13 @@ internal sealed class ImportCustomersHandler(CustomersDbContext db, Outbox<Custo
 
     private static IEnumerable<IIntegrationEvent> Events(Maybe<Customer> before, Customer after)
     {
-        yield return new CustomerChanged(after.Code.Value, after.Active, after.Content.Terms.Blocked, CustomerViews.SalespersonEmail(after.Content).OrNull());
+        yield return new CustomerChanged(after.Code.Value, after.Active, after.Blocked, CustomerViews.SalespersonEmail(after.Content).OrNull());
         if (Domain.Customers.PortalContactsChanged(before, after))
         {
             yield return new PortalContactsChanged(
                 after.Code.Value,
-                [.. after.Content.Contacts
-                    .Where(c => c.PortalAccess)
-                    .Choose(c => c.Email.Map(email => new PortalContact(c.ExternalId, c.Name, email.Value, c.AttributeTemplate.OrNull())))]);
+                [.. after.Content.Contacts.WithPortalAccess.Select(c =>
+                    new PortalContact(c.Contact.ExternalId.Value, c.Contact.Name.Value, c.Access.Address.Value, c.Access.Template.Map(t => t.Value).OrNull()))]);
         }
     }
 

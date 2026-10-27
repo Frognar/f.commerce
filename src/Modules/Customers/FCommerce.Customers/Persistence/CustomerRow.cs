@@ -1,6 +1,7 @@
 using System.Text.Json;
 using FCommerce.Customers.Domain;
 using FCommerce.Customers.Queries;
+using FCommerce.Infrastructure.Persistence;
 using FCommerce.Infrastructure.Serialization;
 using FCommerce.Search.Core.Analysis;
 using FCommerce.SharedKernel.Imports;
@@ -9,8 +10,9 @@ using FCommerce.SharedKernel.Optional;
 namespace FCommerce.Customers.Persistence;
 
 /// <summary>
-/// Storage shape of a customer: columns for the back-office list and lookups, the validated content as JSON.
-/// Mapping back to the domain trusts stored data (it was validated when written).
+/// Storage shape of a customer: columns for the back-office list and lookups (all written from the customer by
+/// <see cref="Apply"/>), the validated content as JSON. Mapping back to the domain does not check the rules of the values
+/// again, but a shape the customer cannot have (an inactive customer marked blocked, two default addresses) is corrupt.
 /// </summary>
 internal sealed class CustomerRow
 {
@@ -48,12 +50,12 @@ internal sealed class CustomerRow
     {
         var content = customer.Content;
         Version = customer.Version.Value;
-        Name = content.Name;
+        Name = content.Name.Value;
         TaxId = content.TaxId.Map(t => t.Value).OrNull();
-        City = content.BillingAddress.City;
+        City = content.BillingAddress.City.Value;
         SalespersonEmail = CustomerViews.SalespersonEmail(content).OrNull();
         Active = customer.Active;
-        Blocked = content.Terms.Blocked;
+        Blocked = customer.Blocked;
         Content = JsonSerializer.Serialize(content, PersistenceJson.Options);
         SearchText = SearchTextOf(customer);
         UpdatedAt = now;
@@ -63,15 +65,21 @@ internal sealed class CustomerRow
         new(
             Persisted.Rehydrate<CustomerCode, string>(Code),
             Persisted.Rehydrate<SourceVersion, long>(Version),
-            JsonSerializer.Deserialize<CustomerContent>(Content, PersistenceJson.Options) ?? throw new JsonException("Stored customer content is null."),
-            Active);
+            Stored.Required(JsonSerializer.Deserialize<CustomerContent>(Content, PersistenceJson.Options), "customer content"),
+            (Active, Blocked) switch
+            {
+                (true, false) => CustomerStanding.Active,
+                (true, true) => CustomerStanding.Blocked,
+                (false, false) => CustomerStanding.Inactive,
+                _ => throw Stored.Corrupt($"customer {Code} is inactive and blocked"),
+            });
 
     private static string SearchTextOf(Customer customer) =>
         Folding.Fold(string.Join(
             ' ',
-            new[] { customer.Code.Value, customer.Content.Name }
+            new[] { customer.Code.Value, customer.Content.Name.Value }
                 .Concat(customer.Content.TaxId.AsEnumerable().SelectMany(t => new[] { t.Value, t.Number }))
-                .Append(customer.Content.BillingAddress.City)
-                .Concat(customer.Content.DeliveryAddresses.Select(a => a.Address.City))
+                .Append(customer.Content.BillingAddress.City.Value)
+                .Concat(customer.Content.DeliveryAddresses.Addresses.Select(a => a.Address.City.Value))
                 .Distinct()));
 }

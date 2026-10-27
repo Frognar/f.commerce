@@ -41,14 +41,6 @@ public sealed class ModelingRulesTests
     /// </summary>
     private static readonly string[] KnownViolations =
     [
-        // Phase 4: Customers
-        "FCommerce.Customers.Domain.Address",
-        "FCommerce.Customers.Domain.CommercialTerms",
-        "FCommerce.Customers.Domain.Contact",
-        "FCommerce.Customers.Domain.CustomerContent",
-        "FCommerce.Customers.Domain.DeliveryAddress",
-        "FCommerce.Customers.Domain.Salesperson",
-
         // Phase 5: Cart
         "FCommerce.Cart.Domain.CartCommand+ChangeQuantity",
         "FCommerce.Cart.Domain.CartCommand+RemoveItem",

@@ -34,12 +34,16 @@ public sealed class CustomerValidationTests
     {
         var customer = Valid(Input());
 
-        Assert.Equal("Hurtownia Śruba sp. z o.o.", customer.Content.Name);
+        Assert.Equal("Hurtownia Śruba sp. z o.o.", customer.Content.Name.Value);
         Assert.Equal("PL5261040828", customer.Content.TaxId.ShouldBeSome().Value);
         Assert.Equal(("00-950", "PL"), (customer.Content.BillingAddress.PostalCode.Value, customer.Content.BillingAddress.Country.Value));
-        Assert.Equal("jan.kowalski@sruba.pl", customer.Content.Contacts[0].Email.ShouldBeSome().Value);
+        var portal = Assert.IsType<ContactEmail.WithPortalAccess>(customer.Content.Contacts.Contacts[0].Email);
+        Assert.Equal(("jan.kowalski@sruba.pl", "administrator"), (portal.Address.Value, portal.Template.ShouldBeSome().Value));
+        Assert.Equal(ContactEmail.None, customer.Content.Contacts.Contacts[1].Email);
+        Assert.Equal("MAG", customer.Content.DeliveryAddresses.Default.ShouldBeSome().Code.Value);
+        Assert.Equal(CustomerStanding.Active, customer.Standing);
         Assert.Equal("anna@seller.test", customer.Content.Salesperson.ShouldBeSome().Email.ShouldBeSome().Value);
-        Assert.Equal(("HURT", 30, "PLN"), (customer.Content.Terms.PriceListCode.ShouldBeSome(), customer.Content.Terms.PaymentTermDays.ShouldBeSome(), customer.Content.Terms.Currency.Code));
+        Assert.Equal(("HURT", 30, "PLN"), (customer.Content.Terms.PriceListCode.ShouldBeSome().Value, customer.Content.Terms.PaymentTerms.ShouldBeSome().Days, customer.Content.Terms.Currency.Code));
     }
 
     [Fact]
@@ -48,8 +52,8 @@ public sealed class CustomerValidationTests
         var customer = Valid(Input() with { TaxId = " ", DeliveryAddresses = [], Contacts = [], Salesperson = default, PriceListCode = default, PaymentTermDays = default });
 
         customer.Content.TaxId.ShouldBeNone();
-        Assert.Empty(customer.Content.DeliveryAddresses);
-        Assert.Empty(customer.Content.Contacts);
+        Assert.True(customer.Content.DeliveryAddresses.IsEmpty);
+        Assert.Empty(customer.Content.Contacts.Contacts);
         customer.Content.Salesperson.ShouldBeNone();
     }
 
@@ -146,5 +150,21 @@ public sealed class CustomerValidationTests
         Assert.False(Domain.Customers.PortalContactsChanged(default, Valid(Input() with { Contacts = [] })));
         Assert.False(Domain.Customers.PortalContactsChanged(before, phoneOfOther));
         Assert.True(Domain.Customers.PortalContactsChanged(before, newTemplate));
+    }
+
+    [Fact]
+    public void An_inactive_customer_is_inactive_whether_blocked_or_not()
+    {
+        Assert.Equal(CustomerStanding.Blocked, Valid(Input() with { Blocked = true }).Standing);
+        Assert.Equal(CustomerStanding.Inactive, Valid(Input() with { Blocked = true, Active = false }).Standing);
+        Assert.Equal(CustomerStanding.Inactive, Valid(Input() with { Active = false }).Standing);
+    }
+
+    [Fact]
+    public void A_template_without_platform_access_means_nothing()
+    {
+        var customer = Valid(Input() with { Contacts = [new UnvalidatedContact("C1", "Jan", "jan@firma.pl", default, PortalAccess: false, "buyer")] });
+
+        Assert.Equal("jan@firma.pl", Assert.IsType<ContactEmail.Known>(customer.Content.Contacts.Contacts[0].Email).Address.Value);
     }
 }

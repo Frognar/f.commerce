@@ -83,39 +83,53 @@ internal static class CustomerViews
     public static Maybe<string> SalespersonEmail(CustomerContent content) =>
         content.Salesperson.Bind(s => s.Email).Map(email => email.Value);
 
+    public static Maybe<EmailAddress> EmailOf(ContactEmail email) =>
+        email switch
+        {
+            ContactEmail.Known known => known.Address,
+            ContactEmail.WithPortalAccess portal => portal.Address,
+            _ => Maybe<EmailAddress>.None,
+        };
+
     public static CustomerSummary Summary(CustomerRow row) =>
         Summary(row.ToDomain());
 
     public static CustomerSummary Summary(Customer customer) =>
         new(
             customer.Code.Value,
-            customer.Content.Name,
+            customer.Content.Name.Value,
             customer.Content.TaxId.Map(t => t.Value).OrNull(),
-            customer.Content.BillingAddress.City,
-            customer.Content.Salesperson.Map(s => s.Name).OrNull(),
+            customer.Content.BillingAddress.City.Value,
+            customer.Content.Salesperson.Map(s => s.Name.Value).OrNull(),
             SalespersonEmail(customer.Content).OrNull(),
             customer.Active,
-            customer.Content.Terms.Blocked);
+            customer.Blocked);
 
     public static CustomerDetails Details(Customer customer, DateTimeOffset updatedAt)
     {
         var content = customer.Content;
         return new CustomerDetails(
             customer.Code.Value,
-            content.Name,
+            content.Name.Value,
             content.TaxId.Map(t => t.Value).OrNull(),
             Address(content.BillingAddress),
-            [.. content.DeliveryAddresses.Select(a => new DeliveryAddressView(a.Code, a.Name.OrNull(), Address(a.Address), a.IsDefault))],
-            [.. content.Contacts.Select(c => new ContactView(c.ExternalId, c.Name, c.Email.Map(e => e.Value).OrNull(), c.Phone.OrNull(), c.PortalAccess, c.AttributeTemplate.OrNull()))],
-            content.Salesperson.Map(s => new SalespersonView(s.Name, s.Email.Map(e => e.Value).OrNull(), s.Phone.OrNull())).OrNull(),
-            content.Terms.PriceListCode.OrNull(),
-            content.Terms.PaymentTermDays.OrNull(),
+            [.. content.DeliveryAddresses.Entries.Select(e => new DeliveryAddressView(e.Address.Code.Value, e.Address.Name.Map(n => n.Value).OrNull(), Address(e.Address.Address), e.IsDefault))],
+            [.. content.Contacts.Contacts.Select(c => new ContactView(
+                c.ExternalId.Value,
+                c.Name.Value,
+                EmailOf(c.Email).Map(e => e.Value).OrNull(),
+                c.Phone.Map(p => p.Value).OrNull(),
+                c.Email is ContactEmail.WithPortalAccess,
+                (c.Email is ContactEmail.WithPortalAccess portal ? portal.Template : Maybe<ContactTemplate>.None).Map(t => t.Value).OrNull()))],
+            content.Salesperson.Map(s => new SalespersonView(s.Name.Value, s.Email.Map(e => e.Value).OrNull(), s.Phone.Map(p => p.Value).OrNull())).OrNull(),
+            content.Terms.PriceListCode.Map(c => c.Value).OrNull(),
+            content.Terms.PaymentTerms.Map(t => t.Days).OrNull(),
             content.Terms.Currency.Code,
-            content.Terms.Blocked,
+            customer.Blocked,
             customer.Active,
             updatedAt);
     }
 
     private static AddressView Address(Address address) =>
-        new(address.Street, address.PostalCode.Value, address.City, address.Country.Value);
+        new(address.Street.Value, address.PostalCode.Value, address.City.Value, address.Country.Value);
 }
